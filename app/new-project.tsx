@@ -32,6 +32,7 @@ export default function NewProjectScreen() {
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [showTeamModal, setShowTeamModal] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [newTeamMember, setNewTeamMember] = useState("")
 
   // Animation for the create button
   const buttonOpacity = new Animated.Value(0.5)
@@ -123,10 +124,15 @@ export default function NewProjectScreen() {
     }
   }
 
-  const handleAddTeamMember = (member: string) => {
-    if (member.trim() && !teamMembers.includes(member.trim())) {
-      setTeamMembers([...teamMembers, member.trim()])
+  const handleAddTeamMember = () => {
+    if (newTeamMember.trim() && !teamMembers.includes(newTeamMember.trim())) {
+      setTeamMembers([...teamMembers, newTeamMember.trim()])
+      setNewTeamMember("")
     }
+  }
+
+  const handleSubmitEditing = () => {
+    handleAddTeamMember()
   }
 
   const handleRemoveTeamMember = (member: string) => {
@@ -259,22 +265,35 @@ export default function NewProjectScreen() {
           transparent={true}
           onRequestClose={() => setShowTeamModal(false)}
         >
-          <View style={styles.teamModal}>
-            <View style={styles.teamModalContent}>
-              <Text style={styles.teamModalTitle}>Add Team Member</Text>
+          <View style={[styles.teamModal, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+            <View style={[styles.teamModalContent, { backgroundColor: theme.cardBackground }]}>
+              <Text style={[styles.teamModalTitle, { color: theme.text }]}>Add Team Member</Text>
               <TextInput
-                style={styles.teamModalInput}
+                style={[styles.teamModalInput, { 
+                  backgroundColor: theme.background,
+                  color: theme.text,
+                  borderColor: theme.border 
+                }]}
                 placeholder="Enter member name"
                 placeholderTextColor={theme.textDim}
-                value={teamMembers.join(", ")}
-                onChangeText={handleAddTeamMember}
+                value={newTeamMember}
+                onChangeText={setNewTeamMember}
+                onSubmitEditing={handleSubmitEditing}
               />
-              <TouchableOpacity
-                style={styles.teamModalButton}
-                onPress={() => setShowTeamModal(false)}
-              >
-                <Text style={styles.teamModalButtonText}>Add</Text>
-              </TouchableOpacity>
+              <View style={styles.teamModalButtons}>
+                <TouchableOpacity
+                  style={[styles.teamModalButton, { backgroundColor: theme.tint }]}
+                  onPress={handleAddTeamMember}
+                >
+                  <Text style={styles.teamModalButtonText}>Add</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.teamModalButton, { backgroundColor: theme.textDim }]}
+                  onPress={() => setShowTeamModal(false)}
+                >
+                  <Text style={styles.teamModalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -384,40 +403,43 @@ const styles = StyleSheet.create({
   },
   teamModal: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   teamModalContent: {
-    backgroundColor: "white",
     padding: 20,
     borderRadius: 20,
-    width: "80%",
-    alignItems: "center",
+    width: '80%',
+    alignItems: 'center',
   },
   teamModalTitle: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     marginBottom: 20,
   },
   teamModalInput: {
     borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    padding: 10,
-    width: "100%",
+    borderRadius: 8,
+    padding: 12,
+    width: '100%',
     marginBottom: 20,
+    fontSize: 16,
+  },
+  teamModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 10,
   },
   teamModalButton: {
-    backgroundColor: theme.tint,
-    padding: 10,
-    borderRadius: 5,
-    width: "100%",
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   teamModalButtonText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
+    fontWeight: '600',
   },
 })
