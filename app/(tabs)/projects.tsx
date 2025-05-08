@@ -1,17 +1,36 @@
 "use client"
 
-import { StyleSheet, View, Text, FlatList, Pressable, TouchableOpacity, Animated } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { useEffect, useState } from "react"
+import {
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  TouchableOpacity,
+  Animated,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native"
+import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useRef } from "react"
 import { useColorScheme } from "react-native"
 
 import { ProjectCard } from "@/components/ProjectCard"
 import Colors from "@/constants/Colors"
+import { projectService } from "@/services/projectService"
+import { useToast } from "@/contexts/ToastContext"
+import type { Project } from "@/services/projectService"
 
 export default function ProjectsScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
+  const { showToast } = useToast()
+
+  const [projects, setProjects] = useState<Project[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Animation for the add button
   const scaleAnim = useRef(new Animated.Value(1)).current
@@ -32,46 +51,42 @@ export default function ProjectsScreen() {
     }).start()
   }
 
-  // Mock data for projects
-  const projects = [
-    {
-      id: "1",
-      name: "Code Cue",
-      description: "AI-powered developer assistant",
-      progress: 68,
-      lastUpdated: "2025-05-08T14:30:00Z",
-    },
-    {
-      id: "2",
-      name: "DevTracker",
-      description: "Time tracking for developers",
-      progress: 42,
-      lastUpdated: "2025-05-07T09:15:00Z",
-    },
-    {
-      id: "3",
-      name: "GitFlow",
-      description: "Git workflow visualization",
-      progress: 89,
-      lastUpdated: "2025-05-06T16:45:00Z",
-    },
-    {
-      id: "4",
-      name: "CodeReview",
-      description: "Automated code review tool",
-      progress: 23,
-      lastUpdated: "2025-05-05T11:20:00Z",
-    },
-  ]
+  const fetchProjects = async () => {
+    try {
+      const data = await projectService.getProjects()
+      setProjects(data)
+    } catch (error) {
+      console.error("Error fetching projects:", error)
+      showToast("Failed to load projects. Please try again.", "error")
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    fetchProjects()
+  }
+
+  useEffect(() => {
+    fetchProjects()
+  }, [])
 
   const handleProjectPress = (projectId: string) => {
-    // Navigate to project details
     router.push(`/project/${projectId}`)
   }
 
   const handleNewProject = () => {
-    // Navigate to new project screen
     router.push("/new-project")
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.tint} />
+      </View>
+    )
   }
 
   return (
@@ -92,20 +107,36 @@ export default function ProjectsScreen() {
         </Animated.View>
       </View>
 
-      <FlatList
-        data={projects}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleProjectPress(item.id)}
-            style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-          >
-            <ProjectCard project={item} />
-          </Pressable>
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {projects.length === 0 ? (
+        <View style={[styles.emptyState, { backgroundColor: theme.cardBackground }]}>
+          <Ionicons name="folder-open-outline" size={48} color={theme.textDim} />
+          <Text style={[styles.emptyStateText, { color: theme.textDim }]}>
+            No projects yet. Create your first project!
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={projects}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => handleProjectPress(item.id)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+            >
+              <ProjectCard project={item} />
+            </Pressable>
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              tintColor={theme.tint}
+            />
+          }
+        />
+      )}
     </View>
   )
 }
@@ -113,6 +144,10 @@ export default function ProjectsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -145,5 +180,18 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingTop: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    margin: 20,
+    borderRadius: 12,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 12,
   },
 })

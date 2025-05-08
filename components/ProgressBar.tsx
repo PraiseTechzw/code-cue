@@ -1,52 +1,36 @@
 "use client"
 
 import { View, StyleSheet, Animated } from "react-native"
-import { useRef, useEffect } from "react"
-import { useColorScheme } from "react-native"
-import Colors from "@/constants/Colors"
+import { useEffect, useRef } from "react"
 
 interface ProgressBarProps {
-  progress: number // 0-100
+  progress: number
+  color?: string
 }
 
-export function ProgressBar({ progress }: ProgressBarProps) {
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? "light"]
-
-  // Ensure progress is between 0 and 100
-  const clampedProgress = Math.min(Math.max(progress, 0), 100)
-
-  // Animation for progress bar
-  const progressAnim = useRef(new Animated.Value(0)).current
+export function ProgressBar({ progress, color = "#2196F3" }: ProgressBarProps) {
+  const widthAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: clampedProgress,
-      duration: 1000,
+    Animated.spring(widthAnim, {
+      toValue: progress,
+      friction: 8,
+      tension: 40,
       useNativeDriver: false,
     }).start()
-  }, [clampedProgress])
-
-  // Interpolate width from animation value
-  const width = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ["0%", "100%"],
-  })
-
-  // Interpolate color based on progress
-  const backgroundColor = progressAnim.interpolate({
-    inputRange: [0, 30, 70, 100],
-    outputRange: ["#F44336", "#FF9800", "#2196F3", "#4CAF50"],
-  })
+  }, [progress])
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.border }]}>
+    <View style={[styles.container, { backgroundColor: `${color}20` }]}>
       <Animated.View
         style={[
-          styles.progressFill,
+          styles.progress,
           {
-            width,
-            backgroundColor,
+            width: widthAnim.interpolate({
+              inputRange: [0, 100],
+              outputRange: ["0%", "100%"],
+            }),
+            backgroundColor: color,
           },
         ]}
       />
@@ -60,7 +44,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: "hidden",
   },
-  progressFill: {
+  progress: {
     height: "100%",
     borderRadius: 4,
   },

@@ -12,16 +12,22 @@ import {
   Platform,
   Animated,
   Modal,
+  Alert,
 } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"
 import DateTimePicker from '@react-native-community/datetimepicker'
+import { projectService } from "@/services/projectService"
+import { useAuth } from "@/contexts/AuthContext"
+import { useToast } from "@/contexts/ToastContext"
 
 export default function NewProjectScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
+  const { user } = useAuth()
+  const { showToast } = useToast()
 
   const [projectName, setProjectName] = useState("")
   const [description, setDescription] = useState("")
@@ -32,6 +38,7 @@ export default function NewProjectScreen() {
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [showTeamModal, setShowTeamModal] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [isLoading, setIsLoading] = useState(false)
   const [newTeamMember, setNewTeamMember] = useState("")
 
   // Animation for the create button
@@ -81,19 +88,28 @@ export default function NewProjectScreen() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleCreateProject = () => {
-    if (validateForm()) {
-      // In a real app, this would save the project to a database
-      console.log("Creating project:", { 
-        projectName, 
-        description, 
-        startDate: startDate?.toISOString(), 
-        endDate: endDate?.toISOString(),
-        teamMembers 
-      })
+  const handleCreateProject = async () => {
+    if (!validateForm() || !user) return
 
-      // Navigate back to projects screen
+    setIsLoading(true)
+    try {
+      const project = {
+        name: projectName.trim(),
+        description: description.trim(),
+        progress: 0,
+        start_date: startDate?.toISOString() || null,
+        end_date: endDate?.toISOString() || null,
+        owner_id: user.id,
+      }
+
+      await projectService.createProject(project)
+      showToast("Project created successfully!", "success")
       router.push("/projects")
+    } catch (error) {
+      console.error("Error creating project:", error)
+      showToast("Failed to create project. Please try again.", "error")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -226,15 +242,21 @@ export default function NewProjectScreen() {
 
           <Animated.View style={{ opacity: buttonOpacity, transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
-              style={[styles.createButton, { backgroundColor: theme.tint }]}
+              style={[
+                styles.createButton, 
+                { backgroundColor: theme.tint },
+                isLoading && styles.disabledButton
+              ]}
               onPress={handleCreateProject}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
-              disabled={!isFormValid}
+              disabled={!isFormValid || isLoading}
               activeOpacity={0.8}
             >
               <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.createIcon} />
-              <Text style={styles.createButtonText}>Create Project</Text>
+              <Text style={styles.createButtonText}>
+                {isLoading ? "Creating..." : "Create Project"}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -441,5 +463,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 })
