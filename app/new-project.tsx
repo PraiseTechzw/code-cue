@@ -11,11 +11,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Modal,
 } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"
+import DateTimePicker from '@react-native-community/datetimepicker'
 
 export default function NewProjectScreen() {
   const colorScheme = useColorScheme()
@@ -23,8 +25,12 @@ export default function NewProjectScreen() {
 
   const [projectName, setProjectName] = useState("")
   const [description, setDescription] = useState("")
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
+  const [teamMembers, setTeamMembers] = useState<string[]>([])
+  const [showTeamModal, setShowTeamModal] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   // Animation for the create button
@@ -66,6 +72,10 @@ export default function NewProjectScreen() {
       newErrors.description = "Description is required"
     }
 
+    if (startDate && endDate && startDate > endDate) {
+      newErrors.dates = "End date must be after start date"
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -73,7 +83,13 @@ export default function NewProjectScreen() {
   const handleCreateProject = () => {
     if (validateForm()) {
       // In a real app, this would save the project to a database
-      console.log("Creating project:", { projectName, description, startDate, endDate })
+      console.log("Creating project:", { 
+        projectName, 
+        description, 
+        startDate: startDate?.toISOString(), 
+        endDate: endDate?.toISOString(),
+        teamMembers 
+      })
 
       // Navigate back to projects screen
       router.push("/projects")
@@ -82,6 +98,39 @@ export default function NewProjectScreen() {
 
   const handleBack = () => {
     router.back()
+  }
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return "Select date"
+    return date.toLocaleDateString("en-US", { 
+      year: "numeric",
+      month: "short", 
+      day: "numeric" 
+    })
+  }
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(false)
+    if (selectedDate) {
+      setStartDate(selectedDate)
+    }
+  }
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(false)
+    if (selectedDate) {
+      setEndDate(selectedDate)
+    }
+  }
+
+  const handleAddTeamMember = (member: string) => {
+    if (member.trim() && !teamMembers.includes(member.trim())) {
+      setTeamMembers([...teamMembers, member.trim()])
+    }
+  }
+
+  const handleRemoveTeamMember = (member: string) => {
+    setTeamMembers(teamMembers.filter(m => m !== member))
   }
 
   return (
@@ -139,8 +188,9 @@ export default function NewProjectScreen() {
               <Text style={[styles.label, { color: theme.text }]}>Start Date</Text>
               <TouchableOpacity
                 style={[styles.dateInput, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                onPress={() => setShowStartDatePicker(true)}
               >
-                <Text style={{ color: startDate ? theme.text : theme.textDim }}>{startDate || "Select date"}</Text>
+                <Text style={{ color: startDate ? theme.text : theme.textDim }}>{formatDate(startDate)}</Text>
                 <Ionicons name="calendar-outline" size={20} color={theme.textDim} />
               </TouchableOpacity>
             </View>
@@ -149,8 +199,9 @@ export default function NewProjectScreen() {
               <Text style={[styles.label, { color: theme.text }]}>End Date</Text>
               <TouchableOpacity
                 style={[styles.dateInput, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                onPress={() => setShowEndDatePicker(true)}
               >
-                <Text style={{ color: endDate ? theme.text : theme.textDim }}>{endDate || "Select date"}</Text>
+                <Text style={{ color: endDate ? theme.text : theme.textDim }}>{formatDate(endDate)}</Text>
                 <Ionicons name="calendar-outline" size={20} color={theme.textDim} />
               </TouchableOpacity>
             </View>
@@ -160,6 +211,7 @@ export default function NewProjectScreen() {
             <Text style={[styles.label, { color: theme.text }]}>Team Members</Text>
             <TouchableOpacity
               style={[styles.addMemberButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+              onPress={() => setShowTeamModal(true)}
             >
               <Ionicons name="person-add-outline" size={20} color={theme.tint} />
               <Text style={[styles.addMemberText, { color: theme.tint }]}>Add Team Members</Text>
@@ -181,6 +233,52 @@ export default function NewProjectScreen() {
           </Animated.View>
         </View>
       </ScrollView>
+
+      {showStartDatePicker && (
+        <DateTimePicker
+          value={startDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={handleStartDateChange}
+        />
+      )}
+
+      {showEndDatePicker && (
+        <DateTimePicker
+          value={endDate || new Date()}
+          mode="date"
+          display="default"
+          onChange={handleEndDateChange}
+        />
+      )}
+
+      {showTeamModal && (
+        <Modal
+          visible={showTeamModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowTeamModal(false)}
+        >
+          <View style={styles.teamModal}>
+            <View style={styles.teamModalContent}>
+              <Text style={styles.teamModalTitle}>Add Team Member</Text>
+              <TextInput
+                style={styles.teamModalInput}
+                placeholder="Enter member name"
+                placeholderTextColor={theme.textDim}
+                value={teamMembers.join(", ")}
+                onChangeText={handleAddTeamMember}
+              />
+              <TouchableOpacity
+                style={styles.teamModalButton}
+                onPress={() => setShowTeamModal(false)}
+              >
+                <Text style={styles.teamModalButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
     </KeyboardAvoidingView>
   )
 }
@@ -283,5 +381,43 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  teamModal: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  teamModalContent: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 20,
+    width: "80%",
+    alignItems: "center",
+  },
+  teamModalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  teamModalInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    padding: 10,
+    width: "100%",
+    marginBottom: 20,
+  },
+  teamModalButton: {
+    backgroundColor: theme.tint,
+    padding: 10,
+    borderRadius: 5,
+    width: "100%",
+  },
+  teamModalButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
   },
 })

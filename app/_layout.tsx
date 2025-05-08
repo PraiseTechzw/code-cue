@@ -11,6 +11,7 @@ import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import Colors from "@/constants/Colors"
 import { ThemeProvider } from "@/contexts/ThemeContext"
+import { NetworkStatus } from "@/components/NetworkStatus"
 
 export default function RootLayout() {
   const colorScheme = useColorScheme()
@@ -53,6 +54,7 @@ export default function RootLayout() {
       <AuthProvider>
         <ToastProvider>
           <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+          <NetworkStatus />
           <Stack
             screenOptions={{
               headerStyle: {
