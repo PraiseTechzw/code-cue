@@ -119,12 +119,10 @@ export default function ProjectsScreen() {
           data={projects}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <Pressable
-              onPress={() => handleProjectPress(item.id)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-            >
-              <ProjectCard project={item} />
-            </Pressable>
+            <ProjectCard 
+              project={item} 
+              onPress={() => handleProjectPress(item.id)} 
+            />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
