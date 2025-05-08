@@ -37,6 +37,8 @@ type ProjectMember = Database["public"]["Tables"]["project_members"]["Row"] & {
   }
 }
 
+type Project = Database["public"]["Tables"]["projects"]["Row"]
+
 type TeamMember = {
   id: string
   name: string
@@ -73,7 +75,14 @@ export default function AddTaskScreen() {
   const fetchProjectData = async () => {
     if (!projectId) return
     try {
-      const projectData = await projectService.getProjectById(projectId as string)
+      // Fetch project data directly from the database
+      const { data: projectData, error: projectError } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("id", projectId)
+        .single()
+
+      if (projectError) throw projectError
       setProject(projectData)
 
       // Fetch project members from the database
@@ -113,11 +122,12 @@ export default function AddTaskScreen() {
     } catch (error) {
       console.error("Error fetching project data:", error)
       showToast("Failed to load project data", "error")
+      router.back() // Navigate back if project data can't be loaded
     }
   }
 
   // Update button opacity based on form validity
-  const isFormValid = taskTitle.trim() !== ""
+  const isFormValid = taskTitle.trim() !== "" && project !== null
   buttonOpacity.setValue(isFormValid ? 1 : 0.5)
 
   const handlePressIn = () => {
@@ -143,6 +153,11 @@ export default function AddTaskScreen() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
+    if (!project) {
+      newErrors.project = "Project not found"
+      return false
+    }
+
     if (taskTitle.trim() === "") {
       newErrors.taskTitle = "Task title is required"
     }
@@ -151,12 +166,24 @@ export default function AddTaskScreen() {
       newErrors.dueDate = "Due date cannot be in the past"
     }
 
+    // Validate due date against project timeline
+    if (dueDate && project.start_date && project.end_date) {
+      const projectStart = new Date(project.start_date)
+      const projectEnd = new Date(project.end_date)
+      
+      if (dueDate < projectStart) {
+        newErrors.dueDate = "Due date cannot be before project start date"
+      } else if (dueDate > projectEnd) {
+        newErrors.dueDate = "Due date cannot be after project end date"
+      }
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleAddTask = async () => {
-    if (!validateForm() || !user || !projectId) return
+    if (!validateForm() || !user || !projectId || !project) return
 
     setIsLoading(true)
     try {
