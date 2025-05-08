@@ -35,3 +35,59 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Sensitive Information
+# Environment files
+.env
+.env.*
+!.env.example
+
+# API keys and secrets
+*.key
+*.pem
+*.cert
+*.crt
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+*.provisionprofile
+
+# Firebase configuration
+google-services.json
+GoogleService-Info.plist
+*-firebase-adminsdk-*.json
+firebase-debug.log
+firebase-debug.*.log
+
+# Personal configuration
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and databases
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Cache and temporary files
+.cache/
+.temp/
+tmp/
+temp/
+
+# Build and distribution
+build/
+dist/
+out/
+.next/
+.nuxt/
+.output/
+
+# Coverage and test
+coverage/
+.nyc_output/

@@ -21,7 +21,10 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "zw.co.codecue.app",
+      "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./google-services.json"
+
     },
     "web": {
       "bundler": "metro",
@@ -33,6 +36,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "21955ae8-91db-421b-9bcc-0ba39b05884f"
+      }
     }
   }
 }
