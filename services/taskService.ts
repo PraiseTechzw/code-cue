@@ -30,8 +30,29 @@ export const taskService = {
         .from("tasks")
         .select(`
           *,
-          subtasks(*),
-          comments(*, profiles:user_id(username, avatar_url))
+          assignee:profiles!assignee_id (
+            id,
+            username,
+            full_name,
+            avatar_url
+          ),
+          comments (
+            id,
+            text,
+            user_id,
+            created_at,
+            profiles (
+              username,
+              full_name,
+              avatar_url
+            )
+          ),
+          subtasks (
+            id,
+            title,
+            completed,
+            created_at
+          )
         `)
         .eq("id", id)
         .single()
