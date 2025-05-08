@@ -147,8 +147,7 @@ export default function ProjectDetailScreen() {
   }
 
   const handleEdit = () => {
-    if (!project) return
-    router.push(`/edit-project/${project.id}`)
+    router.push(`/edit-project/${id}`)
   }
 
   // Filter tasks based on active filter
