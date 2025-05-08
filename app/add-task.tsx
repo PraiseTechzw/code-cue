@@ -23,15 +23,13 @@ import Colors from "@/constants/Colors"
 import { taskService } from "@/services/taskService"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
-import { projectService } from "@/services/projectService"
-import type { Project } from "@/services/projectService"
 import { supabase } from "@/lib/supabase"
 import type { Database } from "@/types/supabase"
 
 type ProjectMember = Database["public"]["Tables"]["project_members"]["Row"] & {
   profiles: {
     id: string
-    username: string
+    username: string | null
     full_name: string | null
     avatar_url: string | null
   }
@@ -82,7 +80,11 @@ export default function AddTaskScreen() {
         .eq("id", projectId)
         .single()
 
-      if (projectError) throw projectError
+      if (projectError) {
+        console.error("Error fetching project:", projectError)
+        showToast("Failed to load project data", "error")
+        return
+      }
       setProject(projectData)
 
       // Fetch project members from the database
@@ -90,7 +92,7 @@ export default function AddTaskScreen() {
         .from("project_members")
         .select(`
           user_id,
-          profiles:user_id (
+          profiles (
             id,
             username,
             full_name,
@@ -100,12 +102,16 @@ export default function AddTaskScreen() {
         .eq("project_id", projectId)
         .returns<ProjectMember[]>()
 
-      if (membersError) throw membersError
+      if (membersError) {
+        console.error("Error fetching members:", membersError)
+        showToast("Failed to load team members", "error")
+        return
+      }
 
       // Transform the data to match our team members format
       const members = projectMembers.map((member) => ({
         id: member.user_id,
-        name: member.profiles.full_name || member.profiles.username,
+        name: member.profiles.full_name || member.profiles.username || "Unknown User",
         avatar: member.profiles.avatar_url,
       }))
 
@@ -122,7 +128,7 @@ export default function AddTaskScreen() {
     } catch (error) {
       console.error("Error fetching project data:", error)
       showToast("Failed to load project data", "error")
-      router.back() // Navigate back if project data can't be loaded
+      // Don't navigate back, just show the error
     }
   }
 
