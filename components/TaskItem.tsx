@@ -1,20 +1,16 @@
 "use client"
 
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useRef } from "react"
 import { useColorScheme } from "react-native"
 
 import Colors from "@/constants/Colors"
+import type { Task } from "@/services/taskService"
 
 interface TaskProps {
-  task: {
-    id: string
-    title: string
-    dueDate: string
-    priority: string
-  }
+  task: Task
   status: "todo" | "inProgress" | "done"
 }
 
@@ -41,7 +37,8 @@ export function TaskItem({ task, status }: TaskProps) {
     }).start()
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "No due date"
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
   }
@@ -100,7 +97,7 @@ export function TaskItem({ task, status }: TaskProps) {
             <View style={styles.taskMeta}>
               <View style={styles.dueDateContainer}>
                 <Ionicons name="calendar-outline" size={12} color={theme.textDim} style={styles.calendarIcon} />
-                <Text style={[styles.dueDate, { color: theme.textDim }]}>Due {formatDate(task.dueDate)}</Text>
+                <Text style={[styles.dueDate, { color: theme.textDim }]}>Due {formatDate(task.due_date)}</Text>
               </View>
               <View style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}>
                 <Text style={styles.priorityText}>{task.priority}</Text>

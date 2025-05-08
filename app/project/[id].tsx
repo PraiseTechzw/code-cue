@@ -1,22 +1,41 @@
 "use client"
 
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated } from "react-native"
-import { useState, useRef } from "react"
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  ScrollView, 
+  TouchableOpacity, 
+  Animated, 
+  ActivityIndicator,
+  RefreshControl,
+  useColorScheme 
+} from "react-native"
+import { useState, useRef, useEffect } from "react"
 import { useLocalSearchParams, router } from "expo-router"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
-import { useColorScheme } from "react-native"
+import Ionicons from "@expo/vector-icons/Ionicons"
 
 import { TaskItem } from "@/components/TaskItem"
 import { ProgressBar } from "@/components/ProgressBar"
 import Colors from "@/constants/Colors"
+import { projectService } from "@/services/projectService"
+import { taskService } from "@/services/taskService"
+import { useToast } from "@/contexts/ToastContext"
+import type { Project } from "@/services/projectService"
+import type { Task } from "@/services/taskService"
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams()
   const [filterVisible, setFilterVisible] = useState(false)
   const [activeFilter, setActiveFilter] = useState("all")
+  const [project, setProject] = useState<Project | null>(null)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
+  const { showToast } = useToast()
 
   // Animation for the add button
   const addButtonScale = useRef(new Animated.Value(1)).current
@@ -37,30 +56,32 @@ export default function ProjectDetailScreen() {
     }).start()
   }
 
-  // Mock project data based on ID
-  const project = {
-    id: id as string,
-    name: "Code Cue",
-    description: "AI-powered developer assistant",
-    progress: 68,
-    tasks: [
-      { id: "1", title: "Implement user settings", dueDate: "2025-05-15", priority: "High", status: "todo" },
-      { id: "2", title: "Add dark mode support", dueDate: "2025-05-20", priority: "Medium", status: "todo" },
-      { id: "3", title: "GitHub integration", dueDate: "2025-05-10", priority: "High", status: "inProgress" },
-      { id: "4", title: "Notification system", dueDate: "2025-05-12", priority: "Medium", status: "inProgress" },
-      { id: "5", title: "Project setup", dueDate: "2025-05-01", priority: "High", status: "done" },
-      { id: "6", title: "Basic UI components", dueDate: "2025-05-03", priority: "High", status: "done" },
-      { id: "7", title: "Navigation structure", dueDate: "2025-05-05", priority: "Medium", status: "done" },
-      { id: "8", title: "Authentication flow", dueDate: "2025-05-07", priority: "High", status: "done" },
-    ],
+  const fetchProjectData = async () => {
+    try {
+      const [projectData, tasksData] = await Promise.all([
+        projectService.getProjectById(id as string),
+        taskService.getTasksByProject(id as string),
+      ])
+      setProject(projectData)
+      setTasks(tasksData)
+    } catch (error) {
+      console.error("Error fetching project data:", error)
+      showToast("Failed to load project data. Please try again.", "error")
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
   }
+
+  useEffect(() => {
+    fetchProjectData()
+  }, [id])
 
   // Filter tasks based on active filter
   const filteredTasks =
-    activeFilter === "all" ? project.tasks : project.tasks.filter((task) => task.status === activeFilter)
+    activeFilter === "all" ? tasks : tasks.filter((task) => task.status === activeFilter)
 
   const handleAddTask = () => {
-    // Navigate to add task screen
     router.push(`/add-task?projectId=${id}`)
   }
 
@@ -70,6 +91,28 @@ export default function ProjectDetailScreen() {
 
   const handleFilterChange = (filter: string) => {
     setActiveFilter(filter)
+  }
+
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    fetchProjectData()
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.tint} />
+      </View>
+    )
+  }
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={theme.textDim} />
+        <Text style={[styles.errorText, { color: theme.textDim }]}>Project not found</Text>
+      </View>
+    )
   }
 
   return (
@@ -192,10 +235,23 @@ export default function ProjectDetailScreen() {
         </ScrollView>
       )}
 
-      <ScrollView style={styles.tasksList}>
+      <ScrollView 
+        style={styles.tasksList}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.tint}
+          />
+        }
+      >
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
-            <TaskItem key={task.id} task={task} status={task.status as "todo" | "inProgress" | "done"} />
+            <TaskItem 
+              key={task.id} 
+              task={task} 
+              status={task.status as "todo" | "inProgress" | "done"} 
+            />
           ))
         ) : (
           <View style={styles.emptyTasksContainer}>
@@ -213,6 +269,10 @@ export default function ProjectDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -249,48 +309,38 @@ const styles = StyleSheet.create({
   progressPercentageContainer: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 16,
+    borderRadius: 12,
   },
   progressPercentage: {
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 14,
+    fontWeight: "600",
   },
   tasksHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    padding: 20,
+    paddingBottom: 10,
   },
   tasksTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "600",
   },
   taskActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 12,
   },
   filterButton: {
-    padding: 10,
-    marginRight: 12,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    padding: 8,
+    borderRadius: 8,
   },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   addButtonText: {
     color: "#fff",
@@ -298,22 +348,19 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   filterContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    gap: 8,
   },
   filterOption: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: "rgba(0,0,0,0.05)",
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   activeFilterOption: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderColor: "transparent",
   },
   filterOptionText: {
     fontSize: 14,
@@ -325,17 +372,22 @@ const styles = StyleSheet.create({
   },
   tasksList: {
     flex: 1,
-    padding: 16,
+    padding: 20,
+    paddingTop: 10,
   },
   emptyTasksContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 40,
-    marginTop: 40,
+    padding: 20,
   },
   emptyTasksText: {
     fontSize: 16,
-    marginTop: 16,
+    textAlign: "center",
+    marginTop: 12,
+  },
+  errorText: {
+    fontSize: 16,
+    marginTop: 12,
   },
 })
