@@ -1,23 +1,117 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { Tabs } from "expo-router"
-import { useColorScheme } from "react-native"
-import Ionicons  from "@expo/vector-icons/Ionicons"
+import { useColorScheme, Animated, Pressable, StyleSheet, View, Text } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
 import { notificationService } from "@/services/notificationService"
+import { offlineStore } from "@/services/offlineStore"
 import Colors from "@/constants/Colors"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import * as Haptics from "expo-haptics"
+import { ConnectionStatus } from "@/components/ConnectionStatus"
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs"
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme()
-  const [unreadCount, setUnreadCount] = useState(0)
+// Custom Tab Bar Button component
+interface TabBarButtonProps {
+  isFocused: boolean
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  onPress: () => void
+  badge?: number
+  colorScheme?: "light" | "dark"
+}
+
+function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }: TabBarButtonProps) {
+  const theme = Colors[colorScheme]
+  const focusAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
-    // Get initial unread count
+    Animated.timing(focusAnim, {
+      toValue: isFocused ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start()
+  }, [isFocused])
+
+  const scale = focusAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.1],
+  })
+
+  const handlePress = () => {
+    // Provide haptic feedback on tab press
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    onPress()
+  }
+
+  return (
+    <Pressable
+      onPress={handlePress}
+      style={styles.tabButton}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={`${label} tab`}
+    >
+      <Animated.View style={[styles.tabButtonContent, { transform: [{ scale }] }]}>
+        <View style={styles.iconContainer}>
+          <Ionicons name={icon} size={24} color={isFocused ? theme.tint : theme.tabIconDefault} />
+
+          {badge > 0 && (
+            <View style={[styles.badge, { backgroundColor: theme.tint }]}>
+              <Text style={styles.badgeText}>{badge > 99 ? "99+" : badge}</Text>
+            </View>
+          )}
+        </View>
+
+        <Animated.Text
+          style={[
+            styles.tabLabel,
+            {
+              color: isFocused ? theme.tint : theme.tabIconDefault,
+              opacity: focusAnim,
+              transform: [
+                {
+                  translateY: focusAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -4],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {label}
+        </Animated.Text>
+
+        {isFocused && (
+          <Animated.View
+            style={[
+              styles.tabIndicator,
+              {
+                backgroundColor: theme.tint,
+                opacity: focusAnim,
+                transform: [{ scaleX: focusAnim }],
+              },
+            ]}
+          />
+        )}
+      </Animated.View>
+    </Pressable>
+  )
+}
+
+export default function TabLayout() {
+  const colorScheme = useColorScheme() as "light" | "dark"
+  const theme = Colors[colorScheme ?? "light"]
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
+  const insets = useSafeAreaInsets()
+
+  useEffect(() => {
     loadUnreadCount()
-
-    // Set up interval to refresh unread count
-    const interval = setInterval(loadUnreadCount, 30000) // Every 30 seconds
-
+    const interval = setInterval(loadUnreadCount, 30000)
+    loadLastSyncTime()
     return () => clearInterval(interval)
   }, [])
 
@@ -30,72 +124,202 @@ export default function TabLayout() {
     }
   }
 
+  const loadLastSyncTime = async () => {
+    try {
+      const time = await offlineStore.getData("lastSyncTime", async () => null)
+      setLastSyncTime(time)
+    } catch (error) {
+      console.error("Error loading last sync time:", error)
+    }
+  }
+
+  const renderTabBar = (props: BottomTabBarProps) => {
+    const { state, descriptors, navigation } = props
+    return (
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.border,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key]
+          const label = options.title || route.name
+
+          const isFocused = state.index === index
+
+          let iconName: keyof typeof Ionicons.glyphMap = "ellipsis-horizontal"
+          switch (route.name) {
+            case "index":
+              iconName = isFocused ? "home" : "home-outline"
+              break
+            case "projects":
+              iconName = isFocused ? "folder" : "folder-outline"
+              break
+            case "github":
+              iconName = "logo-github"
+              break
+            case "insights":
+              iconName = isFocused ? "bulb" : "bulb-outline"
+              break
+            case "notifications":
+              iconName = isFocused ? "notifications" : "notifications-outline"
+              break
+            case "settings":
+              iconName = isFocused ? "settings" : "settings-outline"
+              break
+          }
+
+          const badge = route.name === "notifications" ? unreadCount : 0
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            })
+
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name)
+            }
+          }
+
+          return (
+            <TabBarButton
+              key={route.key}
+              isFocused={isFocused}
+              icon={iconName}
+              label={label}
+              onPress={onPress}
+              badge={badge}
+              colorScheme={colorScheme}
+            />
+          )
+        })}
+      </View>
+    )
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-        tabBarStyle: {
-          backgroundColor: Colors[colorScheme ?? "light"].background,
-          borderTopWidth: 1,
-          borderTopColor: Colors[colorScheme ?? "light"].border,
-          elevation: 8,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        headerStyle: {
-          backgroundColor: Colors[colorScheme ?? "light"].background,
-          elevation: 4,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-        },
-        headerTintColor: Colors[colorScheme ?? "light"].text,
-        headerShadowVisible: true,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-        }}
-      />
-      <Tabs.Screen
-        name="projects"
-        options={{
-          title: "Projects",
-          tabBarIcon: ({ color, size }) => <Ionicons name="folder-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="github"
-        options={{
-          title: "GitHub",
-          tabBarIcon: ({ color, size }) => <Ionicons name="logo-github" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: "AI Insights",
-          tabBarIcon: ({ color, size }) => <Ionicons name="bulb-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: "Notifications",
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
-          tabBarBadgeStyle: {
-            backgroundColor: Colors[colorScheme ?? "light"].tint,
+    <>
+      <ConnectionStatus lastSyncTime={lastSyncTime} />
+
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: theme.tint,
+          tabBarStyle: {
+            display: "none",
+          },
+          headerStyle: {
+            backgroundColor: theme.background,
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+          },
+          headerTintColor: theme.text,
+          headerShadowVisible: true,
+          headerTitleStyle: {
+            fontWeight: "600",
           },
         }}
-      />
-    </Tabs>
+        tabBar={renderTabBar}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Home",
+          }}
+        />
+        <Tabs.Screen
+          name="projects"
+          options={{
+            title: "Projects",
+          }}
+        />
+        <Tabs.Screen
+          name="github"
+          options={{
+            title: "GitHub",
+          }}
+        />
+        <Tabs.Screen
+          name="insights"
+          options={{
+            title: "AI Insights",
+          }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            title: "Notifications",
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: "Settings",
+          }}
+        />
+      </Tabs>
+    </>
   )
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tabButtonContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconContainer: {
+    position: "relative",
+  },
+  tabLabel: {
+    fontSize: 10,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  tabIndicator: {
+    position: "absolute",
+    bottom: -8,
+    width: 20,
+    height: 3,
+    borderRadius: 1.5,
+  },
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+})

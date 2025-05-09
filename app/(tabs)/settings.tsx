@@ -265,7 +265,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ConnectionStatus />
+      <ConnectionStatus lastSyncTime={lastSynced} />
 
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>

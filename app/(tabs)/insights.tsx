@@ -1,6 +1,6 @@
 "use client"
 
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator, RefreshControl } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
@@ -108,8 +108,9 @@ export default function InsightsScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
-      refreshing={loading}
-      onRefresh={loadInsights}
+      refreshControl={
+        <RefreshControl refreshing={loading} onRefresh={loadInsights} colors={[theme.tint]} tintColor={theme.tint} />
+      }
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>

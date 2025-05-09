@@ -1,21 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Text, StyleSheet, Animated, Easing } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import { useEffect, useState, useRef } from "react"
+import { View, Text, StyleSheet, Animated, Easing } from "react-native"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import NetInfo from "@react-native-community/netinfo"
 import Colors from "@/constants/Colors"
+import { formatDistanceToNow } from "date-fns"
 
 type ConnectionState = "online" | "offline" | "syncing"
 
-export function ConnectionStatus() {
+interface ConnectionStatusProps {
+  lastSyncTime?: string | null
+}
+
+export function ConnectionStatus({ lastSyncTime }: ConnectionStatusProps) {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const [connectionState, setConnectionState] = useState<ConnectionState>("online")
   const [visible, setVisible] = useState(false)
-  const fadeAnim = useState(new Animated.Value(0))[0]
-  const syncAnim = useState(new Animated.Value(0))[0]
+  const fadeAnim = useRef(new Animated.Value(0)).current
+  const syncAnim = useRef(new Animated.Value(0)).current
 
   // Rotate animation for syncing icon
   const spin = syncAnim.interpolate({
@@ -103,13 +108,13 @@ export function ConnectionStatus() {
   const getIcon = () => {
     switch (connectionState) {
       case "online":
-        return <Ionicons name="wifi" size={16} color="#4CAF50" />
+        return <Ionicons name="wifi" size={16} color={theme.success || "#4CAF50"} />
       case "offline":
-        return <Ionicons name="cloud-offline" size={16} color="#F44336" />
+        return <Ionicons name="cloud-offline" size={16} color={theme.error || "#F44336"} />
       case "syncing":
         return (
           <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Ionicons name="sync" size={16} color="#2196F3" />
+            <Ionicons name="sync" size={16} color={theme.warning || "#FF9800"} />
           </Animated.View>
         )
     }
@@ -133,13 +138,39 @@ export function ConnectionStatus() {
 
     switch (connectionState) {
       case "online":
-        return isDark ? "#1A2E22" : "#E8F5E9"
+        return isDark ? "rgba(76, 175, 80, 0.2)" : "rgba(76, 175, 80, 0.1)"
       case "offline":
-        return isDark ? "#2D1A1A" : "#FFEBEE"
+        return isDark ? "rgba(244, 67, 54, 0.2)" : "rgba(244, 67, 54, 0.1)"
       case "syncing":
-        return isDark ? "#0D2030" : "#E3F2FD"
+        return isDark ? "rgba(255, 152, 0, 0.2)" : "rgba(255, 152, 0, 0.1)"
     }
   }
+
+  // Get text color based on connection state
+  const getTextColor = () => {
+    switch (connectionState) {
+      case "online":
+        return theme.success || "#4CAF50"
+      case "offline":
+        return theme.error || "#F44336"
+      case "syncing":
+        return theme.warning || "#FF9800"
+    }
+  }
+
+  // Format last sync time
+  const formatLastSync = () => {
+    if (!lastSyncTime) return null
+
+    try {
+      const date = new Date(Number.parseInt(lastSyncTime))
+      return formatDistanceToNow(date, { addSuffix: true })
+    } catch (error) {
+      return null
+    }
+  }
+
+  const syncTimeText = formatLastSync()
 
   return (
     <Animated.View
@@ -148,12 +179,23 @@ export function ConnectionStatus() {
         {
           backgroundColor: getBackgroundColor(),
           opacity: fadeAnim,
-          borderColor: connectionState === "online" ? "#4CAF50" : connectionState === "offline" ? "#F44336" : "#2196F3",
+          borderColor:
+            connectionState === "online"
+              ? theme.success || "#4CAF50"
+              : connectionState === "offline"
+                ? theme.error || "#F44336"
+                : theme.warning || "#FF9800",
         },
       ]}
     >
-      {getIcon()}
-      <Text style={[styles.text, { color: theme.text }]}>{getText()}</Text>
+      <View style={styles.content}>
+        {getIcon()}
+        <Text style={[styles.text, { color: getTextColor() }]}>{getText()}</Text>
+      </View>
+
+      {connectionState === "online" && syncTimeText && (
+        <Text style={[styles.syncText, { color: theme.textDim }]}>Last synced {syncTimeText}</Text>
+      )}
     </Animated.View>
   )
 }
@@ -162,13 +204,11 @@ const styles = StyleSheet.create({
   container: {
     position: "absolute",
     top: 50,
-    right: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    alignSelf: "center",
     borderRadius: 16,
     borderWidth: 1,
+    padding: 8,
+    paddingHorizontal: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -176,9 +216,18 @@ const styles = StyleSheet.create({
     elevation: 2,
     zIndex: 1000,
   },
+  content: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   text: {
     fontSize: 12,
     fontWeight: "500",
     marginLeft: 6,
+  },
+  syncText: {
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: "center",
   },
 })

@@ -1,44 +1,110 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Stack } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { useColorScheme } from "react-native"
+import { useColorScheme, AppState, View, ActivityIndicator } from "react-native"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { ToastProvider } from "@/contexts/ToastContext"
 import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import * as SplashScreen from "expo-splash-screen"
+import Colors from "@/constants/Colors"
+import { ConnectionStatus } from "@/components/ConnectionStatus"
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const colorScheme = useColorScheme()
+  const theme = Colors[colorScheme ?? "light"]
+  const [appIsReady, setAppIsReady] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
 
+  // Load resources and initialize app
   useEffect(() => {
-    // Register for push notifications
-    notificationService.registerForPushNotifications()
+    async function prepare() {
+      try {
+        // Pre-load cached data
+        await offlineStore.loadCachedData()
 
+        // Get last sync time
+        const lastSync = await AsyncStorage.getItem("lastSyncedTime")
+        if (lastSync) {
+          setLastSyncTime(lastSync)
+        }
+
+        // Artificial delay for smooth transition
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      } catch (e) {
+        console.warn("Error loading resources:", e)
+      } finally {
+        setAppIsReady(true)
+      }
+    }
+
+    prepare()
+  }, [])
+
+  // Handle app state changes (foreground/background)
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", async (nextAppState) => {
+      if (nextAppState === "active") {
+        // App came to foreground
+        const netInfo = await NetInfo.fetch()
+        if (netInfo.isConnected) {
+          // Check for updates when app comes to foreground
+          try {
+            await offlineStore.syncOfflineChanges()
+            const currentTime = Date.now().toString()
+            await AsyncStorage.setItem("lastSyncedTime", currentTime)
+            setLastSyncTime(currentTime)
+          } catch (error) {
+            console.error("Error syncing on app foreground:", error)
+          }
+        }
+      } else if (nextAppState === "background") {
+        // App went to background
+        // Save any pending state
+        await offlineStore.persistCachedData()
+      }
+    })
+
+    return () => {
+      subscription.remove()
+    }
+  }, [])
+
+  // Network connectivity monitoring
+  useEffect(() => {
     // Set up network change listener to sync when coming back online
     const unsubscribe = NetInfo.addEventListener(async (state) => {
       if (state.isConnected) {
         try {
-          // Set syncing flag
-          await AsyncStorage.setItem("isSyncing", "true")
-
           // Sync offline changes
           await offlineStore.syncOfflineChanges()
 
           // Update last synced time
-          await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
-
-          // Clear syncing flag
-          await AsyncStorage.setItem("isSyncing", "false")
+          const currentTime = Date.now().toString()
+          await AsyncStorage.setItem("lastSyncedTime", currentTime)
+          setLastSyncTime(currentTime)
         } catch (error) {
           console.error("Error syncing offline changes:", error)
-          await AsyncStorage.setItem("isSyncing", "false")
         }
       }
     })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  // Notification setup
+  useEffect(() => {
+    // Register for push notifications
+    notificationService.registerForPushNotifications()
 
     // Set up notification listeners
     const notificationReceivedSubscription = notificationService.addNotificationReceivedListener((notification) => {
@@ -52,17 +118,39 @@ export default function RootLayout() {
     })
 
     return () => {
-      unsubscribe()
       notificationService.removeNotificationSubscription(notificationReceivedSubscription)
       notificationService.removeNotificationSubscription(notificationResponseSubscription)
     }
   }, [])
 
+  // Hide splash screen once resources are loaded
+  useEffect(() => {
+    if (appIsReady) {
+      SplashScreen.hideAsync()
+    }
+  }, [appIsReady])
+
+  if (!appIsReady) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.tint} />
+      </View>
+    )
+  }
+
   return (
     <AuthProvider>
       <ToastProvider>
         <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-        <Stack screenOptions={{ headerShown: false }} />
+        <ConnectionStatus lastSyncTime={lastSyncTime} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: {
+              backgroundColor: theme.background,
+            },
+          }}
+        />
       </ToastProvider>
     </AuthProvider>
   )

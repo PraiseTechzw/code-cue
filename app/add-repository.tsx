@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   StyleSheet,
   View,
@@ -20,6 +20,7 @@ import { githubService } from "@/services/githubService"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 export default function AddRepositoryScreen() {
   const colorScheme = useColorScheme()
@@ -34,7 +35,7 @@ export default function AddRepositoryScreen() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   // Load projects when the component mounts
-  useState(() => {
+  useEffect(() => {
     loadProjects()
   }, [])
 
@@ -80,7 +81,8 @@ export default function AddRepositoryScreen() {
         const repoName = urlParts[4].split("#")[0].split("?")[0]
 
         // Add repository
-        await githubService.addRepository({
+        await githubService.saveRepository({
+          repo_id: `${owner}/${repoName}`,
           name: repoName,
           full_name: `${owner}/${repoName}`,
           html_url: repoUrl,
