@@ -196,10 +196,7 @@ export default function ProjectDetailsScreen() {
   }
 
   const handleAddMember = () => {
-    router.push({
-      pathname: "/add-team-member",
-      params: { projectId: id }
-    })
+    router.push("/add-task")
   }
 
   const renderTaskStats = () => (
