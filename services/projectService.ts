@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import type { Database } from "@/types/supabase"
 import { offlineStore } from "./offlineStore"
+import { notificationService } from "./notificationService"
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"]
 export type NewProject = Database["public"]["Tables"]["projects"]["Insert"]
@@ -12,6 +13,10 @@ export const projectService = {
       const { data, error } = await supabase.from("projects").select("*").order("updated_at", { ascending: false })
 
       if (error) throw error
+
+      // Cache projects for offline use
+      await offlineStore.cacheProjects(data || [])
+
       return data || []
     } catch (error) {
       console.error("Error fetching projects:", error)
@@ -25,6 +30,12 @@ export const projectService = {
       const { data, error } = await supabase.from("projects").select("*").eq("id", id).single()
 
       if (error) throw error
+
+      // Cache project for offline use
+      if (data) {
+        await offlineStore.addProject(data)
+      }
+
       return data
     } catch (error) {
       console.error("Error fetching project:", error)
@@ -33,14 +44,32 @@ export const projectService = {
     }
   },
 
-  async createProject(project: NewProject) {
+  async createProject(project: Omit<NewProject, "user_id">) {
     try {
-      const { data, error } = await supabase.from("projects").insert(project).select().single()
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) throw new Error("User not authenticated")
+
+      const newProject: NewProject = {
+        ...project,
+        user_id: user.id,
+      }
+
+      const { data, error } = await supabase.from("projects").insert(newProject).select().single()
 
       if (error) throw error
 
+      // Create notification for new project
+      await notificationService.createNotification({
+        title: "Project Created",
+        description: `You created a new project: ${project.name}`,
+        type: "project_created",
+        user_id: user.id,
+        related_id: data.id,
+        related_type: "project",
+      })
+
       // Update local storage
-      offlineStore.addProject(data)
+      await offlineStore.addProject(data)
 
       return data
     } catch (error) {
@@ -48,20 +77,28 @@ export const projectService = {
 
       // If offline, store locally and sync later
       if (!(await this.isOnline())) {
+        const user = (await supabase.auth.getUser()).data.user
+        if (!user) throw new Error("User not authenticated")
+
         const tempId = `temp_${Date.now()}`
         const tempProject = {
           ...project,
+          user_id: user.id,
           id: tempId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          progress: project.progress || 0,
         } as Project
 
-        offlineStore.addProject(tempProject)
-        offlineStore.addOfflineChange({
+        await offlineStore.addProject(tempProject)
+        await offlineStore.addOfflineChange({
           table_name: "projects",
           record_id: tempId,
           operation: "INSERT",
-          data: project,
+          data: {
+            ...project,
+            user_id: user.id,
+          },
         })
 
         return tempProject
@@ -78,7 +115,7 @@ export const projectService = {
       if (error) throw error
 
       // Update local storage
-      offlineStore.updateProject(data)
+      await offlineStore.updateProject(data)
 
       return data
     } catch (error) {
@@ -90,8 +127,8 @@ export const projectService = {
         if (project) {
           const updatedProject = { ...project, ...updates, updated_at: new Date().toISOString() }
 
-          offlineStore.updateProject(updatedProject)
-          offlineStore.addOfflineChange({
+          await offlineStore.updateProject(updatedProject)
+          await offlineStore.addOfflineChange({
             table_name: "projects",
             record_id: id,
             operation: "UPDATE",
@@ -113,7 +150,7 @@ export const projectService = {
       if (error) throw error
 
       // Update local storage
-      offlineStore.deleteProject(id)
+      await offlineStore.deleteProject(id)
 
       return true
     } catch (error) {
@@ -121,8 +158,8 @@ export const projectService = {
 
       // If offline, store locally and sync later
       if (!(await this.isOnline())) {
-        offlineStore.deleteProject(id)
-        offlineStore.addOfflineChange({
+        await offlineStore.deleteProject(id)
+        await offlineStore.addOfflineChange({
           table_name: "projects",
           record_id: id,
           operation: "DELETE",
@@ -133,6 +170,33 @@ export const projectService = {
       }
 
       throw error
+    }
+  },
+
+  async calculateProjectProgress(projectId: string) {
+    try {
+      // Get all tasks for the project
+      const { data: tasks, error } = await supabase.from("tasks").select("status").eq("project_id", projectId)
+
+      if (error) throw error
+
+      if (!tasks || tasks.length === 0) {
+        // No tasks, set progress to 0
+        await this.updateProject(projectId, { progress: 0 })
+        return 0
+      }
+
+      // Calculate progress
+      const completedTasks = tasks.filter((task) => task.status === "done").length
+      const progress = Math.round((completedTasks / tasks.length) * 100)
+
+      // Update project progress
+      await this.updateProject(projectId, { progress })
+
+      return progress
+    } catch (error) {
+      console.error("Error calculating project progress:", error)
+      return null
     }
   },
 

@@ -19,17 +19,17 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!email || !password || !confirmPassword) {
-      showToast("Please fill in all fields", "warning")
+      showToast("Please fill in all fields", { type: "warning" })
       return
     }
 
     if (password !== confirmPassword) {
-      showToast("Passwords do not match", "error")
+      showToast("Passwords do not match", { type: "error" })
       return
     }
 
     if (password.length < 6) {
-      showToast("Password must be at least 6 characters", "warning")
+      showToast("Password must be at least 6 characters", { type: "warning" })
       return
     }
 
@@ -37,14 +37,14 @@ export default function RegisterScreen() {
       setLoading(true)
       const success = await signUp(email, password)
       if (success) {
-        showToast("Account created successfully", "success")
+        showToast("Account created successfully", { type: "success" })
         router.replace("/(tabs)")
       } else {
-        showToast("Failed to create account", "error")
+        showToast("Failed to create account", { type: "error" })
       }
     } catch (error) {
       console.error("Registration error:", error)
-      showToast("Failed to create account. Please try again.", "error")
+      showToast("Failed to create account. Please try again.", { type: "error" })
     } finally {
       setLoading(false)
     }

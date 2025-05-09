@@ -10,216 +10,68 @@ import {
   TextInput,
   Animated,
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
 } from "react-native"
-import Ionicons from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useColorScheme } from "react-native"
-import Colors from "@/constants/Colors"
-import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/contexts/AuthContext"
-import { useToast } from "@/contexts/ToastContext"
+
 import { taskService } from "@/services/taskService"
-import type { Database } from "@/types/supabase"
-
-type Task = Database["public"]["Tables"]["tasks"]["Row"] & {
-  assignee: {
-    id: string
-    username: string | null
-    full_name: string | null
-    avatar_url: string | null
-  } | null
-  comments: {
-    id: string
-    text: string
-    user_id: string
-    created_at: string
-    profiles: {
-      username: string | null
-      full_name: string | null
-      avatar_url: string | null
-    }
-  }[]
-  subtasks: {
-    id: string
-    title: string
-    completed: boolean
-    created_at: string
-  }[]
-}
-
-type TeamMember = {
-  id: string
-  username: string | null
-  full_name: string | null
-  avatar_url: string | null
-}
+import { useToast } from "@/contexts/ToastContext"
+import { VerifyAction } from "@/components/VerifyAction"
+import Colors from "@/constants/Colors"
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams()
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
-  const { user } = useAuth()
   const { showToast } = useToast()
 
-  const [task, setTask] = useState<Task | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isActionLoading, setIsActionLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [task, setTask] = useState<any>(null)
+  const [subtasks, setSubtasks] = useState<any[]>([])
+  const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState("")
   const [newSubtask, setNewSubtask] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState("")
   const [editedDescription, setEditedDescription] = useState("")
-  const [showAssignModal, setShowAssignModal] = useState(false)
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
-  const [isLoadingMembers, setIsLoadingMembers] = useState(false)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
 
   // Animation for the save button
   const saveButtonScale = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
-    fetchTaskData()
+    if (id) {
+      loadTaskData()
+    }
   }, [id])
 
-  const fetchTaskData = async () => {
-    if (!id) return
+  const loadTaskData = async () => {
     try {
-      const data = await taskService.getTaskById(id as string)
-      if (!data) {
-        throw new Error("Task not found")
+      setLoading(true)
+
+      // Get task details including subtasks and comments
+      const taskData = await taskService.getTaskById(id as string)
+
+      if (taskData) {
+        setTask(taskData)
+        setEditedTitle(taskData.title)
+        setEditedDescription(taskData.description || "")
+
+        // Extract subtasks and comments
+        if (taskData.subtasks) {
+          setSubtasks(taskData.subtasks)
+        }
+
+        if (taskData.comments) {
+          setComments(taskData.comments)
+        }
       }
-      setTask(data)
-      setEditedTitle(data.title)
-      setEditedDescription(data.description || "")
     } catch (error) {
-      console.error("Error fetching task:", error)
-      showToast("Failed to load task data", "error")
+      console.error("Error loading task data:", error)
+      showToast("Failed to load task data", { type: "error" })
     } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchTeamMembers = async () => {
-    if (!task) return
-    setIsLoadingMembers(true)
-    try {
-      const { data, error } = await supabase
-        .from("project_members")
-        .select(`
-          profiles (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq("project_id", task.project_id)
-
-      if (error) throw error
-
-      const members = data.map((item: any) => item.profiles)
-      setTeamMembers(members)
-    } catch (error) {
-      console.error("Error fetching team members:", error)
-      showToast("Failed to load team members", "error")
-    } finally {
-      setIsLoadingMembers(false)
-    }
-  }
-
-  const handleDeleteTask = async () => {
-    if (!task) return
-
-    Alert.alert(
-      "Delete Task",
-      "Are you sure you want to delete this task? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setIsActionLoading(true)
-            try {
-              const { error } = await supabase
-                .from("tasks")
-                .delete()
-                .eq("id", task.id)
-
-              if (error) throw error
-
-              showToast("Task deleted successfully", "success")
-              router.back()
-            } catch (error) {
-              console.error("Error deleting task:", error)
-              showToast("Failed to delete task", "error")
-            } finally {
-              setIsActionLoading(false)
-            }
-          },
-        },
-      ]
-    )
-  }
-
-  const handleAssignTask = async (memberId: string) => {
-    if (!task) return
-    setIsActionLoading(true)
-    try {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ assignee_id: memberId })
-        .eq("id", task.id)
-
-      if (error) throw error
-
-      const { data: memberData } = await supabase
-        .from("profiles")
-        .select("id, username, full_name, avatar_url")
-        .eq("id", memberId)
-        .single()
-
-      if (memberData) {
-        setTask({
-          ...task,
-          assignee: memberData,
-        })
-      }
-
-      showToast("Task assigned successfully", "success")
-      setShowAssignModal(false)
-    } catch (error) {
-      console.error("Error assigning task:", error)
-      showToast("Failed to assign task", "error")
-    } finally {
-      setIsActionLoading(false)
-    }
-  }
-
-  const handlePriorityChange = async (priority: "high" | "medium" | "low") => {
-    if (!task) return
-    setIsActionLoading(true)
-    try {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ priority })
-        .eq("id", task.id)
-
-      if (error) throw error
-
-      setTask({ ...task, priority })
-      showToast("Priority updated successfully", "success")
-    } catch (error) {
-      console.error("Error updating priority:", error)
-      showToast("Failed to update priority", "error")
-    } finally {
-      setIsActionLoading(false)
+      setLoading(false)
     }
   }
 
@@ -244,144 +96,115 @@ export default function TaskDetailScreen() {
   }
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!task) return
     try {
-      const { error } = await supabase
-        .from("tasks")
-        .update({ status: newStatus })
-        .eq("id", task.id)
-
-      if (error) throw error
-
+      await taskService.updateTask(task.id, { status: newStatus })
       setTask({ ...task, status: newStatus })
-      showToast("Status updated successfully", "success")
+      showToast(`Task status updated to ${newStatus}`, { type: "success" })
     } catch (error) {
-      console.error("Error updating status:", error)
-      showToast("Failed to update status", "error")
+      console.error("Error updating task status:", error)
+      showToast("Failed to update task status", { type: "error" })
     }
   }
 
   const handleAddComment = async () => {
-    if (!task || !user || newComment.trim() === "") return
+    if (newComment.trim() === "") return
 
     try {
-      const { data, error } = await supabase
-        .from("comments")
-        .insert({
-          text: newComment.trim(),
-          task_id: task.id,
-          user_id: user.id,
-        })
-        .select(`
-          *,
-          profiles (
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
-        .single()
-
-      if (error) throw error
-
-      setTask({
-        ...task,
-        comments: [...task.comments, data],
+      const newCommentData = await taskService.createComment({
+        text: newComment,
+        task_id: task.id,
       })
+
+      // Add the new comment to the list
+      setComments([...comments, newCommentData])
       setNewComment("")
-      showToast("Comment added successfully", "success")
+      showToast("Comment added", { type: "success" })
     } catch (error) {
       console.error("Error adding comment:", error)
-      showToast("Failed to add comment", "error")
+      showToast("Failed to add comment", { type: "error" })
     }
   }
 
   const handleAddSubtask = async () => {
-    if (!task || newSubtask.trim() === "") return
+    if (newSubtask.trim() === "") return
 
     try {
-      const { data, error } = await supabase
-        .from("subtasks")
-        .insert({
-          title: newSubtask.trim(),
-          task_id: task.id,
-          completed: false,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setTask({
-        ...task,
-        subtasks: [...task.subtasks, data],
+      const newSubtaskData = await taskService.createSubtask({
+        title: newSubtask,
+        task_id: task.id,
+        completed: false,
       })
+
+      // Add the new subtask to the list
+      setSubtasks([...subtasks, newSubtaskData])
       setNewSubtask("")
-      showToast("Subtask added successfully", "success")
+      showToast("Subtask added", { type: "success" })
     } catch (error) {
       console.error("Error adding subtask:", error)
-      showToast("Failed to add subtask", "error")
+      showToast("Failed to add subtask", { type: "error" })
     }
   }
 
-  const toggleSubtask = async (subtaskId: string) => {
-    if (!task) return
-
+  const toggleSubtask = async (subtaskId: string, completed: boolean) => {
     try {
-      const subtask = task.subtasks.find(s => s.id === subtaskId)
-      if (!subtask) return
+      await taskService.updateSubtask(subtaskId, !completed)
 
-      const { error } = await supabase
-        .from("subtasks")
-        .update({ completed: !subtask.completed })
-        .eq("id", subtaskId)
-
-      if (error) throw error
-
-      const updatedSubtasks = task.subtasks.map(s =>
-        s.id === subtaskId ? { ...s, completed: !s.completed } : s
+      // Update the subtask in the list
+      const updatedSubtasks = subtasks.map((subtask) =>
+        subtask.id === subtaskId ? { ...subtask, completed: !completed } : subtask,
       )
 
-      setTask({
-        ...task,
-        subtasks: updatedSubtasks,
-      })
+      setSubtasks(updatedSubtasks)
     } catch (error) {
       console.error("Error toggling subtask:", error)
-      showToast("Failed to update subtask", "error")
+      showToast("Failed to update subtask", { type: "error" })
     }
   }
 
   const handleEdit = async () => {
-    if (!task) return
-
     if (isEditing) {
+      // Save changes
       try {
-        const { error } = await supabase
-          .from("tasks")
-          .update({
-            title: editedTitle,
-            description: editedDescription,
-          })
-          .eq("id", task.id)
-
-        if (error) throw error
+        await taskService.updateTask(task.id, {
+          title: editedTitle,
+          description: editedDescription,
+        })
 
         setTask({
           ...task,
           title: editedTitle,
           description: editedDescription,
         })
-        showToast("Task updated successfully", "success")
+
+        showToast("Task updated successfully", { type: "success" })
       } catch (error) {
         console.error("Error updating task:", error)
-        showToast("Failed to update task", "error")
+        showToast("Failed to update task", { type: "error" })
       }
     }
+
     setIsEditing(!isEditing)
   }
 
-  const formatDate = (dateString: string) => {
+  const handleDeleteTask = async () => {
+    setShowDeleteConfirmation(true)
+  }
+
+  const confirmDeleteTask = async () => {
+    try {
+      await taskService.deleteTask(task.id)
+      showToast("Task deleted successfully", { type: "success" })
+      router.back()
+    } catch (error) {
+      console.error("Error deleting task:", error)
+      showToast("Failed to delete task", { type: "error" })
+    } finally {
+      setShowDeleteConfirmation(false)
+    }
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "No due date"
     const date = new Date(dateString)
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
@@ -402,13 +225,12 @@ export default function TaskDetailScreen() {
   }
 
   const getPriorityColor = () => {
-    if (!task) return "#757575"
-    switch (task.priority) {
-      case "high":
+    switch (task?.priority) {
+      case "High":
         return "#F44336"
-      case "medium":
+      case "Medium":
         return "#FF9800"
-      case "low":
+      case "Low":
         return "#4CAF50"
       default:
         return "#757575"
@@ -416,11 +238,10 @@ export default function TaskDetailScreen() {
   }
 
   const getStatusIcon = () => {
-    if (!task) return <Ionicons name="ellipse-outline" size={20} color={theme.text} />
-    switch (task.status) {
+    switch (task?.status) {
       case "todo":
         return <Ionicons name="ellipse-outline" size={20} color={theme.text} />
-      case "in_progress":
+      case "inProgress":
         return <Ionicons name="time-outline" size={20} color="#FF9800" />
       case "done":
         return <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
@@ -429,29 +250,8 @@ export default function TaskDetailScreen() {
     }
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.tint} />
-      </View>
-    )
-  }
-
-  if (!task) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <Ionicons name="alert-circle-outline" size={48} color={theme.textDim} />
-        <Text style={[styles.errorText, { color: theme.textDim }]}>Task not found</Text>
-      </View>
-    )
-  }
-
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -460,173 +260,213 @@ export default function TaskDetailScreen() {
           <View style={styles.headerTitle}>
             <Text style={[styles.headerText, { color: theme.text }]}>Task Details</Text>
           </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-              <Ionicons name={isEditing ? "save-outline" : "create-outline"} size={24} color={theme.tint} />
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.tint} />
+        </View>
+      </View>
+    )
+  }
+
+  if (!task) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View style={styles.headerTitle}>
+            <Text style={[styles.headerText, { color: theme.text }]}>Task Details</Text>
+          </View>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={80} color={theme.textDim} />
+          <Text style={[styles.errorText, { color: theme.textDim }]}>Task not found</Text>
+          <TouchableOpacity onPress={handleBack} style={[styles.backToProjectsButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.backToProjectsText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <View style={styles.headerTitle}>
+          <Text style={[styles.headerText, { color: theme.text }]}>Task Details</Text>
+        </View>
+        <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+          <Ionicons name={isEditing ? "save-outline" : "create-outline"} size={24} color={theme.tint} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.content}>
+        <View style={[styles.taskHeader, { backgroundColor: theme.cardBackground }]}>
+          {isEditing ? (
+            <TextInput
+              style={[styles.titleInput, { color: theme.text, borderColor: theme.border }]}
+              value={editedTitle}
+              onChangeText={setEditedTitle}
+              autoFocus
+            />
+          ) : (
+            <Text style={[styles.taskTitle, { color: theme.text }]}>{task.title}</Text>
+          )}
+
+          <View style={styles.taskMeta}>
+            <View style={styles.metaItem}>
+              <Ionicons name="calendar-outline" size={16} color={theme.textDim} style={styles.metaIcon} />
+              <Text style={[styles.metaText, { color: theme.textDim }]}>Due {formatDate(task.due_date)}</Text>
+            </View>
+
+            {task.user && (
+              <View style={styles.metaItem}>
+                <Ionicons name="person-outline" size={16} color={theme.textDim} style={styles.metaIcon} />
+                <Text style={[styles.metaText, { color: theme.textDim }]}>
+                  {task.user.full_name || "Assigned User"}
+                </Text>
+              </View>
+            )}
+
+            <View style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}>
+              <Text style={styles.priorityText}>{task.priority}</Text>
+            </View>
+          </View>
+
+          {isEditing ? (
+            <TextInput
+              style={[styles.descriptionInput, { color: theme.text, borderColor: theme.border }]}
+              value={editedDescription}
+              onChangeText={setEditedDescription}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholder="Add a description..."
+              placeholderTextColor={theme.textDim}
+            />
+          ) : (
+            <Text style={[styles.taskDescription, { color: theme.text }]}>
+              {task.description || "No description provided."}
+            </Text>
+          )}
+        </View>
+
+        <View style={[styles.statusSection, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Status</Text>
+          <View style={styles.statusButtons}>
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                task.status === "todo" && styles.statusButtonActive,
+                task.status === "todo" && { backgroundColor: "rgba(0, 0, 0, 0.05)" },
+              ]}
+              onPress={() => handleStatusChange("todo")}
+            >
+              <Ionicons name="ellipse-outline" size={16} color={theme.text} style={styles.statusIcon} />
+              <Text style={[styles.statusText, { color: task.status === "todo" ? theme.text : theme.textDim }]}>
+                To Do
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDeleteTask} style={styles.deleteButton}>
-              <Ionicons name="trash-outline" size={24} color="#F44336" />
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                task.status === "inProgress" && styles.statusButtonActive,
+                task.status === "inProgress" && { backgroundColor: "rgba(255, 152, 0, 0.2)" },
+              ]}
+              onPress={() => handleStatusChange("inProgress")}
+            >
+              <Ionicons name="time-outline" size={16} color="#FF9800" style={styles.statusIcon} />
+              <Text style={[styles.statusText, { color: task.status === "inProgress" ? "#FF9800" : theme.textDim }]}>
+                In Progress
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                task.status === "done" && styles.statusButtonActive,
+                task.status === "done" && { backgroundColor: "rgba(76, 175, 80, 0.2)" },
+              ]}
+              onPress={() => handleStatusChange("done")}
+            >
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" style={styles.statusIcon} />
+              <Text style={[styles.statusText, { color: task.status === "done" ? "#4CAF50" : theme.textDim }]}>
+                Done
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <ScrollView style={styles.content}>
-          <View style={[styles.taskHeader, { backgroundColor: theme.cardBackground }]}>
-            {isEditing ? (
-              <TextInput
-                style={[styles.titleInput, { color: theme.text, borderColor: theme.border }]}
-                value={editedTitle}
-                onChangeText={setEditedTitle}
-                autoFocus
-              />
-            ) : (
-              <Text style={[styles.taskTitle, { color: theme.text }]}>{task.title}</Text>
-            )}
+        <View style={[styles.subtasksSection, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Subtasks</Text>
 
-            <View style={styles.taskMeta}>
-              <View style={styles.metaItem}>
-                <Ionicons name="calendar-outline" size={16} color={theme.textDim} style={styles.metaIcon} />
-                <Text style={[styles.metaText, { color: theme.textDim }]}>
-                  Due {formatDate(task.due_date || "")}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.metaItem}
-                onPress={() => {
-                  fetchTeamMembers()
-                  setShowAssignModal(true)
-                }}
-              >
-                <Ionicons name="person-outline" size={16} color={theme.textDim} style={styles.metaIcon} />
-                <Text style={[styles.metaText, { color: theme.textDim }]}>
-                  {task.assignee?.full_name || task.assignee?.username || "Assign Task"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}
-                onPress={() => {
-                  Alert.alert(
-                    "Change Priority",
-                    "Select new priority",
-                    [
-                      { text: "High", onPress: () => handlePriorityChange("high") },
-                      { text: "Medium", onPress: () => handlePriorityChange("medium") },
-                      { text: "Low", onPress: () => handlePriorityChange("low") },
-                      { text: "Cancel", style: "cancel" },
-                    ]
-                  )
-                }}
-              >
-                <Text style={styles.priorityText}>{task.priority}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {isEditing ? (
-              <TextInput
-                style={[styles.descriptionInput, { color: theme.text, borderColor: theme.border }]}
-                value={editedDescription}
-                onChangeText={setEditedDescription}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-            ) : (
-              <Text style={[styles.taskDescription, { color: theme.text }]}>{task.description}</Text>
-            )}
-          </View>
-
-          <View style={[styles.statusSection, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Status</Text>
-            <View style={styles.statusButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.statusButton,
-                  task.status === "todo" && styles.statusButtonActive,
-                  task.status === "todo" && { backgroundColor: "rgba(0, 0, 0, 0.05)" },
-                ]}
-                onPress={() => handleStatusChange("todo")}
-              >
-                <Ionicons name="ellipse-outline" size={16} color={theme.text} style={styles.statusIcon} />
-                <Text style={[styles.statusText, { color: theme.text }]}>To Do</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.statusButton,
-                  task.status === "in_progress" && styles.statusButtonActive,
-                  task.status === "in_progress" && { backgroundColor: "rgba(255, 152, 0, 0.1)" },
-                ]}
-                onPress={() => handleStatusChange("in_progress")}
-              >
-                <Ionicons name="time-outline" size={16} color="#FF9800" style={styles.statusIcon} />
-                <Text style={[styles.statusText, { color: theme.text }]}>In Progress</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.statusButton,
-                  task.status === "done" && styles.statusButtonActive,
-                  task.status === "done" && { backgroundColor: "rgba(76, 175, 80, 0.1)" },
-                ]}
-                onPress={() => handleStatusChange("done")}
-              >
-                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" style={styles.statusIcon} />
-                <Text style={[styles.statusText, { color: theme.text }]}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={[styles.subtasksSection, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Subtasks</Text>
-            {task.subtasks.map((subtask) => (
-              <TouchableOpacity
-                key={subtask.id}
-                style={styles.subtaskItem}
-                onPress={() => toggleSubtask(subtask.id)}
-              >
-                <Ionicons
-                  name={subtask.completed ? "checkmark-circle" : "ellipse-outline"}
-                  size={24}
-                  color={subtask.completed ? "#4CAF50" : theme.text}
-                />
+          {subtasks.length > 0 ? (
+            subtasks.map((subtask) => (
+              <View key={subtask.id} style={styles.subtaskItem}>
+                <TouchableOpacity
+                  onPress={() => toggleSubtask(subtask.id, subtask.completed)}
+                  style={styles.subtaskCheckbox}
+                >
+                  {subtask.completed ? (
+                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                  ) : (
+                    <Ionicons name="ellipse-outline" size={20} color={theme.textDim} />
+                  )}
+                </TouchableOpacity>
                 <Text
                   style={[
                     styles.subtaskText,
                     { color: theme.text },
-                    subtask.completed && styles.subtaskTextCompleted,
+                    subtask.completed && [styles.subtaskCompleted, { color: theme.textDim }],
                   ]}
                 >
                   {subtask.title}
                 </Text>
-              </TouchableOpacity>
-            ))}
-            <View style={styles.addSubtaskContainer}>
-              <TextInput
-                style={[styles.addSubtaskInput, { color: theme.text, borderColor: theme.border }]}
-                placeholder="Add a subtask"
-                placeholderTextColor={theme.textDim}
-                value={newSubtask}
-                onChangeText={setNewSubtask}
-                onSubmitEditing={handleAddSubtask}
-              />
-              <TouchableOpacity
-                style={[styles.addSubtaskButton, { backgroundColor: theme.tint }]}
-                onPress={handleAddSubtask}
-              >
-                <Ionicons name="add" size={24} color="#fff" />
-              </TouchableOpacity>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptySubtasksContainer}>
+              <Text style={[styles.emptySubtasksText, { color: theme.textDim }]}>No subtasks yet</Text>
             </View>
-          </View>
+          )}
 
-          <View style={[styles.commentsSection, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Comments</Text>
-            {task.comments.map((comment) => (
-              <View key={comment.id} style={styles.commentItem}>
+          <View style={styles.addSubtaskContainer}>
+            <TextInput
+              style={[
+                styles.addSubtaskInput,
+                { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border },
+              ]}
+              placeholder="Add a subtask..."
+              placeholderTextColor={theme.textDim}
+              value={newSubtask}
+              onChangeText={setNewSubtask}
+            />
+            <TouchableOpacity
+              style={[styles.addSubtaskButton, { backgroundColor: theme.tintLight }]}
+              onPress={handleAddSubtask}
+              disabled={newSubtask.trim() === ""}
+            >
+              <Ionicons name="add" size={20} color={theme.tint} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={[styles.commentsSection, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Comments</Text>
+
+          {comments.length > 0 ? (
+            comments.map((comment) => (
+              <View key={comment.id} style={[styles.commentItem, { borderBottomColor: theme.border }]}>
                 <View style={styles.commentHeader}>
                   <Text style={[styles.commentAuthor, { color: theme.text }]}>
-                    {comment.profiles.full_name || comment.profiles.username || "Unknown User"}
+                    {comment.profiles?.full_name || "User"}
                   </Text>
                   <Text style={[styles.commentTime, { color: theme.textDim }]}>
                     {formatCommentTime(comment.created_at)}
@@ -634,73 +474,73 @@ export default function TaskDetailScreen() {
                 </View>
                 <Text style={[styles.commentText, { color: theme.text }]}>{comment.text}</Text>
               </View>
-            ))}
-            <View style={styles.addCommentContainer}>
-              <TextInput
-                style={[styles.addCommentInput, { color: theme.text, borderColor: theme.border }]}
-                placeholder="Add a comment"
-                placeholderTextColor={theme.textDim}
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-              />
-              <TouchableOpacity
-                style={[styles.addCommentButton, { backgroundColor: theme.tint }]}
-                onPress={handleAddComment}
-              >
-                <Ionicons name="send" size={24} color="#fff" />
-              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyCommentsContainer}>
+              <Text style={[styles.emptyCommentsText, { color: theme.textDim }]}>No comments yet</Text>
             </View>
-          </View>
-        </ScrollView>
+          )}
 
-        <Modal
-          visible={showAssignModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowAssignModal(false)}
-        >
-          <View style={[styles.modalOverlay, { backgroundColor: "rgba(0, 0, 0, 0.5)" }]}>
-            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Assign Task</Text>
-              {isLoadingMembers ? (
-                <ActivityIndicator size="large" color={theme.tint} />
-              ) : (
-                <ScrollView style={styles.memberList}>
-                  {teamMembers.map((member) => (
-                    <TouchableOpacity
-                      key={member.id}
-                      style={[styles.memberItem, { borderBottomColor: theme.border }]}
-                      onPress={() => handleAssignTask(member.id)}
-                    >
-                      <Text style={[styles.memberName, { color: theme.text }]}>
-                        {member.full_name || member.username || "Unknown User"}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-              <TouchableOpacity
-                style={[styles.closeButton, { backgroundColor: theme.tint }]}
-                onPress={() => setShowAssignModal(false)}
-              >
-                <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.addCommentContainer}>
+            <TextInput
+              style={[
+                styles.addCommentInput,
+                { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border },
+              ]}
+              placeholder="Add a comment..."
+              placeholderTextColor={theme.textDim}
+              value={newComment}
+              onChangeText={setNewComment}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.addCommentButton, { backgroundColor: theme.tint }]}
+              onPress={handleAddComment}
+              disabled={newComment.trim() === ""}
+            >
+              <Ionicons name="send" size={20} color="#fff" />
+            </TouchableOpacity>
           </View>
-        </Modal>
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      </ScrollView>
+
+      <Animated.View
+        style={[styles.actionBar, { backgroundColor: theme.cardBackground, transform: [{ scale: saveButtonScale }] }]}
+      >
+        <TouchableOpacity
+          style={[styles.deleteButton, { backgroundColor: "rgba(244, 67, 54, 0.1)" }]}
+          onPress={handleDeleteTask}
+        >
+          <Ionicons name="trash-outline" size={20} color="#F44336" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.saveButton, { backgroundColor: theme.tint }]}
+          onPress={handleEdit}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <Ionicons name={isEditing ? "save" : "create"} size={20} color="#fff" style={styles.saveIcon} />
+          <Text style={styles.saveButtonText}>{isEditing ? "Save Changes" : "Edit Task"}</Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      <VerifyAction
+        visible={showDeleteConfirmation}
+        title="Delete Task"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        destructive={true}
+        onConfirm={confirmDeleteTask}
+        onCancel={() => setShowDeleteConfirmation(false)}
+      />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -709,41 +549,43 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   backButton: {
-    marginRight: 16,
+    padding: 4,
   },
   headerTitle: {
     flex: 1,
+    alignItems: "center",
   },
   headerText: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
+    fontSize: 18,
+    fontWeight: "600",
   },
   editButton: {
     padding: 4,
   },
-  deleteButton: {
-    padding: 4,
-    marginLeft: 8,
+  placeholder: {
+    width: 32,
   },
   content: {
     flex: 1,
+    padding: 16,
   },
   taskHeader: {
     padding: 16,
-    margin: 16,
     borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   taskTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 12,
   },
   titleInput: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 12,
     borderWidth: 1,
@@ -753,12 +595,14 @@ const styles = StyleSheet.create({
   taskMeta: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     marginBottom: 16,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
     marginRight: 16,
+    marginBottom: 4,
   },
   metaIcon: {
     marginRight: 4,
@@ -768,13 +612,14 @@ const styles = StyleSheet.create({
   },
   priorityTag: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 2,
     borderRadius: 12,
+    marginBottom: 4,
   },
   priorityText: {
-    color: "#fff",
     fontSize: 12,
-    fontWeight: "500",
+    color: "#fff",
+    fontWeight: "600",
   },
   taskDescription: {
     fontSize: 16,
@@ -790,9 +635,13 @@ const styles = StyleSheet.create({
   },
   statusSection: {
     padding: 16,
-    margin: 16,
-    marginTop: 0,
     borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
@@ -806,40 +655,52 @@ const styles = StyleSheet.create({
   statusButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 8,
-    borderRadius: 8,
-    flex: 1,
-    marginHorizontal: 4,
-    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   statusButtonActive: {
-    borderWidth: 1,
+    borderColor: "transparent",
   },
   statusIcon: {
     marginRight: 4,
   },
   statusText: {
-    fontSize: 14,
     fontWeight: "500",
   },
   subtasksSection: {
     padding: 16,
-    margin: 16,
-    marginTop: 0,
     borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   subtaskItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  subtaskCheckbox: {
+    marginRight: 12,
   },
   subtaskText: {
     fontSize: 16,
-    marginLeft: 8,
   },
-  subtaskTextCompleted: {
+  subtaskCompleted: {
     textDecorationLine: "line-through",
-    color: "#757575",
+  },
+  emptySubtasksContainer: {
+    alignItems: "center",
+    padding: 16,
+  },
+  emptySubtasksText: {
+    fontSize: 14,
+    fontStyle: "italic",
   },
   addSubtaskContainer: {
     flexDirection: "row",
@@ -849,97 +710,139 @@ const styles = StyleSheet.create({
   addSubtaskInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginRight: 8,
   },
   addSubtaskButton: {
-    padding: 8,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
   },
   commentsSection: {
     padding: 16,
-    margin: 16,
-    marginTop: 0,
     borderRadius: 12,
+    marginBottom: 80,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   commentItem: {
     marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
   },
   commentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   commentAuthor: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   commentTime: {
     fontSize: 12,
   },
   commentText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  emptyCommentsContainer: {
+    alignItems: "center",
+    padding: 16,
+  },
+  emptyCommentsText: {
+    fontSize: 14,
+    fontStyle: "italic",
   },
   addCommentContainer: {
     flexDirection: "row",
     alignItems: "flex-end",
-    marginTop: 8,
   },
   addCommentInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginRight: 8,
-    minHeight: 40,
     maxHeight: 100,
   },
   addCommentButton: {
-    padding: 8,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  errorText: {
+  actionBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0, 0, 0, 0.1)",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  deleteButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  saveIcon: {
+    marginRight: 8,
+  },
+  saveButtonText: {
+    color: "#fff",
     fontSize: 16,
-    marginTop: 8,
+    fontWeight: "600",
   },
-  modalOverlay: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  modalContent: {
-    width: "80%",
-    maxHeight: "80%",
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  memberList: {
-    maxHeight: 300,
-  },
-  memberItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  memberName: {
-    fontSize: 16,
-  },
-  closeButton: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 8,
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
+    padding: 40,
   },
-  closeButtonText: {
+  errorText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 16,
+  },
+  backToProjectsButton: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  backToProjectsText: {
     color: "#fff",
-    fontSize: 16,
     fontWeight: "600",
   },
 })

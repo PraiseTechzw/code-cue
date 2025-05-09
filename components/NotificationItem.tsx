@@ -44,13 +44,13 @@ export function NotificationItem({ notification, onMarkAsRead }: NotificationIte
     if (!notification.read) {
       try {
         await notificationService.markAsRead(notification.id)
-        showToast("Notification marked as read", "success")
+        showToast("Notification marked as read", { type: "success" })
         if (onMarkAsRead) {
           onMarkAsRead()
         }
       } catch (error) {
         console.error("Error marking notification as read:", error)
-        showToast("Failed to mark notification as read", "error")
+        showToast("Failed to mark notification as read", { type: "error" })
       }
     }
   }

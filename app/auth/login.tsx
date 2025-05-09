@@ -1,5 +1,4 @@
 "use client"
-import React from "react"
 
 import { useState } from "react"
 import {
@@ -14,8 +13,8 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native"
-import { Link, useRouter } from "expo-router"
-import Ionicons  from "@expo/vector-icons/Ionicons"
+import { useRouter } from "expo-router"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
@@ -23,7 +22,7 @@ import Colors from "@/constants/Colors"
 
 export default function LoginScreen() {
   const router = useRouter()
-  const { signIn } = useAuth()
+  const { signIn, loading } = useAuth()
   const { showToast } = useToast()
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
@@ -32,7 +31,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  const [loading, setLoading] = useState(false)
 
   // Animation for the login button
   const buttonOpacity = new Animated.Value(0.5)
@@ -82,25 +80,13 @@ export default function LoginScreen() {
   }
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      showToast("Please fill in all fields", "warning")
-      return
-    }
-
-    try {
-      setLoading(true)
+    if (validateForm()) {
       const success = await signIn(email, password)
       if (success) {
-        showToast("Successfully logged in", "success")
-        router.replace("/(tabs)")
+        showToast("Login successful", { type: "success" })
       } else {
-        showToast("Invalid email or password", "error")
+        showToast("Login failed. Please check your credentials.", { type: "error" })
       }
-    } catch (error) {
-      console.error("Login error:", error)
-      showToast("Failed to login. Please try again.", "error")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -172,11 +158,9 @@ export default function LoginScreen() {
             {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
-          <Link href="/auth/forgot-password" asChild>
-            <TouchableOpacity style={styles.forgotPasswordLink}>
-              <Text style={[styles.forgotPasswordText, { color: theme.tint }]}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </Link>
+          <TouchableOpacity onPress={navigateToForgotPassword} style={styles.forgotPasswordLink}>
+            <Text style={[styles.forgotPasswordText, { color: theme.tint }]}>Forgot Password?</Text>
+          </TouchableOpacity>
 
           <Animated.View style={{ opacity: buttonOpacity, transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
@@ -190,7 +174,10 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
+                <>
+                  <Ionicons name="log-in-outline" size={20} color="#fff" style={styles.loginIcon} />
+                  <Text style={styles.loginButtonText}>Log In</Text>
+                </>
               )}
             </TouchableOpacity>
           </Animated.View>
@@ -284,6 +271,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
+  },
+  loginIcon: {
+    marginRight: 8,
   },
   loginButtonText: {
     color: "#fff",

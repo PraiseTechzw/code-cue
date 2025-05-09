@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   StyleSheet,
   View,
@@ -12,128 +12,34 @@ import {
   Platform,
   Animated,
   ActivityIndicator,
-  Modal,
-  Image,
 } from "react-native"
-import Ionicons from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useColorScheme } from "react-native"
-import DateTimePicker from '@react-native-community/datetimepicker'
-import Colors from "@/constants/Colors"
+
 import { taskService } from "@/services/taskService"
-import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
-import { supabase } from "@/lib/supabase"
-import type { Database } from "@/types/supabase"
-
-type ProjectMember = Database["public"]["Tables"]["project_members"]["Row"] & {
-  profiles: {
-    id: string
-    username: string | null
-    full_name: string | null
-    avatar_url: string | null
-  }
-}
-
-type Project = Database["public"]["Tables"]["projects"]["Row"]
-
-type TeamMember = {
-  id: string
-  name: string
-  avatar: string | null
-}
+import Colors from "@/constants/Colors"
 
 export default function AddTaskScreen() {
   const { projectId } = useLocalSearchParams()
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
-  const { user } = useAuth()
   const { showToast } = useToast()
 
   const [taskTitle, setTaskTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [dueDate, setDueDate] = useState<Date | null>(null)
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium")
-  const [showDatePicker, setShowDatePicker] = useState(false)
+  const [dueDate, setDueDate] = useState("")
+  const [priority, setPriority] = useState("Medium")
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const [project, setProject] = useState<Project | null>(null)
-  const [showAssigneeModal, setShowAssigneeModal] = useState(false)
-  const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null)
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [loading, setLoading] = useState(false)
 
   // Animation for the add button
   const buttonOpacity = new Animated.Value(0.5)
   const buttonScale = new Animated.Value(1)
 
-  useEffect(() => {
-    fetchProjectData()
-  }, [projectId])
-
-  const fetchProjectData = async () => {
-    if (!projectId) return
-    try {
-      // Fetch project data directly from the database
-      const { data: projectData, error: projectError } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("id", projectId)
-        .single()
-
-      if (projectError) {
-        console.error("Error fetching project:", projectError)
-        showToast("Failed to load project data", "error")
-        return
-      }
-      setProject(projectData)
-
-      // Fetch project members from the database
-      const { data: projectMembers, error: membersError } = await supabase
-        .from("project_members")
-        .select(`
-          user_id,
-          profiles (
-            id,
-            username,
-            full_name,
-            avatar_url
-          )
-        `)
-        .eq("project_id", projectId)
-        .returns<ProjectMember[]>()
-
-      if (membersError) {
-        console.error("Error fetching members:", membersError)
-        showToast("Failed to load team members", "error")
-        return
-      }
-
-      // Transform the data to match our team members format
-      const members = projectMembers.map((member) => ({
-        id: member.user_id,
-        name: member.profiles.full_name || member.profiles.username || "Unknown User",
-        avatar: member.profiles.avatar_url,
-      }))
-
-      // Add the current user if they're not already in the list
-      if (user && !members.some(m => m.id === user.id)) {
-        members.unshift({
-          id: user.id,
-          name: "You",
-          avatar: null,
-        })
-      }
-
-      setTeamMembers(members)
-    } catch (error) {
-      console.error("Error fetching project data:", error)
-      showToast("Failed to load project data", "error")
-      // Don't navigate back, just show the error
-    }
-  }
-
   // Update button opacity based on form validity
-  const isFormValid = taskTitle.trim() !== "" && project !== null
+  const isFormValid = taskTitle.trim() !== ""
   buttonOpacity.setValue(isFormValid ? 1 : 0.5)
 
   const handlePressIn = () => {
@@ -159,29 +65,8 @@ export default function AddTaskScreen() {
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {}
 
-    if (!project) {
-      newErrors.project = "Project not found"
-      return false
-    }
-
     if (taskTitle.trim() === "") {
       newErrors.taskTitle = "Task title is required"
-    }
-
-    if (dueDate && dueDate < new Date()) {
-      newErrors.dueDate = "Due date cannot be in the past"
-    }
-
-    // Validate due date against project timeline
-    if (dueDate && project.start_date && project.end_date) {
-      const projectStart = new Date(project.start_date)
-      const projectEnd = new Date(project.end_date)
-      
-      if (dueDate < projectStart) {
-        newErrors.dueDate = "Due date cannot be before project start date"
-      } else if (dueDate > projectEnd) {
-        newErrors.dueDate = "Due date cannot be after project end date"
-      }
     }
 
     setErrors(newErrors)
@@ -189,69 +74,35 @@ export default function AddTaskScreen() {
   }
 
   const handleAddTask = async () => {
-    if (!validateForm() || !user || !projectId || !project) return
+    if (validateForm()) {
+      try {
+        setLoading(true)
 
-    setIsLoading(true)
-    try {
-      const task = {
-        title: taskTitle.trim(),
-        description: description.trim(),
-        due_date: dueDate?.toISOString() || null,
-        priority,
-        status: "todo",
-        project_id: projectId as string,
-        assignee_id: selectedAssignee || user.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        // Create the task
+        const newTask = await taskService.createTask({
+          title: taskTitle,
+          description,
+          due_date: dueDate || null,
+          priority,
+          project_id: projectId as string,
+          status: "todo",
+        })
+
+        showToast("Task created successfully", { type: "success" })
+
+        // Navigate back to project details
+        router.push(`/project/${projectId}`)
+      } catch (error) {
+        console.error("Error creating task:", error)
+        showToast("Failed to create task", { type: "error" })
+      } finally {
+        setLoading(false)
       }
-
-      await taskService.createTask(task)
-      showToast("Task created successfully!", "success")
-      router.back()
-    } catch (error) {
-      console.error("Error creating task:", error)
-      showToast("Failed to create task. Please try again.", "error")
-    } finally {
-      setIsLoading(false)
     }
   }
 
   const handleBack = () => {
     router.back()
-  }
-
-  const formatDate = (date: Date | null) => {
-    if (!date) return "Select due date"
-    return date.toLocaleDateString("en-US", { 
-      year: "numeric",
-      month: "short", 
-      day: "numeric" 
-    })
-  }
-
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false)
-    if (selectedDate) {
-      setDueDate(selectedDate)
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return "#4CAF50"
-      case "medium":
-        return "#FF9800"
-      case "high":
-        return "#F44336"
-      default:
-        return theme.textDim
-    }
-  }
-
-  const handleSelectAssignee = (assigneeId: string) => {
-    setSelectedAssignee(assigneeId)
-    setShowAssigneeModal(false)
   }
 
   return (
@@ -305,147 +156,81 @@ export default function AddTaskScreen() {
           <View style={styles.formGroup}>
             <Text style={[styles.label, { color: theme.text }]}>Due Date</Text>
             <TouchableOpacity
-              style={[
-                styles.dateInput,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                errors.dueDate && styles.inputError,
-              ]}
-              onPress={() => setShowDatePicker(true)}
+              style={[styles.dateInput, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
             >
-              <Text style={{ color: dueDate ? theme.text : theme.textDim }}>{formatDate(dueDate)}</Text>
+              <Text style={{ color: dueDate ? theme.text : theme.textDim }}>{dueDate || "Select due date"}</Text>
               <Ionicons name="calendar-outline" size={20} color={theme.textDim} />
             </TouchableOpacity>
-            {errors.dueDate && <Text style={styles.errorText}>{errors.dueDate}</Text>}
           </View>
 
           <View style={styles.formGroup}>
             <Text style={[styles.label, { color: theme.text }]}>Priority</Text>
             <View style={styles.priorityContainer}>
-              {(["low", "medium", "high"] as const).map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[
-                    styles.priorityButton,
-                    priority === p && [styles.priorityButtonActive, { backgroundColor: `${getPriorityColor(p)}20` }],
-                  ]}
-                  onPress={() => setPriority(p)}
-                >
-                  <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(p) }]} />
-                  <Text
-                    style={[
-                      styles.priorityText,
-                      { color: priority === p ? getPriorityColor(p) : theme.textDim },
-                    ]}
-                  >
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+              <TouchableOpacity
+                style={[
+                  styles.priorityButton,
+                  priority === "Low" && styles.priorityButtonActive,
+                  priority === "Low" && { backgroundColor: "rgba(76, 175, 80, 0.2)" },
+                ]}
+                onPress={() => setPriority("Low")}
+              >
+                <View style={[styles.priorityDot, { backgroundColor: "#4CAF50" }]} />
+                <Text style={[styles.priorityText, { color: priority === "Low" ? "#4CAF50" : theme.textDim }]}>
+                  Low
+                </Text>
+              </TouchableOpacity>
 
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Assignee</Text>
-            <TouchableOpacity
-              style={[styles.assigneeButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-              onPress={() => setShowAssigneeModal(true)}
-            >
-              <Ionicons name="person-outline" size={20} color={theme.tint} />
-              <Text style={[styles.assigneeText, { color: theme.tint }]}>
-                {selectedAssignee
-                  ? teamMembers.find(m => m.id === selectedAssignee)?.name || "Select assignee"
-                  : "Select assignee"}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.priorityButton,
+                  priority === "Medium" && styles.priorityButtonActive,
+                  priority === "Medium" && { backgroundColor: "rgba(255, 152, 0, 0.2)" },
+                ]}
+                onPress={() => setPriority("Medium")}
+              >
+                <View style={[styles.priorityDot, { backgroundColor: "#FF9800" }]} />
+                <Text style={[styles.priorityText, { color: priority === "Medium" ? "#FF9800" : theme.textDim }]}>
+                  Medium
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.priorityButton,
+                  priority === "High" && styles.priorityButtonActive,
+                  priority === "High" && { backgroundColor: "rgba(244, 67, 54, 0.2)" },
+                ]}
+                onPress={() => setPriority("High")}
+              >
+                <View style={[styles.priorityDot, { backgroundColor: "#F44336" }]} />
+                <Text style={[styles.priorityText, { color: priority === "High" ? "#F44336" : theme.textDim }]}>
+                  High
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Animated.View style={{ opacity: buttonOpacity, transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
-              style={[
-                styles.addButton,
-                { backgroundColor: theme.tint },
-                isLoading && styles.disabledButton,
-              ]}
+              style={[styles.addButton, { backgroundColor: theme.tint }]}
               onPress={handleAddTask}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
-              disabled={!isFormValid || isLoading}
+              disabled={!isFormValid || loading}
               activeOpacity={0.8}
             >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" style={styles.loadingIndicator} />
+              {loading ? (
+                <ActivityIndicator color="#fff" />
               ) : (
-                <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.addIcon} />
+                <>
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.addIcon} />
+                  <Text style={styles.addButtonText}>Add Task</Text>
+                </>
               )}
-              <Text style={styles.addButtonText}>
-                {isLoading ? "Creating..." : "Add Task"}
-              </Text>
             </TouchableOpacity>
           </Animated.View>
         </View>
       </ScrollView>
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={dueDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-          minimumDate={new Date()}
-        />
-      )}
-
-      <Modal
-        visible={showAssigneeModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAssigneeModal(false)}
-      >
-        <View style={[styles.modalContainer, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Select Assignee</Text>
-            <ScrollView style={styles.assigneeList}>
-              {teamMembers.map((member) => (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[
-                    styles.assigneeItem,
-                    selectedAssignee === member.id && { backgroundColor: `${theme.tint}20` },
-                  ]}
-                  onPress={() => handleSelectAssignee(member.id)}
-                >
-                  {member.avatar ? (
-                    <Image
-                      source={{ uri: member.avatar }}
-                      style={styles.assigneeAvatar}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="person-circle-outline"
-                      size={24}
-                      color={selectedAssignee === member.id ? theme.tint : theme.textDim}
-                    />
-                  )}
-                  <Text
-                    style={[
-                      styles.assigneeItemText,
-                      { color: selectedAssignee === member.id ? theme.tint : theme.text },
-                    ]}
-                  >
-                    {member.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: theme.tint }]}
-              onPress={() => setShowAssigneeModal(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   )
 }
@@ -533,18 +318,6 @@ const styles = StyleSheet.create({
   priorityText: {
     fontWeight: "500",
   },
-  assigneeButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  assigneeText: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginLeft: 8,
-  },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -561,63 +334,9 @@ const styles = StyleSheet.create({
   addIcon: {
     marginRight: 8,
   },
-  loadingIndicator: {
-    marginRight: 8,
-  },
   addButtonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: {
-    width: "80%",
-    maxHeight: "80%",
-    borderRadius: 20,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  assigneeList: {
-    maxHeight: 300,
-  },
-  assigneeItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  assigneeItemText: {
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  closeButton: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 16,
-  },
-  closeButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  assigneeAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 12,
   },
 })

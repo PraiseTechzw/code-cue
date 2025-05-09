@@ -8,12 +8,17 @@ export type UpdateProfile = Database["public"]["Tables"]["profiles"]["Update"]
 export const profileService = {
   async getProfile() {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) throw new Error("User not authenticated")
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) throw new Error("User not authenticated")
 
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userData.user.id).single()
+      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
-      if (error) throw error
+      if (error && error.code !== "PGRST116") throw error // PGRST116 is "no rows returned"
+
+      // If no profile exists, create one
+      if (!data) {
+        return this.createProfile(user.id)
+      }
 
       // Cache profile locally
       await AsyncStorage.setItem("profile", JSON.stringify(data))
@@ -33,17 +38,36 @@ export const profileService = {
     }
   },
 
-  async updateProfile(updates: UpdateProfile) {
+  async createProfile(userId: string) {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) throw new Error("User not authenticated")
-
       const { data, error } = await supabase
         .from("profiles")
-        .update(updates)
-        .eq("id", userData.user.id)
+        .insert({
+          id: userId,
+          full_name: "",
+          theme: "light",
+        })
         .select()
         .single()
+
+      if (error) throw error
+
+      // Cache profile locally
+      await AsyncStorage.setItem("profile", JSON.stringify(data))
+
+      return data
+    } catch (error) {
+      console.error("Error creating profile:", error)
+      throw error
+    }
+  },
+
+  async updateProfile(updates: UpdateProfile) {
+    try {
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) throw new Error("User not authenticated")
+
+      const { data, error } = await supabase.from("profiles").update(updates).eq("id", user.id).select().single()
 
       if (error) throw error
 

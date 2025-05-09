@@ -1,7 +1,6 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
-
 import Colors from "@/constants/Colors"
 
 interface CommitItemProps {
@@ -20,7 +19,7 @@ export function CommitItem({ commit, onLinkPress }: CommitItemProps) {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
 
-  const formatDate = (dateString: string) => {
+  const formatTime = (dateString: string) => {
     const date = new Date(dateString)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
@@ -37,83 +36,99 @@ export function CommitItem({ commit, onLinkPress }: CommitItemProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.cardBackground }]}>
-      <View style={styles.iconContainer}>
-        <Ionicons name="git-commit-outline" size={20} color={theme.tint} />
-      </View>
-      <View style={styles.content}>
-        <Text style={[styles.message, { color: theme.text }]}>{commit.message}</Text>
-        <View style={styles.metaContainer}>
-          <Text style={[styles.author, { color: theme.textDim }]}>{commit.author}</Text>
-          <Text style={[styles.dot, { color: theme.textDim }]}>•</Text>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.repo, { color: theme.textDim }]}>{commit.repo}</Text>
           <Text style={[styles.hash, { color: theme.textDim }]}>{commit.hash}</Text>
-          <Text style={[styles.dot, { color: theme.textDim }]}>•</Text>
-          <Text style={[styles.timestamp, { color: theme.textDim }]}>{formatDate(commit.timestamp)}</Text>
         </View>
+        <Text style={[styles.time, { color: theme.textDim }]}>{formatTime(commit.timestamp)}</Text>
       </View>
-      <TouchableOpacity
-        style={[styles.linkButton, { backgroundColor: theme.tintLight }]}
-        onPress={onLinkPress}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="link-outline" size={18} color={theme.tint} />
-      </TouchableOpacity>
+
+      <Text style={[styles.message, { color: theme.text }]} numberOfLines={2}>
+        {commit.message}
+      </Text>
+
+      <View style={styles.footer}>
+        <View style={styles.author}>
+          <Ionicons name="person-outline" size={14} color={theme.textDim} style={styles.authorIcon} />
+          <Text style={[styles.authorName, { color: theme.textDim }]}>{commit.author}</Text>
+        </View>
+
+        <TouchableOpacity style={[styles.linkButton, { backgroundColor: theme.tintLight }]} onPress={onLinkPress}>
+          <Ionicons name="link-outline" size={14} color={theme.tint} style={styles.linkIcon} />
+          <Text style={[styles.linkText, { color: theme.tint }]}>Link to Task</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: "row",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowRadius: 2,
     elevation: 2,
   },
-  iconContainer: {
-    marginRight: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-    justifyContent: "center",
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 8,
   },
-  content: {
-    flex: 1,
-  },
-  message: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 4,
-    lineHeight: 22,
-  },
-  metaContainer: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
   },
-  author: {
+  repo: {
     fontSize: 12,
+    fontWeight: "500",
+    marginRight: 8,
   },
   hash: {
     fontSize: 12,
     fontFamily: "monospace",
   },
-  timestamp: {
+  time: {
     fontSize: 12,
   },
-  dot: {
+  message: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 12,
+    lineHeight: 22,
+  },
+  footer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  author: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  authorIcon: {
+    marginRight: 4,
+  },
+  authorName: {
     fontSize: 12,
-    marginHorizontal: 4,
   },
   linkButton: {
-    padding: 8,
-    borderRadius: 20,
-    marginLeft: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  linkIcon: {
+    marginRight: 4,
+  },
+  linkText: {
+    fontSize: 12,
+    fontWeight: "500",
   },
 })

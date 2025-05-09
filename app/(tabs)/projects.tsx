@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import {
   StyleSheet,
   View,
@@ -10,27 +9,25 @@ import {
   TouchableOpacity,
   Animated,
   ActivityIndicator,
-  RefreshControl,
 } from "react-native"
-import Ionicons from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
 
 import { ProjectCard } from "@/components/ProjectCard"
-import Colors from "@/constants/Colors"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
-import type { Project } from "@/services/projectService"
+import Colors from "@/constants/Colors"
 
 export default function ProjectsScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const { showToast } = useToast()
 
-  const [projects, setProjects] = useState<Project[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [projects, setProjects] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Animation for the add button
   const scaleAnim = useRef(new Animated.Value(1)).current
@@ -51,42 +48,37 @@ export default function ProjectsScreen() {
     }).start()
   }
 
-  const fetchProjects = async () => {
+  useEffect(() => {
+    loadProjects()
+  }, [])
+
+  const loadProjects = async () => {
     try {
+      setLoading(true)
       const data = await projectService.getProjects()
       setProjects(data)
     } catch (error) {
-      console.error("Error fetching projects:", error)
-      showToast("Failed to load projects. Please try again.", "error")
+      console.error("Error loading projects:", error)
+      showToast("Failed to load projects", { type: "error" })
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      setLoading(false)
+      setRefreshing(false)
     }
   }
 
   const handleRefresh = () => {
-    setIsRefreshing(true)
-    fetchProjects()
+    setRefreshing(true)
+    loadProjects()
   }
 
-  useEffect(() => {
-    fetchProjects()
-  }, [])
-
   const handleProjectPress = (projectId: string) => {
+    // Navigate to project details
     router.push(`/project/${projectId}`)
   }
 
   const handleNewProject = () => {
+    // Navigate to new project screen
     router.push("/new-project")
-  }
-
-  if (isLoading) {
-    return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.tint} />
-      </View>
-    )
   }
 
   return (
@@ -107,31 +99,34 @@ export default function ProjectsScreen() {
         </Animated.View>
       </View>
 
-      {projects.length === 0 ? (
-        <View style={[styles.emptyState, { backgroundColor: theme.cardBackground }]}>
-          <Ionicons name="folder-open-outline" size={48} color={theme.textDim} />
-          <Text style={[styles.emptyStateText, { color: theme.textDim }]}>
-            No projects yet. Create your first project!
-          </Text>
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.tint} />
         </View>
       ) : (
         <FlatList
           data={projects}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <ProjectCard 
-              project={item} 
-              onPress={() => handleProjectPress(item.id)} 
-            />
+            <Pressable
+              onPress={() => handleProjectPress(item.id)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+            >
+              <ProjectCard project={item} />
+            </Pressable>
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={theme.tint}
-            />
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Ionicons name="folder-open-outline" size={80} color={theme.textDim} />
+              <Text style={[styles.emptyText, { color: theme.textDim }]}>No projects yet</Text>
+              <Text style={[styles.emptySubtext, { color: theme.textDim }]}>
+                Tap the "New Project" button to create your first project
+              </Text>
+            </View>
           }
         />
       )}
@@ -142,10 +137,6 @@ export default function ProjectsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
   },
   header: {
     flexDirection: "row",
@@ -178,18 +169,29 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingTop: 8,
+    flexGrow: 1,
   },
-  emptyState: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
-    margin: 20,
-    borderRadius: 12,
   },
-  emptyStateText: {
-    fontSize: 16,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+    marginTop: 80,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
     textAlign: "center",
-    marginTop: 12,
+    marginTop: 8,
+    paddingHorizontal: 32,
   },
 })

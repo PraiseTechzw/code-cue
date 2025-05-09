@@ -1,46 +1,25 @@
-"use client"
-
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native"
-import Ionicons from "@expo/vector-icons/Ionicons"
+import { StyleSheet, View, Text, TouchableOpacity } from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
-import { useRef } from "react"
 import { useColorScheme } from "react-native"
-
 import Colors from "@/constants/Colors"
-import type { Task } from "@/services/taskService"
 
-interface TaskProps {
-  task: Task
+interface TaskItemProps {
+  task: {
+    id: string
+    title: string
+    dueDate?: string
+    priority: string
+  }
   status: "todo" | "inProgress" | "done"
 }
 
-export function TaskItem({ task, status }: TaskProps) {
+export function TaskItem({ task, status }: TaskItemProps) {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
 
-  // Animation for task press
-  const scaleAnim = useRef(new Animated.Value(1)).current
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start()
-  }
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      tension: 40,
-      useNativeDriver: true,
-    }).start()
-  }
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "No due date"
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  const handlePress = () => {
+    router.push(`/task/${task.id}`)
   }
 
   const getStatusIcon = () => {
@@ -69,97 +48,69 @@ export function TaskItem({ task, status }: TaskProps) {
     }
   }
 
-  const handleTaskPress = () => {
-    router.push(`/task/${task.id}`)
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "No due date"
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
   }
 
   return (
-    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-      <TouchableOpacity
-        style={[styles.container, { backgroundColor: theme.cardBackground }, status === "done" && styles.completedTask]}
-        onPress={handleTaskPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        activeOpacity={0.9}
-      >
-        <View style={styles.leftSection}>
-          {getStatusIcon()}
-          <View style={styles.taskInfo}>
-            <Text
-              style={[
-                styles.title,
-                { color: theme.text },
-                status === "done" && [styles.completedTitle, { color: theme.textDim }],
-              ]}
-            >
-              {task.title}
-            </Text>
-            <View style={styles.taskMeta}>
-              <View style={styles.dueDateContainer}>
-                <Ionicons name="calendar-outline" size={12} color={theme.textDim} style={styles.calendarIcon} />
-                <Text style={[styles.dueDate, { color: theme.textDim }]}>Due {formatDate(task.due_date)}</Text>
-              </View>
-              <View style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}>
-                <Text style={styles.priorityText}>{task.priority}</Text>
-              </View>
-            </View>
+    <TouchableOpacity
+      style={[styles.container, { backgroundColor: theme.cardBackground }]}
+      onPress={handlePress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.iconContainer}>{getStatusIcon()}</View>
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
+          {task.title}
+        </Text>
+        <View style={styles.meta}>
+          <View style={styles.dateContainer}>
+            <Ionicons name="calendar-outline" size={14} color={theme.textDim} />
+            <Text style={[styles.date, { color: theme.textDim }]}>{formatDate(task.dueDate)}</Text>
+          </View>
+          <View style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}>
+            <Text style={styles.priorityText}>{task.priority}</Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={theme.textDim} />
-      </TouchableOpacity>
-    </Animated.View>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={theme.textDim} />
+    </TouchableOpacity>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.05)",
   },
-  completedTask: {
-    opacity: 0.7,
+  iconContainer: {
+    marginRight: 12,
   },
-  leftSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  taskInfo: {
-    marginLeft: 12,
+  content: {
     flex: 1,
   },
   title: {
     fontSize: 16,
     fontWeight: "500",
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  completedTitle: {
-    textDecorationLine: "line-through",
-  },
-  taskMeta: {
+  meta: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
-  dueDateContainer: {
+  dateContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 10,
   },
-  calendarIcon: {
-    marginRight: 4,
-  },
-  dueDate: {
+  date: {
     fontSize: 12,
+    marginLeft: 4,
   },
   priorityTag: {
     paddingHorizontal: 8,

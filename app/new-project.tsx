@@ -11,35 +11,27 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  Modal,
-  Alert,
+  ActivityIndicator,
 } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
-import Colors from "@/constants/Colors"
-import DateTimePicker from '@react-native-community/datetimepicker'
+
 import { projectService } from "@/services/projectService"
-import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
+import Colors from "@/constants/Colors"
 
 export default function NewProjectScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
-  const { user } = useAuth()
   const { showToast } = useToast()
 
   const [projectName, setProjectName] = useState("")
   const [description, setDescription] = useState("")
-  const [startDate, setStartDate] = useState<Date | null>(null)
-  const [endDate, setEndDate] = useState<Date | null>(null)
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
-  const [teamMembers, setTeamMembers] = useState<string[]>([])
-  const [showTeamModal, setShowTeamModal] = useState(false)
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const [newTeamMember, setNewTeamMember] = useState("")
+  const [loading, setLoading] = useState(false)
 
   // Animation for the create button
   const buttonOpacity = new Animated.Value(0.5)
@@ -80,79 +72,37 @@ export default function NewProjectScreen() {
       newErrors.description = "Description is required"
     }
 
-    if (startDate && endDate && startDate > endDate) {
-      newErrors.dates = "End date must be after start date"
-    }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleCreateProject = async () => {
-    if (!validateForm() || !user) return
+    if (validateForm()) {
+      try {
+        setLoading(true)
 
-    setIsLoading(true)
-    try {
-      const project = {
-        name: projectName.trim(),
-        description: description.trim(),
-        progress: 0,
-        start_date: startDate?.toISOString() || null,
-        end_date: endDate?.toISOString() || null,
-        owner_id: user.id,
+        // Create the project
+        const newProject = await projectService.createProject({
+          name: projectName,
+          description,
+          progress: 0,
+        })
+
+        showToast("Project created successfully", { type: "success" })
+
+        // Navigate back to projects screen
+        router.push("/projects")
+      } catch (error) {
+        console.error("Error creating project:", error)
+        showToast("Failed to create project", { type: "error" })
+      } finally {
+        setLoading(false)
       }
-
-      await projectService.createProject(project)
-      showToast("Project created successfully!", "success")
-      router.push("/projects")
-    } catch (error) {
-      console.error("Error creating project:", error)
-      showToast("Failed to create project. Please try again.", "error")
-    } finally {
-      setIsLoading(false)
     }
   }
 
   const handleBack = () => {
     router.back()
-  }
-
-  const formatDate = (date: Date | null) => {
-    if (!date) return "Select date"
-    return date.toLocaleDateString("en-US", { 
-      year: "numeric",
-      month: "short", 
-      day: "numeric" 
-    })
-  }
-
-  const handleStartDateChange = (event: any, selectedDate?: Date) => {
-    setShowStartDatePicker(false)
-    if (selectedDate) {
-      setStartDate(selectedDate)
-    }
-  }
-
-  const handleEndDateChange = (event: any, selectedDate?: Date) => {
-    setShowEndDatePicker(false)
-    if (selectedDate) {
-      setEndDate(selectedDate)
-    }
-  }
-
-  const handleAddTeamMember = () => {
-    if (newTeamMember.trim() && !teamMembers.includes(newTeamMember.trim())) {
-      setTeamMembers([...teamMembers, newTeamMember.trim()])
-      setNewTeamMember("")
-    }
-  }
-
-  const handleSubmitEditing = () => {
-    handleAddTeamMember()
-  }
-
-  const handleRemoveTeamMember = (member: string) => {
-    setTeamMembers(teamMembers.filter(m => m !== member))
   }
 
   return (
@@ -207,119 +157,47 @@ export default function NewProjectScreen() {
 
           <View style={styles.dateContainer}>
             <View style={[styles.formGroup, styles.dateField]}>
-              <Text style={[styles.label, { color: theme.text }]}>Start Date</Text>
+              <Text style={[styles.label, { color: theme.text }]}>Start Date (Optional)</Text>
               <TouchableOpacity
                 style={[styles.dateInput, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                onPress={() => setShowStartDatePicker(true)}
               >
-                <Text style={{ color: startDate ? theme.text : theme.textDim }}>{formatDate(startDate)}</Text>
+                <Text style={{ color: startDate ? theme.text : theme.textDim }}>{startDate || "Select date"}</Text>
                 <Ionicons name="calendar-outline" size={20} color={theme.textDim} />
               </TouchableOpacity>
             </View>
 
             <View style={[styles.formGroup, styles.dateField]}>
-              <Text style={[styles.label, { color: theme.text }]}>End Date</Text>
+              <Text style={[styles.label, { color: theme.text }]}>End Date (Optional)</Text>
               <TouchableOpacity
                 style={[styles.dateInput, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                onPress={() => setShowEndDatePicker(true)}
               >
-                <Text style={{ color: endDate ? theme.text : theme.textDim }}>{formatDate(endDate)}</Text>
+                <Text style={{ color: endDate ? theme.text : theme.textDim }}>{endDate || "Select date"}</Text>
                 <Ionicons name="calendar-outline" size={20} color={theme.textDim} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Team Members</Text>
-            <TouchableOpacity
-              style={[styles.addMemberButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-              onPress={() => setShowTeamModal(true)}
-            >
-              <Ionicons name="person-add-outline" size={20} color={theme.tint} />
-              <Text style={[styles.addMemberText, { color: theme.tint }]}>Add Team Members</Text>
-            </TouchableOpacity>
-          </View>
-
           <Animated.View style={{ opacity: buttonOpacity, transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
-              style={[
-                styles.createButton, 
-                { backgroundColor: theme.tint },
-                isLoading && styles.disabledButton
-              ]}
+              style={[styles.createButton, { backgroundColor: theme.tint }]}
               onPress={handleCreateProject}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
-              disabled={!isFormValid || isLoading}
+              disabled={!isFormValid || loading}
               activeOpacity={0.8}
             >
-              <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.createIcon} />
-              <Text style={styles.createButtonText}>
-                {isLoading ? "Creating..." : "Create Project"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.createIcon} />
+                  <Text style={styles.createButtonText}>Create Project</Text>
+                </>
+              )}
             </TouchableOpacity>
           </Animated.View>
         </View>
       </ScrollView>
-
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={startDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={handleStartDateChange}
-        />
-      )}
-
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={endDate || new Date()}
-          mode="date"
-          display="default"
-          onChange={handleEndDateChange}
-        />
-      )}
-
-      {showTeamModal && (
-        <Modal
-          visible={showTeamModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowTeamModal(false)}
-        >
-          <View style={[styles.teamModal, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
-            <View style={[styles.teamModalContent, { backgroundColor: theme.cardBackground }]}>
-              <Text style={[styles.teamModalTitle, { color: theme.text }]}>Add Team Member</Text>
-              <TextInput
-                style={[styles.teamModalInput, { 
-                  backgroundColor: theme.background,
-                  color: theme.text,
-                  borderColor: theme.border 
-                }]}
-                placeholder="Enter member name"
-                placeholderTextColor={theme.textDim}
-                value={newTeamMember}
-                onChangeText={setNewTeamMember}
-                onSubmitEditing={handleSubmitEditing}
-              />
-              <View style={styles.teamModalButtons}>
-                <TouchableOpacity
-                  style={[styles.teamModalButton, { backgroundColor: theme.tint }]}
-                  onPress={handleAddTeamMember}
-                >
-                  <Text style={styles.teamModalButtonText}>Add</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.teamModalButton, { backgroundColor: theme.textDim }]}
-                  onPress={() => setShowTeamModal(false)}
-                >
-                  <Text style={styles.teamModalButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </KeyboardAvoidingView>
   )
 }
@@ -389,19 +267,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  addMemberButton: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addMemberText: {
-    fontSize: 16,
-    fontWeight: "500",
-    marginLeft: 8,
-  },
   createButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -422,49 +287,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  teamModal: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  teamModalContent: {
-    padding: 20,
-    borderRadius: 20,
-    width: '80%',
-    alignItems: 'center',
-  },
-  teamModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  teamModalInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    width: '100%',
-    marginBottom: 20,
-    fontSize: 16,
-  },
-  teamModalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    gap: 10,
-  },
-  teamModalButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  teamModalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  disabledButton: {
-    opacity: 0.5,
   },
 })

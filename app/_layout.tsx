@@ -9,9 +9,7 @@ import { ToastProvider } from "@/contexts/ToastContext"
 import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
-import Colors from "@/constants/Colors"
-import { ThemeProvider } from "@/contexts/ThemeContext"
-import { NetworkStatus } from "@/components/NetworkStatus"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 export default function RootLayout() {
   const colorScheme = useColorScheme()
@@ -24,9 +22,20 @@ export default function RootLayout() {
     const unsubscribe = NetInfo.addEventListener(async (state) => {
       if (state.isConnected) {
         try {
+          // Set syncing flag
+          await AsyncStorage.setItem("isSyncing", "true")
+
+          // Sync offline changes
           await offlineStore.syncOfflineChanges()
+
+          // Update last synced time
+          await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
+
+          // Clear syncing flag
+          await AsyncStorage.setItem("isSyncing", "false")
         } catch (error) {
           console.error("Error syncing offline changes:", error)
+          await AsyncStorage.setItem("isSyncing", "false")
         }
       }
     })
@@ -50,28 +59,11 @@ export default function RootLayout() {
   }, [])
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ToastProvider>
-          <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-          <NetworkStatus />
-          <Stack
-            screenOptions={{
-              headerStyle: {
-                backgroundColor: Colors[colorScheme ?? "light"].background,
-              },
-              headerTintColor: Colors[colorScheme ?? "light"].text,
-              headerTitleStyle: {
-                fontWeight: "bold",
-              },
-              headerShown: false,
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="auth" options={{ headerShown: false }} />
-          </Stack>
-        </ToastProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
+        <Stack screenOptions={{ headerShown: false }} />
+      </ToastProvider>
+    </AuthProvider>
   )
 }

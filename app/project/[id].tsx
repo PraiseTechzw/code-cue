@@ -1,69 +1,33 @@
 "use client"
 
-import React from "react"
-import { 
-  StyleSheet, 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  Animated, 
-  ActivityIndicator,
-  RefreshControl,
-  useColorScheme,
-  Share,
-  Alert
-} from "react-native"
-import { useState, useRef, useEffect } from "react"
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
+import { useState, useEffect, useRef } from "react"
 import { useLocalSearchParams, router } from "expo-router"
-import Ionicons from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { useColorScheme } from "react-native"
 
 import { TaskItem } from "@/components/TaskItem"
 import { ProgressBar } from "@/components/ProgressBar"
-import Colors from "@/constants/Colors"
 import { projectService } from "@/services/projectService"
 import { taskService } from "@/services/taskService"
 import { useToast } from "@/contexts/ToastContext"
-import { useAuth } from "@/contexts/AuthContext"
-import type { Project } from "@/services/projectService"
-import type { Task } from "@/services/taskService"
+import Colors from "@/constants/Colors"
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams()
   const [filterVisible, setFilterVisible] = useState(false)
   const [activeFilter, setActiveFilter] = useState("all")
-  const [project, setProject] = useState<Project | null>(null)
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [project, setProject] = useState<any>(null)
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const { showToast } = useToast()
-  const { user } = useAuth()
 
-  // Animation values
-  const headerOpacity = useRef(new Animated.Value(0)).current
-  const contentOpacity = useRef(new Animated.Value(0)).current
+  // Animation for the add button
   const addButtonScale = useRef(new Animated.Value(1)).current
-
-  useEffect(() => {
-    // Fade in animations
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(contentOpacity, {
-        toValue: 1,
-        duration: 300,
-        delay: 150,
-        useNativeDriver: true,
-      }),
-    ]).start()
-  }, [])
 
   const handlePressIn = () => {
     Animated.spring(addButtonScale, {
@@ -81,80 +45,42 @@ export default function ProjectDetailScreen() {
     }).start()
   }
 
-  const fetchProjectData = async () => {
-    try {
-      const [projectData, tasksData] = await Promise.all([
-        projectService.getProjectById(id as string),
-        taskService.getTasksByProject(id as string),
-      ])
-      setProject(projectData)
-      setTasks(tasksData)
-    } catch (error) {
-      console.error("Error fetching project data:", error)
-      showToast("Failed to load project data. Please try again.", "error")
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }
-
   useEffect(() => {
-    fetchProjectData()
+    loadProjectData()
   }, [id])
 
-  const handleShare = async () => {
-    if (!project) return
+  const loadProjectData = async () => {
+    if (!id) return
+
     try {
-      await Share.share({
-        message: `Check out my project "${project.name}" on Code Cue!\n\nDescription: ${project.description}\nProgress: ${project.progress}%`,
-      })
+      setLoading(true)
+
+      // Load project details
+      const projectData = await projectService.getProjectById(id as string)
+      setProject(projectData)
+
+      // Load tasks for this project
+      const tasksData = await taskService.getTasksByProject(id as string)
+      setTasks(tasksData)
     } catch (error) {
-      console.error("Error sharing project:", error)
-      showToast("Failed to share project", "error")
+      console.error("Error loading project data:", error)
+      showToast("Failed to load project data", { type: "error" })
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
   }
 
-  const handleDelete = async () => {
-    if (!project) return
-
-    Alert.alert(
-      "Delete Project",
-      "Are you sure you want to delete this project? This action cannot be undone.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setIsDeleting(true)
-            try {
-              await projectService.deleteProject(project.id)
-              showToast("Project deleted successfully", "success")
-              router.back()
-            } catch (error) {
-              console.error("Error deleting project:", error)
-              showToast("Failed to delete project", "error")
-            } finally {
-              setIsDeleting(false)
-            }
-          },
-        },
-      ]
-    )
-  }
-
-  const handleEdit = () => {
-    router.push(`/edit-project/${id}`)
+  const handleRefresh = () => {
+    setRefreshing(true)
+    loadProjectData()
   }
 
   // Filter tasks based on active filter
-  const filteredTasks =
-    activeFilter === "all" ? tasks : tasks.filter((task) => task.status === activeFilter)
+  const filteredTasks = activeFilter === "all" ? tasks : tasks.filter((task) => task.status === activeFilter)
 
   const handleAddTask = () => {
+    // Navigate to add task screen
     router.push(`/add-task?projectId=${id}`)
   }
 
@@ -166,196 +92,183 @@ export default function ProjectDetailScreen() {
     setActiveFilter(filter)
   }
 
-  const handleRefresh = () => {
-    setIsRefreshing(true)
-    fetchProjectData()
-  }
-
-  if (isLoading) {
+  if (loading && !refreshing) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.tint} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={[styles.projectName, { color: theme.text }]}>Loading...</Text>
+          </View>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.tint} />
+        </View>
       </View>
     )
   }
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
-        <Ionicons name="alert-circle-outline" size={48} color={theme.textDim} />
-        <Text style={[styles.errorText, { color: theme.textDim }]}>Project not found</Text>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View>
+            <Text style={[styles.projectName, { color: theme.text }]}>Project not found</Text>
+          </View>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={80} color={theme.textDim} />
+          <Text style={[styles.errorText, { color: theme.textDim }]}>Project not found</Text>
+          <TouchableOpacity onPress={handleBack} style={[styles.backToProjectsButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.backToProjectsText}>Back to Projects</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     )
   }
 
-  const isOwner = user?.id === project.owner_id
-
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Animated.View style={[styles.header, { borderBottomColor: theme.border, opacity: headerOpacity }]}>
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
-          <View style={styles.headerActions}>
-            {isOwner && (
-              <>
-                <TouchableOpacity onPress={handleEdit} style={styles.headerButton}>
-                  <Ionicons name="create-outline" size={24} color={theme.text} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleDelete} style={styles.headerButton} disabled={isDeleting}>
-                  <Ionicons name="trash-outline" size={24} color={isDeleting ? theme.textDim : theme.text} />
-                </TouchableOpacity>
-              </>
-            )}
-            <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
-              <Ionicons name="share-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
         <View>
           <Text style={[styles.projectName, { color: theme.text }]}>{project.name}</Text>
           <Text style={[styles.projectDescription, { color: theme.textDim }]}>{project.description}</Text>
         </View>
-      </Animated.View>
+      </View>
 
-      <Animated.ScrollView 
-        style={[styles.content, { opacity: contentOpacity }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.tint}
-          />
-        }
-      >
-        <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <Text style={[styles.progressTitle, { color: theme.text }]}>Project Progress</Text>
-            <View style={[styles.progressPercentageContainer, { backgroundColor: theme.tintLight }]}>
-              <Text style={[styles.progressPercentage, { color: theme.tint }]}>{project.progress}%</Text>
-            </View>
+      <View style={styles.progressContainer}>
+        <View style={styles.progressHeader}>
+          <Text style={[styles.progressTitle, { color: theme.text }]}>Project Progress</Text>
+          <View style={[styles.progressPercentageContainer, { backgroundColor: theme.tintLight }]}>
+            <Text style={[styles.progressPercentage, { color: theme.tint }]}>{project.progress}%</Text>
           </View>
-          <ProgressBar progress={project.progress} />
         </View>
+        <ProgressBar progress={project.progress} />
+      </View>
 
-        <View style={styles.tasksHeader}>
-          <Text style={[styles.tasksTitle, { color: theme.text }]}>Tasks</Text>
-          <View style={styles.taskActions}>
+      <View style={styles.tasksHeader}>
+        <Text style={[styles.tasksTitle, { color: theme.text }]}>Tasks</Text>
+        <View style={styles.taskActions}>
+          <TouchableOpacity
+            style={[styles.filterButton, { backgroundColor: theme.cardBackground }]}
+            onPress={() => setFilterVisible(!filterVisible)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="filter-outline" size={20} color={theme.text} />
+          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
             <TouchableOpacity
-              style={[styles.filterButton, { backgroundColor: theme.cardBackground }]}
-              onPress={() => setFilterVisible(!filterVisible)}
+              style={[styles.addButton, { backgroundColor: theme.tint }]}
+              onPress={handleAddTask}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
               activeOpacity={0.8}
             >
-              <Ionicons name="filter-outline" size={20} color={theme.text} />
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Add Task</Text>
             </TouchableOpacity>
-            <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: theme.tint }]}
-                onPress={handleAddTask}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={styles.addButtonText}>Add Task</Text>
-              </TouchableOpacity>
-            </Animated.View>
+          </Animated.View>
+        </View>
+      </View>
+
+      {filterVisible && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterOption,
+              activeFilter === "all" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
+            ]}
+            onPress={() => handleFilterChange("all")}
+          >
+            <Text
+              style={
+                activeFilter === "all"
+                  ? styles.activeFilterOptionText
+                  : [styles.filterOptionText, { color: theme.text }]
+              }
+            >
+              All
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterOption,
+              activeFilter === "todo" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
+            ]}
+            onPress={() => handleFilterChange("todo")}
+          >
+            <Text
+              style={
+                activeFilter === "todo"
+                  ? styles.activeFilterOptionText
+                  : [styles.filterOptionText, { color: theme.text }]
+              }
+            >
+              To Do
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterOption,
+              activeFilter === "inProgress" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
+            ]}
+            onPress={() => handleFilterChange("inProgress")}
+          >
+            <Text
+              style={
+                activeFilter === "inProgress"
+                  ? styles.activeFilterOptionText
+                  : [styles.filterOptionText, { color: theme.text }]
+              }
+            >
+              In Progress
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterOption,
+              activeFilter === "done" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
+            ]}
+            onPress={() => handleFilterChange("done")}
+          >
+            <Text
+              style={
+                activeFilter === "done"
+                  ? styles.activeFilterOptionText
+                  : [styles.filterOptionText, { color: theme.text }]
+              }
+            >
+              Done
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      <ScrollView style={styles.tasksList} refreshing={refreshing} onRefresh={handleRefresh}>
+        {filteredTasks.length > 0 ? (
+          filteredTasks.map((task) => (
+            <TaskItem key={task.id} task={task} status={task.status as "todo" | "inProgress" | "done"} />
+          ))
+        ) : (
+          <View style={styles.emptyTasksContainer}>
+            <Ionicons name="list-outline" size={60} color={theme.textDim} />
+            <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>
+              No {activeFilter !== "all" ? activeFilter : ""} tasks found
+            </Text>
+            <Text style={[styles.emptyTasksSubtext, { color: theme.textDim }]}>
+              Tap the "Add Task" button to create a new task
+            </Text>
           </View>
-        </View>
-
-        {filterVisible && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContainer}>
-            <TouchableOpacity
-              style={[
-                styles.filterOption,
-                activeFilter === "all" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
-              ]}
-              onPress={() => handleFilterChange("all")}
-            >
-              <Text
-                style={
-                  activeFilter === "all"
-                    ? styles.activeFilterOptionText
-                    : [styles.filterOptionText, { color: theme.text }]
-                }
-              >
-                All
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterOption,
-                activeFilter === "todo" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
-              ]}
-              onPress={() => handleFilterChange("todo")}
-            >
-              <Text
-                style={
-                  activeFilter === "todo"
-                    ? styles.activeFilterOptionText
-                    : [styles.filterOptionText, { color: theme.text }]
-                }
-              >
-                To Do
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterOption,
-                activeFilter === "inProgress" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
-              ]}
-              onPress={() => handleFilterChange("inProgress")}
-            >
-              <Text
-                style={
-                  activeFilter === "inProgress"
-                    ? styles.activeFilterOptionText
-                    : [styles.filterOptionText, { color: theme.text }]
-                }
-              >
-                In Progress
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.filterOption,
-                activeFilter === "done" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
-              ]}
-              onPress={() => handleFilterChange("done")}
-            >
-              <Text
-                style={
-                  activeFilter === "done"
-                    ? styles.activeFilterOptionText
-                    : [styles.filterOptionText, { color: theme.text }]
-                }
-              >
-                Done
-              </Text>
-            </TouchableOpacity>
-          </ScrollView>
         )}
-
-        <View style={styles.tasksList}>
-          {filteredTasks.length > 0 ? (
-            filteredTasks.map((task) => (
-              <TaskItem 
-                key={task.id} 
-                task={task} 
-                status={task.status as "todo" | "inProgress" | "done"} 
-              />
-            ))
-          ) : (
-            <View style={styles.emptyTasksContainer}>
-              <Ionicons name="list-outline" size={60} color={theme.textDim} />
-              <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>
-                No {activeFilter !== "all" ? activeFilter : ""} tasks found
-              </Text>
-            </View>
-          )}
-        </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   )
 }
@@ -364,41 +277,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
   },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  headerActions: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  headerButton: {
-    padding: 4,
-  },
   backButton: {
+    marginRight: 16,
     padding: 4,
   },
   projectName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 4,
   },
   projectDescription: {
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  content: {
-    flex: 1,
+    fontSize: 14,
+    marginTop: 2,
   },
   progressContainer: {
     padding: 20,
@@ -417,38 +312,48 @@ const styles = StyleSheet.create({
   progressPercentageContainer: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   progressPercentage: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   tasksHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    paddingBottom: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
   tasksTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontWeight: "bold",
   },
   taskActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
   },
   filterButton: {
-    padding: 8,
-    borderRadius: 8,
+    padding: 10,
+    marginRight: 12,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   addButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
   addButtonText: {
     color: "#fff",
@@ -456,19 +361,22 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   filterContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   filterOption: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "transparent",
+    marginRight: 10,
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   activeFilterOption: {
-    borderColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   filterOptionText: {
     fontSize: 14,
@@ -479,22 +387,50 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   tasksList: {
-    padding: 20,
-    paddingTop: 10,
+    flex: 1,
+    padding: 16,
   },
   emptyTasksContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 40,
+    marginTop: 40,
   },
   emptyTasksText: {
     fontSize: 16,
+    marginTop: 16,
+    fontWeight: "600",
+  },
+  emptyTasksSubtext: {
+    fontSize: 14,
     textAlign: "center",
-    marginTop: 12,
+    marginTop: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
   },
   errorText: {
-    fontSize: 16,
-    marginTop: 12,
+    fontSize: 18,
+    fontWeight: "600",
+    marginTop: 16,
+  },
+  backToProjectsButton: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  backToProjectsText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 })

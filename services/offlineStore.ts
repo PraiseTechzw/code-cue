@@ -2,16 +2,29 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { supabase } from "@/lib/supabase"
 import type { Project } from "./projectService"
 import type { Task } from "./taskService"
+import NetInfo from "@react-native-community/netinfo"
 
 type OfflineChange = {
   table_name: string
   record_id: string
-  operation: "INSERT" | "UPDATE" | "DELETE"
+  operation: "INSERT" | "UPDATE" | "DELETE" | "MARK_ALL_READ"
   data: any
   timestamp?: number
 }
 
 export const offlineStore = {
+  // Check if device is online
+  async isOnline(): Promise<boolean> {
+    const state = await NetInfo.fetch()
+    return state.isConnected === true
+  },
+
+  // Check if currently syncing
+  async isSyncing(): Promise<boolean> {
+    const syncing = await AsyncStorage.getItem("isSyncing")
+    return syncing === "true"
+  },
+
   // Projects
   async getProjects(): Promise<Project[]> {
     try {
@@ -20,6 +33,14 @@ export const offlineStore = {
     } catch (error) {
       console.error("Error getting projects from AsyncStorage:", error)
       return []
+    }
+  },
+
+  async cacheProjects(projects: Project[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem("projects", JSON.stringify(projects))
+    } catch (error) {
+      console.error("Error caching projects to AsyncStorage:", error)
     }
   },
 
@@ -76,6 +97,14 @@ export const offlineStore = {
     } catch (error) {
       console.error("Error getting tasks from AsyncStorage:", error)
       return []
+    }
+  },
+
+  async cacheTasks(tasks: Task[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem("tasks", JSON.stringify(tasks))
+    } catch (error) {
+      console.error("Error caching tasks to AsyncStorage:", error)
     }
   },
 
@@ -164,14 +193,34 @@ export const offlineStore = {
   // Sync offline changes with server
   async syncOfflineChanges(): Promise<void> {
     try {
+      // Set syncing flag
+      await AsyncStorage.setItem("isSyncing", "true")
+
       const changes = await this.getOfflineChanges()
-      if (changes.length === 0) return
+      if (changes.length === 0) {
+        await AsyncStorage.setItem("isSyncing", "false")
+        return
+      }
 
       // Sort changes by timestamp to maintain order
       const sortedChanges = [...changes].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
 
-      const user = supabase.auth.getUser()
-      if (!user) throw new Error("User not authenticated")
+      const user = (await supabase.auth.getUser()).data.user
+      if (!user) {
+        await AsyncStorage.setItem("isSyncing", "false")
+        throw new Error("User not authenticated")
+      }
+
+      // Process pending theme changes
+      const pendingTheme = await AsyncStorage.getItem("pendingThemeChange")
+      if (pendingTheme) {
+        try {
+          await supabase.from("profiles").update({ theme: pendingTheme }).eq("id", user.id)
+          await AsyncStorage.removeItem("pendingThemeChange")
+        } catch (error) {
+          console.error("Error syncing theme change:", error)
+        }
+      }
 
       for (const change of sortedChanges) {
         try {
@@ -181,6 +230,8 @@ export const offlineStore = {
                 await supabase.from("projects").insert(change.data)
               } else if (change.table_name === "tasks") {
                 await supabase.from("tasks").insert(change.data)
+              } else if (change.table_name === "notifications") {
+                await supabase.from("notifications").insert(change.data)
               }
               break
             case "UPDATE":
@@ -188,6 +239,10 @@ export const offlineStore = {
                 await supabase.from("projects").update(change.data).eq("id", change.record_id)
               } else if (change.table_name === "tasks") {
                 await supabase.from("tasks").update(change.data).eq("id", change.record_id)
+              } else if (change.table_name === "profiles") {
+                await supabase.from("profiles").update(change.data).eq("id", change.record_id)
+              } else if (change.table_name === "notifications") {
+                await supabase.from("notifications").update(change.data).eq("id", change.record_id)
               }
               break
             case "DELETE":
@@ -195,6 +250,15 @@ export const offlineStore = {
                 await supabase.from("projects").delete().eq("id", change.record_id)
               } else if (change.table_name === "tasks") {
                 await supabase.from("tasks").delete().eq("id", change.record_id)
+              }
+              break
+            case "MARK_ALL_READ":
+              if (change.table_name === "notifications") {
+                await supabase
+                  .from("notifications")
+                  .update({ read: true })
+                  .eq("user_id", change.data.user_id)
+                  .eq("read", false)
               }
               break
           }
@@ -209,8 +273,15 @@ export const offlineStore = {
 
       // Refresh local data from server
       await this.refreshLocalData()
+
+      // Update last synced time
+      await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
+
+      // Clear syncing flag
+      await AsyncStorage.setItem("isSyncing", "false")
     } catch (error) {
       console.error("Error syncing offline changes:", error)
+      await AsyncStorage.setItem("isSyncing", "false")
     }
   },
 
@@ -227,6 +298,21 @@ export const offlineStore = {
       const { data: tasks } = await supabase.from("tasks").select("*")
       if (tasks) {
         await AsyncStorage.setItem("tasks", JSON.stringify(tasks))
+      }
+
+      // Refresh notifications
+      const { data: notifications } = await supabase.from("notifications").select("*")
+      if (notifications) {
+        await AsyncStorage.setItem("notifications", JSON.stringify(notifications))
+      }
+
+      // Refresh profile
+      const user = (await supabase.auth.getUser()).data.user
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        if (profile) {
+          await AsyncStorage.setItem("profile", JSON.stringify(profile))
+        }
       }
     } catch (error) {
       console.error("Error refreshing local data:", error)

@@ -1,26 +1,37 @@
 "use client"
 
-import React from "react"
-import { StyleSheet, View, Text, Image, TouchableOpacity, FlatList, Animated } from "react-native"
+import { StyleSheet, View, Text, Image, TouchableOpacity, FlatList, Animated, ActivityIndicator } from "react-native"
 import { useState, useRef, useEffect } from "react"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
+import { router } from "expo-router"
 
 import { CommitItem } from "@/components/CommitItem"
+import { githubService } from "@/services/githubService"
+import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 
 export default function GitHubScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
+  const { showToast } = useToast()
 
-  const [isConnected, setIsConnected] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [connection, setConnection] = useState<any>(null)
+  const [repositories, setRepositories] = useState<any[]>([])
+  const [selectedRepo, setSelectedRepo] = useState<any>(null)
+  const [commits, setCommits] = useState<any[]>([])
 
   // Animation for the connect button
   const pulseAnim = useRef(new Animated.Value(1)).current
 
+  useEffect(() => {
+    loadGitHubData()
+  }, [])
+
   // Start pulsing animation
   useEffect(() => {
-    if (!isConnected) {
+    if (!connection) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -35,66 +46,79 @@ export default function GitHubScreen() {
           }),
         ]),
       ).start()
+    } else {
+      pulseAnim.setValue(1)
     }
-  }, [isConnected])
+  }, [connection])
 
-  // Mock data for GitHub commits
-  const commits = [
-    {
-      id: "c1",
-      message: "Fix navigation bug in project details screen",
-      author: "Sarah Chen",
-      timestamp: "2025-05-08T14:30:00Z",
-      hash: "a1b2c3d",
-      repo: "code-cue",
-    },
-    {
-      id: "c2",
-      message: "Add task filtering functionality",
-      author: "Sarah Chen",
-      timestamp: "2025-05-08T12:15:00Z",
-      hash: "e4f5g6h",
-      repo: "code-cue",
-    },
-    {
-      id: "c3",
-      message: "Implement dark mode toggle",
-      author: "Alex Johnson",
-      timestamp: "2025-05-07T16:45:00Z",
-      hash: "i7j8k9l",
-      repo: "code-cue",
-    },
-    {
-      id: "c4",
-      message: "Update README with installation instructions",
-      author: "Sarah Chen",
-      timestamp: "2025-05-07T10:20:00Z",
-      hash: "m1n2o3p",
-      repo: "code-cue",
-    },
-    {
-      id: "c5",
-      message: "Refactor authentication service",
-      author: "Alex Johnson",
-      timestamp: "2025-05-06T15:10:00Z",
-      hash: "q4r5s6t",
-      repo: "code-cue",
-    },
-  ]
+  const loadGitHubData = async () => {
+    try {
+      setLoading(true)
+
+      // Check if user has GitHub connection
+      const connectionData = await githubService.getConnection()
+      setConnection(connectionData)
+
+      if (connectionData) {
+        // Get repositories
+        const reposData = await githubService.getRepositories()
+        setRepositories(reposData)
+
+        // Select first repo if available
+        if (reposData && reposData.length > 0) {
+          setSelectedRepo(reposData[0])
+
+          // Get commits for selected repo
+          const commitsData = await githubService.getCommits(reposData[0].id)
+          setCommits(commitsData)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading GitHub data:", error)
+      showToast("Failed to load GitHub data", { type: "error" })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleConnect = () => {
     // In a real app, this would trigger GitHub OAuth flow
-    setIsConnected(true)
+    // For now, we'll just navigate to a mock connection screen
+    router.push("/github-connect")
+  }
+
+  const handleSelectRepo = async (repo: any) => {
+    try {
+      setSelectedRepo(repo)
+      setLoading(true)
+
+      // Get commits for selected repo
+      const commitsData = await githubService.getCommits(repo.id)
+      setCommits(commitsData)
+    } catch (error) {
+      console.error("Error loading commits:", error)
+      showToast("Failed to load commits", { type: "error" })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleLinkCommit = (commitId: string) => {
     // Navigate to link commit to task screen
-    console.log(`Link commit ${commitId} to task`)
+    router.push(`/link-commit?commitId=${commitId}`)
+  }
+
+  if (loading) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.tint} />
+      </View>
+    )
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {!isConnected ? (
+      {!connection ? (
         <View style={styles.connectContainer}>
           <Ionicons name="logo-github" size={80} color={theme.text} />
           <Text style={[styles.connectTitle, { color: theme.text }]}>Connect to GitHub</Text>
@@ -116,35 +140,83 @@ export default function GitHubScreen() {
         <>
           <View style={[styles.header, { borderBottomColor: theme.border }]}>
             <View style={styles.accountInfo}>
-              <Image source={{ uri: "https://github.com/identicons/sarahchen.png" }} style={styles.avatar} />
+              <Image
+                source={{ uri: `https://github.com/identicons/${connection.username}.png` }}
+                style={styles.avatar}
+              />
               <View>
-                <Text style={[styles.username, { color: theme.text }]}>sarahchen</Text>
-                <Text style={[styles.accountType, { color: theme.textDim }]}>Personal Account</Text>
+                <Text style={[styles.username, { color: theme.text }]}>{connection.username}</Text>
+                <Text style={[styles.accountType, { color: theme.textDim }]}>GitHub Account</Text>
               </View>
             </View>
           </View>
 
-          <View style={[styles.repoSelector, { backgroundColor: theme.cardBackground }]}>
-            <Ionicons name="git-branch-outline" size={18} color={theme.tint} style={styles.repoIcon} />
-            <Text style={[styles.repoSelectorText, { color: theme.text }]}>code-cue</Text>
-            <Ionicons name="chevron-down" size={18} color={theme.textDim} />
-          </View>
+          {repositories.length > 0 ? (
+            <>
+              <TouchableOpacity
+                style={[styles.repoSelector, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push("/repositories")}
+              >
+                <Ionicons name="git-branch-outline" size={18} color={theme.tint} style={styles.repoIcon} />
+                <Text style={[styles.repoSelectorText, { color: theme.text }]}>
+                  {selectedRepo ? selectedRepo.name : "Select Repository"}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={theme.textDim} />
+              </TouchableOpacity>
 
-          <View style={styles.commitsHeader}>
-            <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
-              <Ionicons name="arrow-forward" size={16} color={theme.tint} />
-            </TouchableOpacity>
-          </View>
+              <View style={styles.commitsHeader}>
+                <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={() => router.push(`/repository/${selectedRepo.id}`)}
+                >
+                  <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
+                  <Ionicons name="arrow-forward" size={16} color={theme.tint} />
+                </TouchableOpacity>
+              </View>
 
-          <FlatList
-            data={commits}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <CommitItem commit={item} onLinkPress={() => handleLinkCommit(item.id)} />}
-            contentContainerStyle={styles.commitsList}
-            showsVerticalScrollIndicator={false}
-          />
+              {commits.length > 0 ? (
+                <FlatList
+                  data={commits}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <CommitItem
+                      commit={{
+                        id: item.id,
+                        message: item.message,
+                        author: item.author,
+                        timestamp: item.committed_at,
+                        hash: item.commit_id.substring(0, 7),
+                        repo: selectedRepo.name,
+                      }}
+                      onLinkPress={() => handleLinkCommit(item.id)}
+                    />
+                  )}
+                  contentContainerStyle={styles.commitsList}
+                  showsVerticalScrollIndicator={false}
+                />
+              ) : (
+                <View style={styles.emptyCommitsContainer}>
+                  <Ionicons name="git-commit-outline" size={60} color={theme.textDim} />
+                  <Text style={[styles.emptyCommitsText, { color: theme.textDim }]}>
+                    No commits found for this repository
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.emptyReposContainer}>
+              <Ionicons name="folder-open-outline" size={60} color={theme.textDim} />
+              <Text style={[styles.emptyReposText, { color: theme.textDim }]}>No repositories found</Text>
+              <TouchableOpacity
+                style={[styles.addRepoButton, { backgroundColor: theme.tint }]}
+                onPress={() => router.push("/add-repository")}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addRepoButtonText}>Add Repository</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </>
       )}
     </View>
@@ -154,6 +226,11 @@ export default function GitHubScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   connectContainer: {
     flex: 1,
@@ -262,5 +339,41 @@ const styles = StyleSheet.create({
   commitsList: {
     paddingHorizontal: 16,
     paddingBottom: 20,
+  },
+  emptyCommitsContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+    marginTop: 40,
+  },
+  emptyCommitsText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 16,
+  },
+  emptyReposContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyReposText: {
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  addRepoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  addRepoButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
 })
