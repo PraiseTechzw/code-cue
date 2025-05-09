@@ -5,7 +5,16 @@ import { notificationService } from "./notificationService"
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"]
 export type NewProject = Database["public"]["Tables"]["projects"]["Insert"]
-export type UpdateProject = Database["public"]["Tables"]["projects"]["Update"]
+export type UpdateProject = {
+  id?: string
+  name?: string
+  description?: string | null
+  progress?: number
+  user_id?: string
+  status?: "active" | "completed" | "archived"
+  created_at?: string
+  updated_at?: string
+}
 
 export const projectService = {
   async getProjects() {
