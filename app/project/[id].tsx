@@ -383,10 +383,7 @@ export default function ProjectDetailsScreen() {
             <View style={styles.teamContainer}>
               <TeamMemberList
                 members={project.team_members}
-                onMemberPress={(memberId) => router.push({
-                  pathname: "/profile",
-                  params: { id: memberId }
-                })}
+                onMemberPress={(memberId) => router.push("/edit-profile")}
               />
               {project.owner_id === user?.id && (
                 <TouchableOpacity
