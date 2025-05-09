@@ -1,5 +1,10 @@
 import { offlineStore } from "./offlineStore"
 import { notificationService } from "./notificationService"
+import { GoogleGenerativeAI } from "@google/generative-ai"
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.EXPO_PUBLIC_GEMINI_API_KEY || "AIzaSyC1Kpx_5w6XBMNw8LNL5uIhdce0_Bf-g9w")
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" })
 
 // Types for insights
 export interface Insight {
@@ -8,6 +13,135 @@ export interface Insight {
   title: string
   description: string
   timestamp: string
+}
+
+interface ProductivityTip {
+  id: string
+  title: string
+  description: string
+  category: "time" | "focus" | "planning" | "collaboration" | "workflow"
+  difficulty: "easy" | "medium" | "hard"
+  timestamp: string
+}
+
+/**
+ * Generate insights using Gemini AI
+ */
+async function generateAIInsights(projects: any[], tasks: any[]): Promise<Insight[]> {
+  try {
+    const prompt = `
+      Analyze the following project and task data to generate insights:
+      Projects: ${JSON.stringify(projects, null, 2)}
+      Tasks: ${JSON.stringify(tasks, null, 2)}
+
+      Generate 4-5 insights in the following format:
+      {
+        "type": "suggestion" | "alert" | "productivity" | "analytics",
+        "title": "Brief title",
+        "description": "Detailed insight description"
+      }
+
+      Focus on:
+      1. Project progress and deadlines
+      2. Task distribution and workload
+      3. Productivity patterns
+      4. Potential bottlenecks or issues
+      5. Recommendations for improvement
+    `
+
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text()
+    
+    // Parse the AI response and format insights
+    const aiInsights = JSON.parse(text.substring(
+      text.indexOf("["),
+      text.lastIndexOf("]") + 1
+    ))
+
+    return aiInsights.map((insight: any) => ({
+      ...insight,
+      id: `insight-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      timestamp: new Date().toISOString()
+    }))
+  } catch (error) {
+    console.error("Error generating AI insights:", error)
+    return []
+  }
+}
+
+/**
+ * Generate productivity tips using Gemini AI
+ */
+async function generateProductivityTips(userActivity: any): Promise<ProductivityTip[]> {
+  try {
+    const prompt = `
+      Generate 3 practical productivity tips for a software developer.
+      Format each tip as a JSON object with:
+      {
+        "title": "Brief, actionable title",
+        "description": "Detailed explanation with concrete steps",
+        "category": "time" | "focus" | "planning" | "collaboration" | "workflow",
+        "difficulty": "easy" | "medium" | "hard"
+      }
+
+      Make tips specific, actionable, and based on proven productivity techniques.
+      Focus on:
+      1. Time management
+      2. Focus and concentration
+      3. Task organization
+      4. Team collaboration
+      5. Development workflow optimization
+    `
+
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const text = response.text()
+    
+    // Parse the AI response and format tips
+    const aiTips = JSON.parse(text.substring(
+      text.indexOf("["),
+      text.lastIndexOf("]") + 1
+    ))
+
+    return aiTips.map((tip: any) => ({
+      ...tip,
+      id: `tip-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      timestamp: new Date().toISOString()
+    }))
+  } catch (error) {
+    console.error("Error generating productivity tips:", error)
+    return getFallbackTips()
+  }
+}
+
+function getFallbackTips(): ProductivityTip[] {
+  return [
+    {
+      id: "tip-1",
+      title: "Time-Boxing with Pomodoro",
+      description: "Use the Pomodoro Technique: Work for 25 minutes, then take a 5-minute break. After 4 cycles, take a longer 15-30 minute break. This helps maintain focus and prevents burnout.",
+      category: "time",
+      difficulty: "easy",
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: "tip-2",
+      title: "Task Prioritization Matrix",
+      description: "Use the Eisenhower Matrix to prioritize tasks: Urgent & Important (Do First), Important but Not Urgent (Schedule), Urgent but Not Important (Delegate), Neither (Eliminate).",
+      category: "planning",
+      difficulty: "medium",
+      timestamp: new Date().toISOString()
+    },
+    {
+      id: "tip-3",
+      title: "Code Review Efficiency",
+      description: "Schedule dedicated code review time blocks. Review code in chunks of 200-400 lines at a time. Take breaks between reviews to maintain high quality feedback.",
+      category: "workflow",
+      difficulty: "medium",
+      timestamp: new Date().toISOString()
+    }
+  ]
 }
 
 /**
@@ -19,21 +153,27 @@ export const aiService = {
    */
   async generateInsights(projects: any[], tasks: any[]): Promise<Insight[]> {
     try {
-      // In a real app, this would call an AI service API
-      // For now, we'll generate insights based on the data we have
-
-      const insights: Insight[] = []
-
       // Check if we have cached insights
-      const cachedInsights = await offlineStore.getItem("insights")
+      const cachedInsights = await offlineStore.getData("insights", async () => null)
       if (cachedInsights) {
-        return JSON.parse(cachedInsights)
+        return cachedInsights
       }
 
       // If no projects, return empty insights
       if (!projects || projects.length === 0) {
         return []
       }
+
+      // Generate AI insights
+      const aiInsights = await generateAIInsights(projects, tasks)
+      if (aiInsights.length > 0) {
+        // Cache the AI insights
+        await offlineStore.getData("insights", async () => aiInsights)
+        return aiInsights
+      }
+
+      // Fallback to rule-based insights if AI fails
+      const insights: Insight[] = []
 
       // Get the most recent project
       const recentProject = [...projects].sort(
@@ -137,13 +277,34 @@ export const aiService = {
         timestamp: new Date().toISOString(),
       })
 
-      // Cache the insights
-      await offlineStore.setItem("insights", JSON.stringify(insights))
-
       return insights
     } catch (error) {
       console.error("Error generating insights:", error)
       return this.getFallbackInsights()
+    }
+  },
+
+  /**
+   * Get AI-generated productivity tips
+   */
+  async getProductivityTips(): Promise<ProductivityTip[]> {
+    try {
+      // Check cache first
+      const cachedTips = await offlineStore.getData("productivityTips", async () => null)
+      if (cachedTips) {
+        return cachedTips
+      }
+
+      // Generate new tips
+      const tips = await generateProductivityTips({})
+      
+      // Cache the tips
+      await offlineStore.getData("productivityTips", async () => tips)
+      
+      return tips
+    } catch (error) {
+      console.error("Error getting productivity tips:", error)
+      return getFallbackTips()
     }
   },
 

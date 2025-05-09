@@ -80,7 +80,6 @@ export const taskService = {
         title: "Task Created",
         description: `You created a new task: ${task.title}`,
         type: "task_created",
-        user_id: user.id,
         related_id: data.id,
         related_type: "task",
       })
@@ -139,17 +138,13 @@ export const taskService = {
 
       // If status changed to done, create notification
       if (updates.status === "done" && oldTask && oldTask.status !== "done") {
-        const user = (await supabase.auth.getUser()).data.user
-        if (user) {
-          await notificationService.createNotification({
-            title: "Task Completed",
-            description: `You completed the task: ${data.title}`,
-            type: "task_completed",
-            user_id: user.id,
-            related_id: data.id,
-            related_type: "task",
-          })
-        }
+        await notificationService.createNotification({
+          title: "Task Completed",
+          description: `You completed the task: ${data.title}`,
+          type: "task_completed",
+          related_id: data.id,
+          related_type: "task",
+        })
       }
 
       // Update project progress if status changed
@@ -290,7 +285,6 @@ export const taskService = {
           title: "New Comment",
           description: `You commented on task: ${task.title}`,
           type: "comment_added",
-          user_id: user.id,
           related_id: data.id,
           related_type: "comment",
         })
