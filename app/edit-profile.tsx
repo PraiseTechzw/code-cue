@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from "react-native"
 import { useRouter } from "expo-router"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import * as ImagePicker from "expo-image-picker"
 import { useAuth } from "@/contexts/AuthContext"
@@ -53,7 +53,7 @@ export default function EditProfileScreen() {
         }
       } catch (error) {
         console.error("Error loading profile:", error)
-        showToast("Failed to load profile", { type: "error" })
+        showToast("Failed to load profile", "error")
       } finally {
         setLoading(false)
       }
@@ -73,16 +73,16 @@ export default function EditProfileScreen() {
         full_name: fullName,
         avatar_url: avatarUrl,
       })
-      showToast("Profile updated successfully", { type: "success" })
+      showToast("Profile updated successfully", "success")
       router.back()
     } catch (error) {
       console.error("Error updating profile:", error)
 
       if (!isConnected) {
-        showToast("Profile will be updated when you're back online", { type: "info" })
+        showToast("Profile will be updated when you're back online", "info")
         router.back()
       } else {
-        showToast("Failed to update profile", { type: "error" })
+        showToast("Failed to update profile", "error")
       }
     } finally {
       setSaving(false)
@@ -113,7 +113,7 @@ export default function EditProfileScreen() {
         if (!isConnected) {
           // Just store the local URI if offline
           setAvatarUrl(selectedImage.uri)
-          showToast("Image will be uploaded when you're back online", { type: "info" })
+          showToast("Image will be uploaded when you're back online", "info")
           return
         }
 
@@ -122,7 +122,7 @@ export default function EditProfileScreen() {
       }
     } catch (error) {
       console.error("Error picking image:", error)
-      showToast("Failed to pick image", { type: "error" })
+      showToast("Failed to pick image", "error")
     }
   }
 
@@ -160,10 +160,10 @@ export default function EditProfileScreen() {
       setAvatarUrl(publicUrl)
       setUploadProgress(100)
 
-      showToast("Avatar uploaded successfully", { type: "success" })
+      showToast("Avatar uploaded successfully", "success")
     } catch (error) {
       console.error("Error uploading avatar:", error)
-      showToast("Failed to upload avatar", { type: "error" })
+      showToast("Failed to upload avatar", "error")
       setUploadProgress(0)
     }
   }
@@ -191,7 +191,7 @@ export default function EditProfileScreen() {
         if (!isConnected) {
           // Just store the local URI if offline
           setAvatarUrl(selectedImage.uri)
-          showToast("Image will be uploaded when you're back online", { type: "info" })
+          showToast("Image will be uploaded when you're back online", "info")
           return
         }
 
@@ -200,7 +200,7 @@ export default function EditProfileScreen() {
       }
     } catch (error) {
       console.error("Error taking photo:", error)
-      showToast("Failed to take photo", { type: "error" })
+      showToast("Failed to take photo", "error")
     }
   }
 

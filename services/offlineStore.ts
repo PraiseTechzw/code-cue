@@ -4,14 +4,80 @@ import { supabase } from "@/lib/supabase"
 import type { Project } from "./projectService"
 import type { Task } from "./taskService"
 
-// Define types for offline changes
-interface OfflineChange {
-  id?: string
+// Types
+export type OfflineChange = {
+  id: string
   table_name: string
   record_id: string
   operation: "INSERT" | "UPDATE" | "DELETE"
   data: any
-  timestamp: number
+  created_at: string
+  synced: boolean
+  retry_count: number
+}
+
+export type SyncProgress = {
+  total: number
+  completed: number
+  failed: number
+  inProgress: boolean
+  lastSyncTime: number | null
+  error: string | null
+}
+
+// Keys for AsyncStorage
+const OFFLINE_CHANGES_KEY = "offline_changes"
+const LAST_SYNC_TIME_KEY = "last_sync_TIME"
+
+// Event listeners
+type SyncListener = (progress: SyncProgress) => void
+const syncListeners: SyncListener[] = []
+
+// Initial sync progress state
+let syncProgress: SyncProgress = {
+  total: 0,
+  completed: 0,
+  failed: 0,
+  inProgress: false,
+  lastSyncTime: null,
+  error: null,
+}
+
+// Add a sync listener
+export const addSyncListener = (listener: SyncListener) => {
+  syncListeners.push(listener)
+  // Immediately notify with current state
+  listener({ ...syncProgress })
+  return () => {
+    const index = syncListeners.indexOf(listener)
+    if (index !== -1) {
+      syncListeners.splice(index, 1)
+    }
+  }
+}
+
+// Notify all listeners
+const notifyListeners = () => {
+  syncListeners.forEach((listener) => listener({ ...syncProgress }))
+}
+
+// Reset sync progress
+const resetSyncProgress = () => {
+  syncProgress = {
+    total: 0,
+    completed: 0,
+    failed: 0,
+    inProgress: false,
+    lastSyncTime: syncProgress.lastSyncTime,
+    error: null,
+  }
+  notifyListeners()
+}
+
+// Update sync progress
+const updateSyncProgress = (update: Partial<SyncProgress>) => {
+  syncProgress = { ...syncProgress, ...update }
+  notifyListeners()
 }
 
 // Cache for in-memory data
@@ -20,6 +86,171 @@ const cache: Record<string, any> = {}
 // Function to generate a unique ID
 const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
+
+// Helper function to check internet connectivity
+const isOnline = async (): Promise<boolean> => {
+  const netInfo = await NetInfo.fetch()
+  return netInfo.isConnected !== null && netInfo.isConnected
+}
+
+// Helper functions for offline changes
+const getOfflineChanges = async (): Promise<OfflineChange[]> => {
+  try {
+    const offlineChangesData = await AsyncStorage.getItem(OFFLINE_CHANGES_KEY)
+    return offlineChangesData ? JSON.parse(offlineChangesData) : []
+  } catch (error) {
+    console.error("Error getting offline changes from AsyncStorage:", error)
+    return []
+  }
+}
+
+const getPendingChangesCount = async (): Promise<number> => {
+  const offlineChanges = await getOfflineChanges()
+  return offlineChanges.length
+}
+
+const addOfflineChange = async (change: OfflineChange): Promise<void> => {
+  try {
+    const offlineChanges = await getOfflineChanges()
+    const updatedOfflineChanges = [...offlineChanges, change]
+    await AsyncStorage.setItem(OFFLINE_CHANGES_KEY, JSON.stringify(updatedOfflineChanges))
+  } catch (error) {
+    console.error("Error adding offline change to AsyncStorage:", error)
+  }
+}
+
+const markChangeSynced = async (id: string): Promise<void> => {
+  try {
+    const offlineChanges = await getOfflineChanges()
+    const updatedOfflineChanges = offlineChanges.map((change) =>
+      change.id === id ? { ...change, synced: true } : change,
+    )
+    await AsyncStorage.setItem(OFFLINE_CHANGES_KEY, JSON.stringify(updatedOfflineChanges))
+  } catch (error) {
+    console.error("Error marking offline change as synced in AsyncStorage:", error)
+  }
+}
+
+const removeChange = async (id: string): Promise<void> => {
+  try {
+    const offlineChanges = await getOfflineChanges()
+    const updatedOfflineChanges = offlineChanges.filter((change) => change.id !== id)
+    await AsyncStorage.setItem(OFFLINE_CHANGES_KEY, JSON.stringify(updatedOfflineChanges))
+  } catch (error) {
+    console.error("Error removing offline change from AsyncStorage:", error)
+  }
+}
+
+const clearSyncedChanges = async (): Promise<void> => {
+  try {
+    const offlineChanges = await getOfflineChanges()
+    const updatedOfflineChanges = offlineChanges.filter((change) => !change.synced)
+    await AsyncStorage.setItem(OFFLINE_CHANGES_KEY, JSON.stringify(updatedOfflineChanges))
+  } catch (error) {
+    console.error("Error clearing synced offline changes from AsyncStorage:", error)
+  }
+}
+
+const syncOfflineChanges = async (): Promise<void> => {
+  if (syncProgress.inProgress) {
+    console.log("Sync already in progress, skipping...")
+    return
+  }
+
+  try {
+    updateSyncProgress({ inProgress: true, error: null })
+    const offlineChanges = await getOfflineChanges()
+    const unsyncedChanges = offlineChanges.filter((change) => !change.synced)
+
+    if (unsyncedChanges.length === 0) {
+      console.log("No offline changes to sync.")
+      updateSyncProgress({ inProgress: false })
+      return
+    }
+
+    updateSyncProgress({ total: unsyncedChanges.length, completed: 0, failed: 0 })
+
+    for (const change of unsyncedChanges) {
+      try {
+        let response
+        switch (change.operation) {
+          case "INSERT":
+            response = await supabase.from(change.table_name).insert(change.data)
+            break
+          case "UPDATE":
+            response = await supabase.from(change.table_name).update(change.data).eq("id", change.record_id)
+            break
+          case "DELETE":
+            response = await supabase.from(change.table_name).delete().eq("id", change.record_id)
+            break
+          default:
+            throw new Error(`Unknown operation: ${change.operation}`)
+        }
+
+        if (response?.error) {
+          console.error(
+            `Failed to sync ${change.operation} for ${change.table_name} (ID: ${change.record_id}):`,
+            response.error,
+          )
+          updateSyncProgress({ failed: syncProgress.failed + 1 })
+        } else {
+          await markChangeSynced(change.id)
+          updateSyncProgress({ completed: syncProgress.completed + 1 })
+        }
+      } catch (error: any) {
+        console.error(`Failed to sync ${change.operation} for ${change.table_name} (ID: ${change.record_id}):`, error)
+        updateSyncProgress({ failed: syncProgress.failed + 1, error: error.message || "Sync error" })
+      }
+    }
+
+    const now = Date.now()
+    await setLastSyncTime(now)
+    updateSyncProgress({ inProgress: false, lastSyncTime: now })
+    console.log("Offline changes synced successfully.")
+  } catch (error: any) {
+    console.error("Error syncing offline changes:", error)
+    updateSyncProgress({ inProgress: false, error: error.message || "Sync error" })
+  } finally {
+    updateSyncProgress({ inProgress: false })
+  }
+}
+
+const getLastSyncTime = async (): Promise<number | null> => {
+  try {
+    const lastSyncTime = await AsyncStorage.getItem(LAST_SYNC_TIME_KEY)
+    return lastSyncTime ? Number.parseInt(lastSyncTime, 10) : null
+  } catch (error) {
+    console.error("Error getting last sync time from AsyncStorage:", error)
+    return null
+  }
+}
+
+const setLastSyncTime = async (time: number): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(LAST_SYNC_TIME_KEY, time.toString())
+  } catch (error) {
+    console.error("Error setting last sync time in AsyncStorage:", error)
+  }
+}
+
+// Initialize the offlineStore
+export const initOfflineStore = async () => {
+  try {
+    // Load last sync time
+    const lastSyncTime = await getLastSyncTime()
+    updateSyncProgress({ lastSyncTime })
+
+    // Set up network change listener
+    NetInfo.addEventListener((state) => {
+      // If connection is restored, try to sync
+      if (state.isConnected && !state.isConnectedPreviously) {
+        syncOfflineChanges()
+      }
+    })
+  } catch (error) {
+    console.error("Error initializing offline store:", error)
+  }
 }
 
 export const offlineStore = {
@@ -155,10 +386,7 @@ export const offlineStore = {
     }
   },
   // Check if device is online
-  async isOnline(): Promise<boolean> {
-    const state = await NetInfo.fetch()
-    return state.isConnected === true
-  },
+  isOnline,
 
   // Check if currently syncing
   async isSyncing(): Promise<boolean> {
@@ -300,148 +528,27 @@ export const offlineStore = {
   },
 
   // Offline changes tracking
-  async addOfflineChange(change: Omit<OfflineChange, "id" | "timestamp">) {
-    try {
-      // Get existing offline changes
-      const offlineChangesData = await AsyncStorage.getItem("offlineChanges")
-      const offlineChanges: OfflineChange[] = offlineChangesData ? JSON.parse(offlineChangesData) : []
+  getOfflineChanges,
 
-      // Add new change with ID and timestamp
-      const newChange: OfflineChange = {
-        ...change,
-        id: generateId(),
-        timestamp: Date.now(),
-      }
+  getPendingChangesCount,
 
-      offlineChanges.push(newChange)
+  addOfflineChange,
 
-      // Save updated changes
-      await AsyncStorage.setItem("offlineChanges", JSON.stringify(offlineChanges))
+  markChangeSynced,
 
-      console.log("Offline change added:", newChange)
+  removeChange,
 
-      // Update in-memory cache if applicable
-      if (change.operation === "INSERT" || change.operation === "UPDATE") {
-        const tableName = change.table_name.toLowerCase()
-        if (!cache[tableName]) {
-          cache[tableName] = []
-        }
+  clearSyncedChanges,
 
-        // Find existing record or add new one
-        const existingIndex = cache[tableName].findIndex((item: any) => item.id === change.record_id)
-        if (existingIndex >= 0) {
-          cache[tableName][existingIndex] = { ...cache[tableName][existingIndex], ...change.data }
-        } else {
-          cache[tableName].push({ id: change.record_id, ...change.data })
-        }
-      } else if (change.operation === "DELETE") {
-        const tableName = change.table_name.toLowerCase()
-        if (cache[tableName]) {
-          cache[tableName] = cache[tableName].filter((item: any) => item.id !== change.record_id)
-        }
-      }
+  syncOfflineChanges,
 
-      return true
-    } catch (error) {
-      console.error("Error adding offline change:", error)
-      return false
-    }
-  },
+  getLastSyncTime,
 
-  async getOfflineChanges(): Promise<OfflineChange[]> {
-    try {
-      const changesJson = await AsyncStorage.getItem("offlineChanges")
-      return changesJson ? JSON.parse(changesJson) : []
-    } catch (error) {
-      console.error("Error getting offline changes from AsyncStorage:", error)
-      return []
-    }
-  },
+  setLastSyncTime,
 
-  async clearOfflineChanges(): Promise<void> {
-    try {
-      await AsyncStorage.setItem("offlineChanges", JSON.stringify([]))
-    } catch (error) {
-      console.error("Error clearing offline changes from AsyncStorage:", error)
-    }
-  },
+  addSyncListener,
 
-  // Sync offline changes with the server
-  async syncOfflineChanges() {
-    try {
-      // Check if we're online
-      const netInfo = await NetInfo.fetch()
-      if (!netInfo.isConnected) {
-        console.log("Cannot sync offline changes: device is offline")
-        return false
-      }
-
-      // Get offline changes
-      const offlineChangesData = await AsyncStorage.getItem("offlineChanges")
-      if (!offlineChangesData) {
-        console.log("No offline changes to sync")
-        return true
-      }
-
-      const offlineChanges: OfflineChange[] = JSON.parse(offlineChangesData)
-      if (offlineChanges.length === 0) {
-        console.log("No offline changes to sync")
-        return true
-      }
-
-      console.log(`Syncing ${offlineChanges.length} offline changes...`)
-
-      // Set syncing flag
-      await AsyncStorage.setItem("isSyncing", "true")
-
-      // Sort changes by timestamp
-      offlineChanges.sort((a, b) => a.timestamp - b.timestamp)
-
-      // Process each change
-      const failedChanges: OfflineChange[] = []
-
-      for (const change of offlineChanges) {
-        try {
-          switch (change.operation) {
-            case "INSERT":
-              await supabase.from(change.table_name).insert(change.data)
-              break
-
-            case "UPDATE":
-              await supabase.from(change.table_name).update(change.data).eq("id", change.record_id)
-              break
-
-            case "DELETE":
-              await supabase.from(change.table_name).delete().eq("id", change.record_id)
-              break
-          }
-
-          console.log(`Successfully synced change: ${change.operation} on ${change.table_name}`)
-        } catch (error) {
-          console.error(`Error syncing change: ${change.operation} on ${change.table_name}`, error)
-          failedChanges.push(change)
-        }
-      }
-
-      // Update offline changes with only failed ones
-      if (failedChanges.length > 0) {
-        await AsyncStorage.setItem("offlineChanges", JSON.stringify(failedChanges))
-        console.log(`${failedChanges.length} changes failed to sync and will be retried later`)
-      } else {
-        await AsyncStorage.removeItem("offlineChanges")
-        console.log("All changes synced successfully")
-      }
-
-      // Clear syncing flag
-      await AsyncStorage.setItem("isSyncing", "false")
-
-      return failedChanges.length === 0
-    } catch (error) {
-      console.error("Error syncing offline changes:", error)
-      await AsyncStorage.setItem("isSyncing", "false")
-      return false
-    }
-  },
+  initOfflineStore,
 
   // Refresh local data from server
   async refreshLocalData(): Promise<void> {
@@ -491,7 +598,7 @@ export const offlineStore = {
   },
 
   // Get the count of pending offline changes
-  async getPendingChangesCount() {
+  async getPendingChangesCountOld() {
     try {
       const offlineChangesData = await AsyncStorage.getItem("offlineChanges")
       if (!offlineChangesData) return 0
@@ -521,6 +628,24 @@ export const offlineStore = {
     } catch (error) {
       console.error("Error clearing cache:", error)
       return false
+    }
+  },
+  // Set the last sync time
+  async setLastSyncTimeOld(time: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem("lastSyncTime", time)
+    } catch (error) {
+      console.error("Error setting last sync time:", error)
+    }
+  },
+
+  // Get the last sync time
+  async getLastSyncTimeOld(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem("lastSyncTime")
+    } catch (error) {
+      console.error("Error getting last sync time:", error)
+      return null
     }
   },
 }

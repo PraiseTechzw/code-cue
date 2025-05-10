@@ -1,7 +1,7 @@
 "use client"
 
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator, RefreshControl } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
 
@@ -47,7 +47,7 @@ export default function InsightsScreen() {
       setInsights(insightsData)
     } catch (error) {
       console.error("Error loading insights:", error)
-      showToast("Failed to load insights", { type: "error" })
+      showToast("Failed to load insights", "error")
 
       // Use fallback insights
       const fallbackInsights = aiService.getFallbackInsights()
@@ -108,9 +108,8 @@ export default function InsightsScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={loadInsights} colors={[theme.tint]} tintColor={theme.tint} />
-      }
+      refreshing={loading}
+      onRefresh={loadInsights}
     >
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>

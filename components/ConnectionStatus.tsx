@@ -1,233 +1,373 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import { View, Text, StyleSheet, Animated, Easing } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { useState, useEffect, useRef } from "react"
+import { StyleSheet, View, Text, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import NetInfo from "@react-native-community/netinfo"
+import * as Haptics from "expo-haptics"
+import { useAuth } from "@/contexts/AuthContext"
+import { offlineStore } from "@/services/offlineStore"
 import Colors from "@/constants/Colors"
-import { formatDistanceToNow } from "date-fns"
 
-type ConnectionState = "online" | "offline" | "syncing"
-
-interface ConnectionStatusProps {
-  lastSyncTime?: string | null
-}
-
-export function ConnectionStatus({ lastSyncTime }: ConnectionStatusProps) {
+export function ConnectionStatus() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
-  const [connectionState, setConnectionState] = useState<ConnectionState>("online")
-  const [visible, setVisible] = useState(false)
-  const fadeAnim = useRef(new Animated.Value(0)).current
-  const syncAnim = useRef(new Animated.Value(0)).current
+  const { isConnected } = useAuth()
 
-  // Rotate animation for syncing icon
-  const spin = syncAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+  const [expanded, setExpanded] = useState(false)
+  const [pendingChanges, setPendingChanges] = useState(0)
+  const [syncProgress, setSyncProgress] = useState({
+    total: 0,
+    completed: 0,
+    failed: 0,
+    inProgress: false,
+    lastSyncTime: null as number | null,
+    error: null as string | null,
   })
 
-  useEffect(() => {
-    // Start rotation animation for syncing state
-    let syncAnimation: Animated.CompositeAnimation | null = null
+  // Animations
+  const heightAnim = useRef(new Animated.Value(0)).current
+  const opacityAnim = useRef(new Animated.Value(0)).current
+  const slideAnim = useRef(new Animated.Value(50)).current
+  const progressAnim = useRef(new Animated.Value(0)).current
 
-    if (connectionState === "syncing") {
-      syncAnimation = Animated.loop(
-        Animated.timing(syncAnim, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      )
-      syncAnimation.start()
-    } else {
-      syncAnim.setValue(0)
+  // Format last sync time
+  const formatLastSyncTime = (timestamp: number | null) => {
+    if (!timestamp) return "Never"
+
+    const now = new Date()
+    const syncTime = new Date(timestamp)
+
+    // If today, show time
+    if (
+      now.getDate() === syncTime.getDate() &&
+      now.getMonth() === syncTime.getMonth() &&
+      now.getFullYear() === syncTime.getFullYear()
+    ) {
+      return syncTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
 
-    return () => {
-      if (syncAnimation) {
-        syncAnimation.stop()
-      }
+    // If yesterday, show "Yesterday"
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+    if (
+      yesterday.getDate() === syncTime.getDate() &&
+      yesterday.getMonth() === syncTime.getMonth() &&
+      yesterday.getFullYear() === syncTime.getFullYear()
+    ) {
+      return "Yesterday"
     }
-  }, [connectionState])
 
+    // Otherwise show date
+    return syncTime.toLocaleDateString()
+  }
+
+  // Load pending changes count
+  const loadPendingChanges = async () => {
+    const count = await offlineStore.getPendingChangesCount()
+    setPendingChanges(count)
+  }
+
+  // Initialize
   useEffect(() => {
-    // Subscribe to network state changes
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected) {
-        if (connectionState === "offline") {
-          // If we were offline and now online, show syncing state
-          setConnectionState("syncing")
+    loadPendingChanges()
 
-          // Simulate syncing process (in a real app, this would be actual data syncing)
-          setTimeout(() => {
-            setConnectionState("online")
-          }, 3000)
-        } else {
-          setConnectionState("online")
-        }
+    // Set up sync listener
+    const unsubscribe = offlineStore.addSyncListener((progress) => {
+      setSyncProgress(progress)
+
+      // Update progress animation
+      if (progress.total > 0) {
+        const progressValue = progress.completed / progress.total
+        Animated.timing(progressAnim, {
+          toValue: progressValue,
+          duration: 300,
+          useNativeDriver: false,
+        }).start()
       } else {
-        setConnectionState("offline")
+        progressAnim.setValue(0)
       }
 
-      // Show the indicator
-      setVisible(true)
-
-      // Fade in animation
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start()
-
-      // Auto hide after 5 seconds if online
-      if (state.isConnected && connectionState !== "syncing") {
-        setTimeout(() => {
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }).start(() => {
-            setVisible(false)
-          })
-        }, 5000)
+      // Reload pending changes after sync
+      if (!progress.inProgress) {
+        loadPendingChanges()
       }
+    })
+
+    // Set up network change listener
+    const netInfoUnsubscribe = NetInfo.addEventListener(() => {
+      loadPendingChanges()
     })
 
     return () => {
       unsubscribe()
+      netInfoUnsubscribe()
     }
-  }, [connectionState])
+  }, [])
 
-  // Don't render if not visible
-  if (!visible) return null
+  // Handle expand/collapse
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(heightAnim, {
+        toValue: expanded ? 1 : 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: expanded ? 1 : 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: expanded ? 0 : 50,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start()
+  }, [expanded])
 
-  // Get icon and color based on connection state
-  const getIcon = () => {
-    switch (connectionState) {
-      case "online":
-        return <Ionicons name="wifi" size={16} color={theme.success || "#4CAF50"} />
-      case "offline":
-        return <Ionicons name="cloud-offline" size={16} color={theme.error || "#F44336"} />
-      case "syncing":
-        return (
-          <Animated.View style={{ transform: [{ rotate: spin }] }}>
-            <Ionicons name="sync" size={16} color={theme.warning || "#FF9800"} />
-          </Animated.View>
-        )
-    }
+  // Handle sync button press
+  const handleSync = async () => {
+    if (syncProgress.inProgress) return
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    await offlineStore.syncOfflineChanges()
   }
 
-  // Get text based on connection state
-  const getText = () => {
-    switch (connectionState) {
-      case "online":
-        return "Online"
-      case "offline":
-        return "Offline"
-      case "syncing":
-        return "Syncing..."
-    }
+  // Only show if offline or has pending changes
+  if (isConnected && pendingChanges === 0 && !syncProgress.inProgress) {
+    return null
   }
 
-  // Get background color based on connection state
-  const getBackgroundColor = () => {
-    const isDark = colorScheme === "dark"
+  // Calculate progress width
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  })
 
-    switch (connectionState) {
-      case "online":
-        return isDark ? "rgba(76, 175, 80, 0.2)" : "rgba(76, 175, 80, 0.1)"
-      case "offline":
-        return isDark ? "rgba(244, 67, 54, 0.2)" : "rgba(244, 67, 54, 0.1)"
-      case "syncing":
-        return isDark ? "rgba(255, 152, 0, 0.2)" : "rgba(255, 152, 0, 0.1)"
-    }
-  }
-
-  // Get text color based on connection state
-  const getTextColor = () => {
-    switch (connectionState) {
-      case "online":
-        return theme.success || "#4CAF50"
-      case "offline":
-        return theme.error || "#F44336"
-      case "syncing":
-        return theme.warning || "#FF9800"
-    }
-  }
-
-  // Format last sync time
-  const formatLastSync = () => {
-    if (!lastSyncTime) return null
-
-    try {
-      const date = new Date(Number.parseInt(lastSyncTime))
-      return formatDistanceToNow(date, { addSuffix: true })
-    } catch (error) {
-      return null
-    }
-  }
-
-  const syncTimeText = formatLastSync()
+  // Calculate content height
+  const contentHeight = heightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 120],
+  })
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          backgroundColor: getBackgroundColor(),
-          opacity: fadeAnim,
-          borderColor:
-            connectionState === "online"
-              ? theme.success || "#4CAF50"
-              : connectionState === "offline"
-                ? theme.error || "#F44336"
-                : theme.warning || "#FF9800",
-        },
-      ]}
-    >
-      <View style={styles.content}>
-        {getIcon()}
-        <Text style={[styles.text, { color: getTextColor() }]}>{getText()}</Text>
-      </View>
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={[
+          styles.statusBar,
+          {
+            backgroundColor: isConnected ? theme.tintLight : theme.warningLight,
+          },
+        ]}
+        onPress={() => {
+          setExpanded(!expanded)
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+        }}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`${isConnected ? "Online" : "Offline"} status. ${pendingChanges} pending changes.`}
+        accessibilityHint="Double tap to expand for more details"
+      >
+        <View style={styles.statusContent}>
+          <View style={styles.statusIconContainer}>
+            <Ionicons
+              name={isConnected ? "cloud-done-outline" : "cloud-offline-outline"}
+              size={18}
+              color={isConnected ? theme.tint : theme.warning}
+            />
+          </View>
 
-      {connectionState === "online" && syncTimeText && (
-        <Text style={[styles.syncText, { color: theme.textDim }]}>Last synced {syncTimeText}</Text>
+          <Text style={[styles.statusText, { color: isConnected ? theme.tint : theme.warning }]}>
+            {isConnected ? "Online" : "Offline"}
+          </Text>
+
+          {pendingChanges > 0 && (
+            <View
+              style={[styles.badge, { backgroundColor: isConnected ? theme.tint : theme.warning }]}
+              accessibilityLabel={`${pendingChanges} pending changes`}
+            >
+              <Text style={styles.badgeText}>{pendingChanges}</Text>
+            </View>
+          )}
+        </View>
+
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={isConnected ? theme.tint : theme.warning}
+        />
+      </TouchableOpacity>
+
+      {/* Progress bar for sync */}
+      {syncProgress.inProgress && (
+        <View style={styles.progressContainer}>
+          <Animated.View
+            style={[
+              styles.progressBar,
+              {
+                backgroundColor: theme.tint,
+                width: progressWidth,
+              },
+            ]}
+          />
+        </View>
       )}
-    </Animated.View>
+
+      {/* Expanded content */}
+      <Animated.View
+        style={[
+          styles.expandedContent,
+          {
+            height: contentHeight,
+            opacity: opacityAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.detailsContainer}>
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.textDim }]}>Last synced:</Text>
+            <Text style={[styles.detailValue, { color: theme.text }]}>
+              {formatLastSyncTime(syncProgress.lastSyncTime)}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Text style={[styles.detailLabel, { color: theme.textDim }]}>Pending changes:</Text>
+            <Text style={[styles.detailValue, { color: theme.text }]}>{pendingChanges}</Text>
+          </View>
+
+          {syncProgress.inProgress && (
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.textDim }]}>Sync progress:</Text>
+              <Text style={[styles.detailValue, { color: theme.text }]}>
+                {syncProgress.completed}/{syncProgress.total}
+              </Text>
+            </View>
+          )}
+
+          {syncProgress.error && (
+            <View style={styles.errorContainer}>
+              <Text style={[styles.errorText, { color: theme.error }]}>{syncProgress.error}</Text>
+            </View>
+          )}
+        </View>
+
+        {isConnected && pendingChanges > 0 && (
+          <TouchableOpacity
+            style={[styles.syncButton, { backgroundColor: theme.tint }]}
+            onPress={handleSync}
+            disabled={syncProgress.inProgress}
+            accessibilityRole="button"
+            accessibilityLabel="Sync now"
+            accessibilityHint="Synchronize pending changes with the server"
+          >
+            {syncProgress.inProgress ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="sync" size={16} color="#fff" style={styles.syncIcon} />
+                <Text style={styles.syncButtonText}>Sync Now</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+      </Animated.View>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 50,
-    alignSelf: "center",
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 8,
-    paddingHorizontal: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 1000,
   },
-  content: {
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  statusContent: {
     flexDirection: "row",
     alignItems: "center",
   },
-  text: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginLeft: 6,
+  statusIconContainer: {
+    marginRight: 8,
   },
-  syncText: {
+  statusText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: "#fff",
     fontSize: 10,
+    fontWeight: "bold",
+  },
+  progressContainer: {
+    height: 2,
+    backgroundColor: "rgba(0,0,0,0.1)",
+    overflow: "hidden",
+  },
+  progressBar: {
+    height: "100%",
+  },
+  expandedContent: {
+    overflow: "hidden",
+    paddingHorizontal: 16,
+  },
+  detailsContainer: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  errorContainer: {
     marginTop: 4,
-    textAlign: "center",
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 12,
+  },
+  syncButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  syncIcon: {
+    marginRight: 8,
+  },
+  syncButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 })

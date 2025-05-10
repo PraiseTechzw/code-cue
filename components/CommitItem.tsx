@@ -1,6 +1,7 @@
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
+import * as Haptics from "expo-haptics"
 import Colors from "@/constants/Colors"
 
 interface CommitItemProps {
@@ -12,15 +13,25 @@ interface CommitItemProps {
     hash: string
     repo: string
   }
-  onLinkPress: () => void
+  onLinkPress?: () => void
+  onPress?: () => void
+  linked?: boolean
 }
 
-export function CommitItem({ commit, onLinkPress }: CommitItemProps) {
+export function CommitItem({ commit, onLinkPress, onPress, linked = false }: CommitItemProps) {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
+  const formatCommitMessage = (message: string) => {
+    // Truncate long messages
+    if (message.length > 100) {
+      return message.substring(0, 100) + "..."
+    }
+    return message
+  }
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffHours = diffMs / (1000 * 60 * 60)
@@ -34,32 +45,66 @@ export function CommitItem({ commit, onLinkPress }: CommitItemProps) {
     }
   }
 
+  const handlePress = () => {
+    if (onPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+      onPress()
+    }
+  }
+
+  const handleLinkPress = () => {
+    if (onLinkPress) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+      onLinkPress()
+    }
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.cardBackground }]}>
+    <TouchableOpacity
+      style={[styles.container, { backgroundColor: theme.cardBackground }]}
+      onPress={handlePress}
+      activeOpacity={onPress ? 0.7 : 1}
+      accessibilityRole="button"
+      accessibilityLabel={`Commit: ${commit.message}`}
+      accessibilityHint={onPress ? "Double tap to view commit details" : undefined}
+    >
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.repo, { color: theme.textDim }]}>{commit.repo}</Text>
-          <Text style={[styles.hash, { color: theme.textDim }]}>{commit.hash}</Text>
+          <Text style={[styles.repoName, { color: theme.textDim }]}>{commit.repo}</Text>
+          <Text style={[styles.commitHash, { color: theme.textDim }]}>{commit.hash}</Text>
         </View>
-        <Text style={[styles.time, { color: theme.textDim }]}>{formatTime(commit.timestamp)}</Text>
+        <Text style={[styles.timestamp, { color: theme.textDim }]}>{formatTimestamp(commit.timestamp)}</Text>
       </View>
 
-      <Text style={[styles.message, { color: theme.text }]} numberOfLines={2}>
-        {commit.message}
-      </Text>
+      <Text style={[styles.message, { color: theme.text }]}>{formatCommitMessage(commit.message)}</Text>
 
       <View style={styles.footer}>
-        <View style={styles.author}>
+        <View style={styles.authorContainer}>
           <Ionicons name="person-outline" size={14} color={theme.textDim} style={styles.authorIcon} />
-          <Text style={[styles.authorName, { color: theme.textDim }]}>{commit.author}</Text>
+          <Text style={[styles.author, { color: theme.textDim }]}>{commit.author}</Text>
         </View>
 
-        <TouchableOpacity style={[styles.linkButton, { backgroundColor: theme.tintLight }]} onPress={onLinkPress}>
-          <Ionicons name="link-outline" size={14} color={theme.tint} style={styles.linkIcon} />
-          <Text style={[styles.linkText, { color: theme.tint }]}>Link to Task</Text>
-        </TouchableOpacity>
+        {onLinkPress && (
+          <TouchableOpacity
+            style={[styles.linkButton, { backgroundColor: linked ? theme.successLight : theme.tintLight }]}
+            onPress={handleLinkPress}
+            accessibilityRole="button"
+            accessibilityLabel={linked ? "Linked to task" : "Link to task"}
+            accessibilityHint={linked ? "This commit is linked to a task" : "Link this commit to a task"}
+          >
+            <Ionicons
+              name={linked ? "link" : "link-outline"}
+              size={14}
+              color={linked ? theme.success : theme.tint}
+              style={styles.linkIcon}
+            />
+            <Text style={[styles.linkText, { color: linked ? theme.success : theme.tint }]}>
+              {linked ? "Linked" : "Link"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
@@ -77,23 +122,22 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
-  repo: {
-    fontSize: 12,
+  repoName: {
+    fontSize: 14,
     fontWeight: "500",
     marginRight: 8,
   },
-  hash: {
-    fontSize: 12,
+  commitHash: {
+    fontSize: 14,
     fontFamily: "monospace",
   },
-  time: {
+  timestamp: {
     fontSize: 12,
   },
   message: {
@@ -107,22 +151,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  author: {
+  authorContainer: {
     flexDirection: "row",
     alignItems: "center",
   },
   authorIcon: {
     marginRight: 4,
   },
-  authorName: {
-    fontSize: 12,
+  author: {
+    fontSize: 14,
   },
   linkButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   linkIcon: {
     marginRight: 4,

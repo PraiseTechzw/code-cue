@@ -82,7 +82,7 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error("Error loading home data:", error)
-      showToast("Failed to load data", { type: "error" })
+      showToast("Failed to load data", "error")
     } finally {
       setLoading(false)
     }

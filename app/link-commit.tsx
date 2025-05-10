@@ -1,10 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, FlatList } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  FlatList,
+  Animated,
+} from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useColorScheme } from "react-native"
+import * as Haptics from "expo-haptics"
 
 import { githubService } from "@/services/githubService"
 import { taskService } from "@/services/taskService"
@@ -23,11 +33,33 @@ export default function LinkCommitScreen() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [linking, setLinking] = useState(false)
 
+  // Animations
+  const fadeAnim = useState(new Animated.Value(0))[0]
+  const slideAnim = useState(new Animated.Value(50))[0]
+
   useEffect(() => {
     if (commitId) {
       loadData()
     }
   }, [commitId])
+
+  useEffect(() => {
+    if (!loading && commit) {
+      // Animate in the content
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start()
+    }
+  }, [loading, commit])
 
   const loadData = async () => {
     try {
@@ -39,45 +71,79 @@ export default function LinkCommitScreen() {
 
       // Get tasks that are not completed
       const tasksData = await taskService.getTasks({ status: ["todo", "inProgress"] })
+
+      // Sort tasks by project and status
+      tasksData.sort((a, b) => {
+        // First sort by project name
+        if (a.project?.name && b.project?.name) {
+          if (a.project.name < b.project.name) return -1
+          if (a.project.name > b.project.name) return 1
+        }
+
+        // Then sort by status (todo first, then inProgress)
+        if (a.status === "todo" && b.status !== "todo") return -1
+        if (a.status !== "todo" && b.status === "todo") return 1
+
+        // Finally sort by title
+        return a.title.localeCompare(b.title)
+      })
+
       setTasks(tasksData)
     } catch (error) {
       console.error("Error loading data:", error)
-      showToast("Failed to load data", { type: "error" })
+      showToast("Failed to load data", "error")
     } finally {
       setLoading(false)
     }
   }
 
   const handleSelectTask = (taskId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setSelectedTaskId(taskId === selectedTaskId ? null : taskId)
   }
 
   const handleLinkCommit = async () => {
     if (!selectedTaskId) {
-      showToast("Please select a task", { type: "error" })
+      showToast("Please select a task", "error")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       return
     }
 
     try {
       setLinking(true)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
       // Link commit to task
       await githubService.linkCommitToTask(commit.id, selectedTaskId)
 
-      showToast("Commit linked to task successfully", { type: "success" })
+      showToast("Commit linked to task successfully", "success")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
       // Navigate back
       router.back()
     } catch (error) {
       console.error("Error linking commit:", error)
-      showToast("Failed to link commit", { type: "error" })
+      showToast("Failed to link commit", "error")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     } finally {
       setLinking(false)
     }
   }
 
   const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     router.back()
+  }
+
+  const getTaskStatusIcon = (status: string) => {
+    switch (status) {
+      case "todo":
+        return <Ionicons name="ellipse-outline" size={20} color={theme.text} />
+      case "inProgress":
+        return <Ionicons name="time-outline" size={20} color="#FF9800" />
+      default:
+        return <Ionicons name="ellipse-outline" size={20} color={theme.text} />
+    }
   }
 
   if (loading) {
@@ -94,6 +160,7 @@ export default function LinkCommitScreen() {
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.tint} />
+          <Text style={[styles.loadingText, { color: theme.textDim, marginTop: 16 }]}>Loading commit details...</Text>
         </View>
       </View>
     )
@@ -114,8 +181,8 @@ export default function LinkCommitScreen() {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={80} color={theme.textDim} />
           <Text style={[styles.errorText, { color: theme.textDim }]}>Commit not found</Text>
-          <TouchableOpacity onPress={handleBack} style={[styles.backButton, { backgroundColor: theme.tint }]}>
-            <Text style={styles.backButtonText}>Go Back</Text>
+          <TouchableOpacity onPress={handleBack} style={[styles.errorButton, { backgroundColor: theme.tint }]}>
+            <Text style={styles.errorButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -135,7 +202,16 @@ export default function LinkCommitScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={[styles.commitCard, { backgroundColor: theme.cardBackground }]}>
+        <Animated.View
+          style={[
+            styles.commitCard,
+            {
+              backgroundColor: theme.cardBackground,
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           <View style={styles.commitHeader}>
             <View style={styles.commitHeaderLeft}>
               <Text style={[styles.repoName, { color: theme.textDim }]}>{commit.repository?.name || "Repository"}</Text>
@@ -154,47 +230,66 @@ export default function LinkCommitScreen() {
               {new Date(commit.committed_at).toLocaleDateString()}
             </Text>
           </View>
-        </View>
+        </Animated.View>
 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Select a Task</Text>
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          }}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Select a Task</Text>
 
-        {tasks.length > 0 ? (
-          <FlatList
-            data={tasks}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
+          {tasks.length > 0 ? (
+            <FlatList
+              data={tasks}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.taskItem,
+                    { backgroundColor: theme.cardBackground },
+                    selectedTaskId === item.id && { borderColor: theme.tint, borderWidth: 2 },
+                  ]}
+                  onPress={() => handleSelectTask(item.id)}
+                >
+                  <View style={styles.taskItemLeft}>
+                    {getTaskStatusIcon(item.status)}
+                    <View style={styles.taskDetails}>
+                      <Text style={[styles.taskTitle, { color: theme.text }]}>{item.title}</Text>
+                      {item.project && (
+                        <Text style={[styles.projectName, { color: theme.textDim }]}>{item.project.name}</Text>
+                      )}
+                    </View>
+                  </View>
+                  {selectedTaskId === item.id && <Ionicons name="checkmark-circle" size={20} color={theme.tint} />}
+                </TouchableOpacity>
+              )}
+              scrollEnabled={false}
+              contentContainerStyle={styles.tasksList}
+            />
+          ) : (
+            <View style={styles.emptyTasksContainer}>
+              <Ionicons name="document-text-outline" size={60} color={theme.textDim} />
+              <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>No active tasks found</Text>
+              <Text style={[styles.emptyTasksSubtext, { color: theme.textDim }]}>
+                Create a task first to link this commit.
+              </Text>
               <TouchableOpacity
-                style={[
-                  styles.taskItem,
-                  { backgroundColor: theme.cardBackground },
-                  selectedTaskId === item.id && { borderColor: theme.tint, borderWidth: 2 },
-                ]}
-                onPress={() => handleSelectTask(item.id)}
+                style={[styles.createTaskButton, { backgroundColor: theme.tint }]}
+                onPress={() => router.push("/add-task")}
               >
-                <View style={styles.taskItemLeft}>
-                  <Ionicons
-                    name={item.status === "todo" ? "ellipse-outline" : "time-outline"}
-                    size={20}
-                    color={item.status === "todo" ? theme.text : "#FF9800"}
-                  />
-                  <Text style={[styles.taskTitle, { color: theme.text }]}>{item.title}</Text>
-                </View>
-                {selectedTaskId === item.id && <Ionicons name="checkmark-circle" size={20} color={theme.tint} />}
+                <Ionicons name="add-outline" size={16} color="#fff" style={styles.buttonIcon} />
+                <Text style={styles.createTaskButtonText}>Create New Task</Text>
               </TouchableOpacity>
-            )}
-            scrollEnabled={false}
-            contentContainerStyle={styles.tasksList}
-          />
-        ) : (
-          <View style={styles.emptyTasksContainer}>
-            <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>No active tasks found</Text>
-          </View>
-        )}
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: theme.cardBackground }]}>
         <TouchableOpacity
-          style={[styles.linkButton, { backgroundColor: theme.tint }]}
+          style={[styles.linkButton, { backgroundColor: theme.tint }, (!selectedTaskId || linking) && { opacity: 0.6 }]}
           onPress={handleLinkCommit}
           disabled={!selectedTaskId || linking}
         >
@@ -315,10 +410,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
   },
+  taskDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
   taskTitle: {
     fontSize: 16,
     fontWeight: "500",
-    marginLeft: 12,
+  },
+  projectName: {
+    fontSize: 12,
+    marginTop: 4,
   },
   tasksList: {
     paddingBottom: 100,
@@ -331,6 +433,29 @@ const styles = StyleSheet.create({
   emptyTasksText: {
     fontSize: 16,
     textAlign: "center",
+    fontWeight: "500",
+    marginTop: 16,
+  },
+  emptyTasksSubtext: {
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  createTaskButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  buttonIcon: {
+    marginRight: 6,
+  },
+  createTaskButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
   },
   footer: {
     padding: 16,
@@ -366,6 +491,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  loadingText: {
+    fontSize: 16,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -378,7 +506,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
-  backButtonText: {
+  errorButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+  },
+  errorButtonText: {
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,

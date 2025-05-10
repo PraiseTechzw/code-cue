@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   StyleSheet,
   View,
@@ -12,7 +12,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 
@@ -20,7 +20,6 @@ import { githubService } from "@/services/githubService"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
-import React from "react"
 
 export default function AddRepositoryScreen() {
   const colorScheme = useColorScheme()
@@ -35,7 +34,7 @@ export default function AddRepositoryScreen() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   // Load projects when the component mounts
-  useEffect(() => {
+  useState(() => {
     loadProjects()
   }, [])
 
@@ -46,7 +45,7 @@ export default function AddRepositoryScreen() {
       setProjects(projectsData)
     } catch (error) {
       console.error("Error loading projects:", error)
-      showToast("Failed to load projects", { type: "error" })
+      showToast("Failed to load projects", "error")
     } finally {
       setLoadingProjects(false)
     }
@@ -81,21 +80,20 @@ export default function AddRepositoryScreen() {
         const repoName = urlParts[4].split("#")[0].split("?")[0]
 
         // Add repository
-        await githubService.saveRepository({
-          repo_id: `${owner}/${repoName}`,
+        await githubService.addRepository({
           name: repoName,
           full_name: `${owner}/${repoName}`,
           html_url: repoUrl,
           project_id: selectedProjectId,
         })
 
-        showToast("Repository added successfully", { type: "success" })
+        showToast("Repository added successfully", "success")
 
         // Navigate back to repositories screen
         router.push("/repositories")
       } catch (error) {
         console.error("Error adding repository:", error)
-        showToast("Failed to add repository", { type: "error" })
+        showToast("Failed to add repository", "error")
       } finally {
         setLoading(false)
       }

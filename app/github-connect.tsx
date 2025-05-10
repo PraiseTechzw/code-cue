@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, Fragment } from "react"
+import { useState } from "react"
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 
@@ -41,15 +41,18 @@ export default function GitHubConnectScreen() {
         setLoading(true)
 
         // Connect to GitHub
-        await githubService.saveConnection(username, accessToken)
+        await githubService.connectGitHub({
+          username,
+          accessToken,
+        })
 
-        showToast("GitHub account connected successfully", { type: "success" })
+        showToast("GitHub account connected successfully", "success")
 
         // Navigate back to GitHub screen
         router.push("/github")
       } catch (error) {
         console.error("Error connecting GitHub:", error)
-        showToast("Failed to connect GitHub account", { type: "error" })
+        showToast("Failed to connect GitHub account", "error")
       } finally {
         setLoading(false)
       }
@@ -70,7 +73,7 @@ export default function GitHubConnectScreen() {
       </View>
 
       <View style={styles.content}>
-        <Ionicons name="logo-github" size={80} color={theme.text} />
+        <Ionicons name="logo-github" size={80} color={theme.text} style={styles.logo} />
         <Text style={[styles.subtitle, { color: theme.text }]}>Link your GitHub account</Text>
         <Text style={[styles.description, { color: theme.textDim }]}>
           Connect your GitHub account to track commits, pull requests, and issues directly in your projects.
@@ -123,10 +126,10 @@ export default function GitHubConnectScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Fragment>
+              <>
                 <Ionicons name="link-outline" size={20} color="#fff" style={styles.connectIcon} />
                 <Text style={styles.connectButtonText}>Connect GitHub Account</Text>
-              </Fragment>
+              </>
             )}
           </TouchableOpacity>
         </View>

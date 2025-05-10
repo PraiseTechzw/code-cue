@@ -1,5 +1,5 @@
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native"
-import  Ionicons from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"

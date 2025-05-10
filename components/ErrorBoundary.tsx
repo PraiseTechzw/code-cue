@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react"
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useColorScheme } from "react-native"
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native"
 import Colors from "@/constants/Colors"
 import { router } from "expo-router"
 
@@ -13,88 +13,8 @@ interface State {
   errorInfo: ErrorInfo | null
 }
 
-// Create styles factory function to handle theme
-const createStyles = (theme: typeof Colors.light) => StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: theme.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: theme.text,
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: theme.textDim,
-    marginBottom: 20,
-  },
-  errorContainer: {
-    maxHeight: 300,
-    width: "100%",
-    marginVertical: 20,
-    padding: 15,
-    backgroundColor: theme.cardBackground,
-    borderRadius: 8,
-  },
-  errorText: {
-    color: theme.error,
-    fontSize: 14,
-    fontFamily: "monospace",
-    marginBottom: 10,
-  },
-  stackTrace: {
-    color: theme.textDim,
-    fontSize: 12,
-    fontFamily: "monospace",
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: 20,
-  },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 150,
-  },
-  primaryButton: {
-    backgroundColor: theme.tint,
-  },
-  secondaryButton: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  buttonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  secondaryButtonText: {
-    color: theme.text,
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-})
-
-// Wrapper component to handle theme
-function ErrorBoundaryWithTheme(props: Props) {
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? 'light']
-  return <ErrorBoundaryClass {...props} theme={theme} />
-}
-
-class ErrorBoundaryClass extends Component<Props & { theme: typeof Colors.light }, State> {
-  constructor(props: Props & { theme: typeof Colors.light }) {
+class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
     super(props)
     this.state = {
       hasError: false,
@@ -135,8 +55,6 @@ class ErrorBoundaryClass extends Component<Props & { theme: typeof Colors.light 
   }
 
   render(): ReactNode {
-    const styles = createStyles(this.props.theme)
-
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
@@ -165,4 +83,76 @@ class ErrorBoundaryClass extends Component<Props & { theme: typeof Colors.light 
   }
 }
 
-export default ErrorBoundaryWithTheme
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginBottom: 20,
+  },
+  errorContainer: {
+    maxHeight: 300,
+    width: "100%",
+    marginVertical: 20,
+    padding: 15,
+    backgroundColor: Colors.errorBackground,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: Colors.error,
+    fontSize: 14,
+    fontFamily: "monospace",
+    marginBottom: 10,
+  },
+  stackTrace: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    fontFamily: "monospace",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 20,
+  },
+  button: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 150,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary,
+  },
+  secondaryButton: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  buttonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  secondaryButtonText: {
+    color: Colors.text,
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+})
+
+export default ErrorBoundary

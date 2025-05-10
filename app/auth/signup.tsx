@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from "react-native"
 import { useRouter } from "expo-router"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
@@ -101,7 +101,7 @@ export default function SignUpScreen() {
         showToast("Account created successfully! Please check your email to verify your account.", "success", 5000)
         router.push("/auth/login")
       } else {
-        showToast("Failed to create account. Please try again.", { type: "error" })
+        showToast("Failed to create account. Please try again.", "error")
       }
     }
   }

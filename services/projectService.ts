@@ -1,220 +1,367 @@
 import { supabase } from "@/lib/supabase"
-import type { Database } from "@/types/supabase"
 import { offlineStore } from "./offlineStore"
-import { notificationService } from "./notificationService"
+import NetInfo from "@react-native-community/netinfo"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { v4 as uuidv4 } from "uuid"
+import type { Database } from "@/types/supabase"
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"]
 export type NewProject = Database["public"]["Tables"]["projects"]["Insert"]
-export type UpdateProject = {
-  id?: string
-  name?: string
-  description?: string | null
-  progress?: number
-  user_id?: string
-  status?: "active" | "completed" | "archived"
-  created_at?: string
-  updated_at?: string
+export type UpdateProject = Database["public"]["Tables"]["projects"]["Update"]
+
+// Cache keys
+const PROJECTS_CACHE_KEY = "projects_cache"
+const PROJECT_DETAILS_CACHE_KEY = "project_details_cache_"
+
+// Check if device is online
+export const isOnline = async (): Promise<boolean> => {
+  const netInfo = await NetInfo.fetch()
+  return netInfo.isConnected === true
 }
 
-export const projectService = {
-  async getProjects() {
-    try {
-      const { data, error } = await supabase.from("projects").select("*").order("updated_at", { ascending: false })
+// Get all projects
+export const getProjects = async (): Promise<any[]> => {
+  try {
+    const online = await isOnline()
 
-      if (error) throw error
+    // Try to get from cache first
+    const cachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
 
-      // Cache projects for offline use
-      await offlineStore.cacheProjects(data || [])
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData)
 
-      return data || []
-    } catch (error) {
-      console.error("Error fetching projects:", error)
-      // If offline, get from local storage
-      return offlineStore.getProjects()
+      // Use cache if offline or if cache is fresh (less than 5 minutes old)
+      const isCacheFresh = Date.now() - timestamp < 5 * 60 * 1000
+      if (!online || isCacheFresh) {
+        return data
+      }
     }
-  },
 
-  async getProjectById(id: string) {
-    try {
-      const { data, error } = await supabase.from("projects").select("*").eq("id", id).single()
-
-      if (error) throw error
-
-      // Cache project for offline use
-      if (data) {
-        await offlineStore.addProject(data)
-      }
-
-      return data
-    } catch (error) {
-      console.error("Error fetching project:", error)
-      // If offline, get from local storage
-      return offlineStore.getProjectById(id)
+    if (!online) {
+      // If offline and no cache, return empty array
+      return []
     }
-  },
 
-  async createProject(project: Omit<NewProject, "user_id">) {
+    // Get projects
+    const { data, error } = await supabase.from("projects").select("*").order("updated_at", { ascending: false })
+
+    if (error) throw error
+
+    // Cache the result
+    await AsyncStorage.setItem(
+      PROJECTS_CACHE_KEY,
+      JSON.stringify({
+        data,
+        timestamp: Date.now(),
+      }),
+    )
+
+    return data || []
+  } catch (error) {
+    console.error("Error getting projects:", error)
+
+    // Try to get from cache as fallback
     try {
-      const user = (await supabase.auth.getUser()).data.user
-      if (!user) throw new Error("User not authenticated")
+      const cachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
 
-      const newProject: NewProject = {
-        ...project,
-        user_id: user.id,
+      if (cachedData) {
+        const { data } = JSON.parse(cachedData)
+        return data
       }
-
-      const { data, error } = await supabase.from("projects").insert(newProject).select().single()
-
-      if (error) throw error
-
-      // Create notification for new project
-      await notificationService.createNotification({
-        title: "Project Created",
-        description: `You created a new project: ${project.name}`,
-        type: "project_created",
-        user_id: user.id,
-        related_id: data.id,
-        related_type: "project",
-      })
-
-      // Update local storage
-      await offlineStore.addProject(data)
-
-      return data
-    } catch (error) {
-      console.error("Error creating project:", error)
-
-      // If offline, store locally and sync later
-      if (!(await this.isOnline())) {
-        const user = (await supabase.auth.getUser()).data.user
-        if (!user) throw new Error("User not authenticated")
-
-        const tempId = `temp_${Date.now()}`
-        const tempProject = {
-          ...project,
-          user_id: user.id,
-          id: tempId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          progress: project.progress || 0,
-        } as Project
-
-        await offlineStore.addProject(tempProject)
-        await offlineStore.addOfflineChange({
-          table_name: "projects",
-          record_id: tempId,
-          operation: "INSERT",
-          data: {
-            ...project,
-            user_id: user.id,
-          },
-        })
-
-        return tempProject
-      }
-
-      throw error
+    } catch (cacheError) {
+      console.error("Error getting cached projects:", cacheError)
     }
-  },
 
-  async updateProject(id: string, updates: UpdateProject) {
-    try {
-      const { data, error } = await supabase.from("projects").update(updates).eq("id", id).select().single()
+    return []
+  }
+}
 
-      if (error) throw error
+// Get project by ID
+export const getProjectById = async (projectId: string): Promise<any> => {
+  try {
+    const online = await isOnline()
 
-      // Update local storage
-      await offlineStore.updateProject(data)
+    // Try to get from cache first
+    const cacheKey = PROJECT_DETAILS_CACHE_KEY + projectId
+    const cachedData = await AsyncStorage.getItem(cacheKey)
 
-      return data
-    } catch (error) {
-      console.error("Error updating project:", error)
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData)
 
-      // If offline, store locally and sync later
-      if (!(await this.isOnline())) {
-        const project = await offlineStore.getProjectById(id)
-        if (project) {
-          const updatedProject = { ...project, ...updates, updated_at: new Date().toISOString() }
-
-          await offlineStore.updateProject(updatedProject)
-          await offlineStore.addOfflineChange({
-            table_name: "projects",
-            record_id: id,
-            operation: "UPDATE",
-            data: updates,
-          })
-
-          return updatedProject
-        }
+      // Use cache if offline or if cache is fresh (less than 5 minutes old)
+      const isCacheFresh = Date.now() - timestamp < 5 * 60 * 1000
+      if (!online || isCacheFresh) {
+        return data
       }
-
-      throw error
     }
-  },
 
-  async deleteProject(id: string) {
-    try {
-      const { error } = await supabase.from("projects").delete().eq("id", id)
-
-      if (error) throw error
-
-      // Update local storage
-      await offlineStore.deleteProject(id)
-
-      return true
-    } catch (error) {
-      console.error("Error deleting project:", error)
-
-      // If offline, store locally and sync later
-      if (!(await this.isOnline())) {
-        await offlineStore.deleteProject(id)
-        await offlineStore.addOfflineChange({
-          table_name: "projects",
-          record_id: id,
-          operation: "DELETE",
-          data: { id },
-        })
-
-        return true
-      }
-
-      throw error
-    }
-  },
-
-  async calculateProjectProgress(projectId: string) {
-    try {
-      // Get all tasks for the project
-      const { data: tasks, error } = await supabase.from("tasks").select("status").eq("project_id", projectId)
-
-      if (error) throw error
-
-      if (!tasks || tasks.length === 0) {
-        // No tasks, set progress to 0
-        await this.updateProject(projectId, { progress: 0 })
-        return 0
-      }
-
-      // Calculate progress
-      const completedTasks = tasks.filter((task) => task.status === "done").length
-      const progress = Math.round((completedTasks / tasks.length) * 100)
-
-      // Update project progress
-      await this.updateProject(projectId, { progress })
-
-      return progress
-    } catch (error) {
-      console.error("Error calculating project progress:", error)
+    if (!online) {
+      // If offline and no cache, return null
       return null
     }
-  },
 
-  async isOnline() {
+    // Get project details
+    const { data, error } = await supabase.from("projects").select("*").eq("id", projectId).single()
+
+    if (error) throw error
+
+    // Cache the result
+    await AsyncStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        data,
+        timestamp: Date.now(),
+      }),
+    )
+
+    return data
+  } catch (error) {
+    console.error("Error getting project by ID:", error)
+
+    // Try to get from cache as fallback
     try {
-      const { data } = await supabase.from("projects").select("id").limit(1)
-      return !!data
-    } catch (error) {
-      return false
+      const cacheKey = PROJECT_DETAILS_CACHE_KEY + projectId
+      const cachedData = await AsyncStorage.getItem(cacheKey)
+
+      if (cachedData) {
+        const { data } = JSON.parse(cachedData)
+        return data
+      }
+    } catch (cacheError) {
+      console.error("Error getting cached project details:", cacheError)
     }
-  },
+
+    return null
+  }
+}
+
+// Create a new project
+export const createProject = async (projectData: any): Promise<any> => {
+  try {
+    const online = await isOnline()
+    const projectId = uuidv4()
+    const now = new Date().toISOString()
+
+    // Prepare project data
+    const newProject = {
+      id: projectId,
+      ...projectData,
+      created_at: now,
+      updated_at: now,
+    }
+
+    if (!online) {
+      // If offline, queue for later
+      await offlineStore.addOfflineChange({
+        table_name: "projects",
+        record_id: projectId,
+        operation: "INSERT",
+        data: newProject,
+      })
+
+      // Update local cache
+      await updateProjectsCache(newProject)
+
+      return newProject
+    }
+
+    // If online, create project
+    const { data, error } = await supabase.from("projects").insert(newProject).select().single()
+
+    if (error) throw error
+
+    // Update cache
+    await updateProjectsCache(data)
+
+    return data
+  } catch (error) {
+    console.error("Error creating project:", error)
+    throw error
+  }
+}
+
+// Update a project
+export const updateProject = async (projectId: string, updates: any): Promise<any> => {
+  try {
+    const online = await isOnline()
+    const now = new Date().toISOString()
+
+    // Prepare update data
+    const updateData = {
+      ...updates,
+      updated_at: now,
+    }
+
+    if (!online) {
+      // If offline, queue for later
+      await offlineStore.addOfflineChange({
+        table_name: "projects",
+        record_id: projectId,
+        operation: "UPDATE",
+        data: updateData,
+      })
+
+      // Update local cache
+      await updateProjectCache(projectId, updateData)
+
+      return { id: projectId, ...updateData }
+    }
+
+    // If online, update project
+    const { data, error } = await supabase.from("projects").update(updateData).eq("id", projectId).select().single()
+
+    if (error) throw error
+
+    // Update cache
+    await updateProjectCache(projectId, data)
+
+    return data
+  } catch (error) {
+    console.error("Error updating project:", error)
+    throw error
+  }
+}
+
+// Delete a project
+export const deleteProject = async (projectId: string): Promise<boolean> => {
+  try {
+    const online = await isOnline()
+
+    if (!online) {
+      // If offline, queue for later
+      await offlineStore.addOfflineChange({
+        table_name: "projects",
+        record_id: projectId,
+        operation: "DELETE",
+        data: null,
+      })
+
+      // Update local cache
+      await removeProjectFromCache(projectId)
+
+      return true
+    }
+
+    // If online, delete project
+    const { error } = await supabase.from("projects").delete().eq("id", projectId)
+
+    if (error) throw error
+
+    // Update cache
+    await removeProjectFromCache(projectId)
+
+    return true
+  } catch (error) {
+    console.error("Error deleting project:", error)
+    throw error
+  }
+}
+
+// Helper: Update projects cache with a new project
+const updateProjectsCache = async (newProject: any) => {
+  try {
+    // Update all projects cache
+    const cachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
+
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData)
+      const updatedData = [newProject, ...data]
+
+      await AsyncStorage.setItem(
+        PROJECTS_CACHE_KEY,
+        JSON.stringify({
+          data: updatedData,
+          timestamp,
+        }),
+      )
+    }
+
+    // Add to project details cache
+    const projectCacheKey = PROJECT_DETAILS_CACHE_KEY + newProject.id
+    await AsyncStorage.setItem(
+      projectCacheKey,
+      JSON.stringify({
+        data: newProject,
+        timestamp: Date.now(),
+      }),
+    )
+  } catch (error) {
+    console.error("Error updating projects cache:", error)
+  }
+}
+
+// Helper: Update project cache with updates
+const updateProjectCache = async (projectId: string, updates: any) => {
+  try {
+    // Update project details cache
+    const projectCacheKey = PROJECT_DETAILS_CACHE_KEY + projectId
+    const projectCachedData = await AsyncStorage.getItem(projectCacheKey)
+
+    if (projectCachedData) {
+      const { data, timestamp } = JSON.parse(projectCachedData)
+      const updatedData = { ...data, ...updates }
+
+      await AsyncStorage.setItem(
+        projectCacheKey,
+        JSON.stringify({
+          data: updatedData,
+          timestamp,
+        }),
+      )
+    }
+
+    // Update all projects cache
+    const allProjectsCachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
+
+    if (allProjectsCachedData) {
+      const { data, timestamp } = JSON.parse(allProjectsCachedData)
+      const updatedData = data.map((project: any) => (project.id === projectId ? { ...project, ...updates } : project))
+
+      await AsyncStorage.setItem(
+        PROJECTS_CACHE_KEY,
+        JSON.stringify({
+          data: updatedData,
+          timestamp,
+        }),
+      )
+    }
+  } catch (error) {
+    console.error("Error updating project cache:", error)
+  }
+}
+
+// Helper: Remove project from cache
+const removeProjectFromCache = async (projectId: string) => {
+  try {
+    // Remove project details cache
+    await AsyncStorage.removeItem(PROJECT_DETAILS_CACHE_KEY + projectId)
+
+    // Update all projects cache
+    const allProjectsCachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
+
+    if (allProjectsCachedData) {
+      const { data, timestamp } = JSON.parse(allProjectsCachedData)
+      const updatedData = data.filter((p: any) => p.id !== projectId)
+
+      await AsyncStorage.setItem(
+        PROJECTS_CACHE_KEY,
+        JSON.stringify({
+          data: updatedData,
+          timestamp,
+        }),
+      )
+    }
+  } catch (error) {
+    console.error("Error removing project from cache:", error)
+  }
+}
+
+// Export the projectService object
+export const projectService = {
+  isOnline,
+  getProjects,
+  getProjectById,
+  createProject,
+  updateProject,
+  deleteProject,
 }

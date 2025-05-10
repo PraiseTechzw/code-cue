@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from "react-native"
 import { useRouter } from "expo-router"
-import Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
@@ -21,9 +21,9 @@ import { profileService } from "@/services/profileService"
 import { offlineStore } from "@/services/offlineStore"
 import Colors from "@/constants/Colors"
 import { VerifyAction } from "@/components/VerifyAction"
+import { ConnectionStatus } from "@/components/ConnectionStatus"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Application from "expo-application"
-import { ConnectionStatus } from "@/components/ConnectionStatus"
 
 export default function SettingsScreen() {
   const router = useRouter()
@@ -113,7 +113,7 @@ export default function SettingsScreen() {
         setIsOfflineEnabled(offlineEnabled !== "false")
       } catch (error) {
         console.error("Error loading profile:", error)
-        showToast("Failed to load profile", { type: "error" })
+        showToast("Failed to load profile", "error")
       } finally {
         setLoading(false)
       }
@@ -135,15 +135,15 @@ export default function SettingsScreen() {
     setIsDarkMode(value)
     try {
       await profileService.updateTheme(value ? "dark" : "light")
-      showToast(`Theme changed to ${value ? "dark" : "light"} mode`, { type: "success" })
+      showToast(`Theme changed to ${value ? "dark" : "light"} mode`, "success")
     } catch (error) {
       console.error("Error updating theme:", error)
-      showToast("Failed to update theme", { type: "error" })
+      showToast("Failed to update theme", "error")
 
       // Store change for offline sync
       if (!isConnected) {
         await AsyncStorage.setItem("pendingThemeChange", value ? "dark" : "light")
-        showToast("Theme change will be synced when online", { type: "info" })
+        showToast("Theme change will be synced when online", "info")
       }
     }
   }
@@ -151,7 +151,7 @@ export default function SettingsScreen() {
   const handleToggleOfflineMode = async (value: boolean) => {
     setIsOfflineEnabled(value)
     await AsyncStorage.setItem("offlineModeEnabled", value.toString())
-    showToast(`Offline mode ${value ? "enabled" : "disabled"}`, { type: "info" })
+    showToast(`Offline mode ${value ? "enabled" : "disabled"}`, "info")
   }
 
   const handleTogglePushNotifications = async (value: boolean) => {
@@ -164,7 +164,7 @@ export default function SettingsScreen() {
       } else {
         await profileService.updateProfile({ push_token: null })
       }
-      showToast(`Push notifications ${value ? "enabled" : "disabled"}`, { type: "info" })
+      showToast(`Push notifications ${value ? "enabled" : "disabled"}`, "info")
     } catch (error) {
       console.error("Error updating push notification settings:", error)
 
@@ -176,14 +176,14 @@ export default function SettingsScreen() {
           operation: "UPDATE",
           data: { push_token: value ? await AsyncStorage.getItem("pushToken") : null },
         })
-        showToast("Push notification settings will be synced when online", { type: "info" })
+        showToast("Push notification settings will be synced when online", "info")
       }
     }
   }
 
   const handleSyncData = async () => {
     if (!isConnected) {
-      showToast("You are offline. Please connect to the internet to sync data.", { type: "error" })
+      showToast("You are offline. Please connect to the internet to sync data.", "error")
       return
     }
 
@@ -198,10 +198,10 @@ export default function SettingsScreen() {
       // Refresh cache info
       await loadCacheInfo()
 
-      showToast("Data synchronized successfully", { type: "success" })
+      showToast("Data synchronized successfully", "success")
     } catch (error) {
       console.error("Error syncing data:", error)
-      showToast("Failed to synchronize data. Please try again.", { type: "error" })
+      showToast("Failed to synchronize data. Please try again.", "error")
     } finally {
       setIsSyncing(false)
     }
@@ -229,10 +229,10 @@ export default function SettingsScreen() {
       // Update cache size
       await loadCacheInfo()
 
-      showToast("Cache cleared successfully", { type: "success" })
+      showToast("Cache cleared successfully", "success")
     } catch (error) {
       console.error("Error clearing cache:", error)
-      showToast("Failed to clear cache", { type: "error" })
+      showToast("Failed to clear cache", "error")
     }
   }
 
@@ -248,10 +248,10 @@ export default function SettingsScreen() {
     setShowLogoutConfirmation(false)
     const success = await signOut()
     if (success) {
-      showToast("Logged out successfully", { type: "success" })
+      showToast("Logged out successfully", "success")
       router.replace("/auth/login")
     } else {
-      showToast("Failed to logout", { type: "error" })
+      showToast("Failed to logout", "error")
     }
   }
 
@@ -265,7 +265,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ConnectionStatus  />
+      <ConnectionStatus />
 
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -416,8 +416,8 @@ export default function SettingsScreen() {
           onPress={handleLogout}
         >
           <View style={styles.settingInfo}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} style={styles.settingIcon} />
-            <Text style={[styles.settingText, { color: theme.error }]}>Logout</Text>
+            <Ionicons name="log-out-outline" size={24} color="#F44336" style={styles.settingIcon} />
+            <Text style={[styles.settingText, { color: "#F44336" }]}>Logout</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={theme.textDim} />
         </TouchableOpacity>

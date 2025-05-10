@@ -14,7 +14,7 @@ import {
   Animated,
 } from "react-native"
 import { useRouter } from "expo-router"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
@@ -83,9 +83,9 @@ export default function LoginScreen() {
     if (validateForm()) {
       const success = await signIn(email, password)
       if (success) {
-        showToast("Login successful", { type: "success" })
+        showToast("Login successful", "success")
       } else {
-        showToast("Login failed. Please check your credentials.", { type: "error" })
+        showToast("Login failed. Please check your credentials.", "error")
       }
     }
   }

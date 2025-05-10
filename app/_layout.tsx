@@ -3,16 +3,20 @@
 import { useEffect, useState } from "react"
 import { Stack } from "expo-router"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaProvider } from "react-native-safe-area-context"
+import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { useColorScheme, AppState, View, ActivityIndicator } from "react-native"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { ToastProvider } from "@/contexts/ToastContext"
+import { ThemeProvider } from "@/contexts/ThemeContext"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as SplashScreen from "expo-splash-screen"
-import Colors from "@/constants/Colors"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
+import Colors from "@/constants/Colors"
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
@@ -130,6 +134,12 @@ export default function RootLayout() {
     }
   }, [appIsReady])
 
+  // Initialize services
+  useEffect(() => {
+    // Initialize offline store
+    offlineStore.initOfflineStore()
+  }, [])
+
   if (!appIsReady) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.background }}>
@@ -139,19 +149,27 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
-        <ConnectionStatus lastSyncTime={lastSyncTime} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: {
-              backgroundColor: theme.background,
-            },
-          }}
-        />
-      </ToastProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <SafeAreaProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <StatusBar style="auto" />
+                <ConnectionStatus lastSyncTime={lastSyncTime} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: "slide_from_right",
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                </Stack>
+              </AuthProvider>
+            </ToastProvider>
+          </SafeAreaProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   )
 }

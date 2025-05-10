@@ -1,29 +1,18 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Tabs } from "expo-router"
-import { useColorScheme, Animated, Pressable, StyleSheet, View, Text } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { useColorScheme, Animated, Dimensions, Pressable, StyleSheet, View, Text } from "react-native"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { notificationService } from "@/services/notificationService"
-import { offlineStore } from "@/services/offlineStore"
+import { ConnectionStatus } from "@/components/ConnectionStatus"
 import Colors from "@/constants/Colors"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Haptics from "expo-haptics"
-import { ConnectionStatus } from "@/components/ConnectionStatus"
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs"
 
 // Custom Tab Bar Button component
-interface TabBarButtonProps {
-  isFocused: boolean
-  icon: keyof typeof Ionicons.glyphMap
-  label: string
-  onPress: () => void
-  badge?: number
-  colorScheme?: "light" | "dark"
-}
-
-function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }: TabBarButtonProps) {
-  const theme = Colors[colorScheme]
+function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }) {
+  const theme = Colors[colorScheme ?? "light"]
   const focusAnim = useRef(new Animated.Value(0)).current
 
   useEffect(() => {
@@ -102,16 +91,19 @@ function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme 
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme() as "light" | "dark"
+  const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const [unreadCount, setUnreadCount] = useState(0)
-  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
   const insets = useSafeAreaInsets()
+  const { width } = Dimensions.get("window")
 
   useEffect(() => {
+    // Get initial unread count
     loadUnreadCount()
-    const interval = setInterval(loadUnreadCount, 30000)
-    loadLastSyncTime()
+
+    // Set up interval to refresh unread count
+    const interval = setInterval(loadUnreadCount, 30000) // Every 30 seconds
+
     return () => clearInterval(interval)
   }, [])
 
@@ -124,17 +116,8 @@ export default function TabLayout() {
     }
   }
 
-  const loadLastSyncTime = async () => {
-    try {
-      const time = await offlineStore.getData("lastSyncTime", async () => null)
-      setLastSyncTime(time)
-    } catch (error) {
-      console.error("Error loading last sync time:", error)
-    }
-  }
-
-  const renderTabBar = (props: BottomTabBarProps) => {
-    const { state, descriptors, navigation } = props
+  // Custom tab bar component
+  const renderTabBar = ({ state, descriptors, navigation }) => {
     return (
       <View
         style={[
@@ -152,7 +135,8 @@ export default function TabLayout() {
 
           const isFocused = state.index === index
 
-          let iconName: keyof typeof Ionicons.glyphMap = "ellipsis-horizontal"
+          // Determine icon based on route name
+          let iconName = ""
           switch (route.name) {
             case "index":
               iconName = isFocused ? "home" : "home-outline"
@@ -169,11 +153,11 @@ export default function TabLayout() {
             case "notifications":
               iconName = isFocused ? "notifications" : "notifications-outline"
               break
-            case "settings":
-              iconName = isFocused ? "settings" : "settings-outline"
-              break
+            default:
+              iconName = "ellipsis-horizontal"
           }
 
+          // Show badge only for notifications tab
           const badge = route.name === "notifications" ? unreadCount : 0
 
           const onPress = () => {
@@ -206,13 +190,13 @@ export default function TabLayout() {
 
   return (
     <>
-      <ConnectionStatus lastSyncTime={lastSyncTime} />
+      <ConnectionStatus />
 
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: theme.tint,
           tabBarStyle: {
-            display: "none",
+            display: "none", // Hide the default tab bar since we're using a custom one
           },
           headerStyle: {
             backgroundColor: theme.background,
@@ -227,6 +211,7 @@ export default function TabLayout() {
           headerTitleStyle: {
             fontWeight: "600",
           },
+          animation: "slide_from_right",
         }}
         tabBar={renderTabBar}
       >
@@ -258,12 +243,6 @@ export default function TabLayout() {
           name="notifications"
           options={{
             title: "Notifications",
-          }}
-        />
-        <Tabs.Screen
-          name="settings"
-          options={{
-            title: "Settings",
           }}
         />
       </Tabs>

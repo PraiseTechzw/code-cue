@@ -2,7 +2,7 @@
 
 import { StyleSheet, View, Text, FlatList, TouchableOpacity } from "react-native"
 import { useState, useEffect } from "react"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import { Ionicons } from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { notificationService } from "@/services/notificationService"
 import { useToast } from "@/contexts/ToastContext"
@@ -28,7 +28,7 @@ export default function NotificationsScreen() {
       setNotifications(data)
     } catch (error) {
       console.error("Error loading notifications:", error)
-      showToast("Failed to load notifications", { type: "error" })
+      showToast("Failed to load notifications", "error")
     } finally {
       setLoading(false)
     }
@@ -37,11 +37,11 @@ export default function NotificationsScreen() {
   const handleMarkAllRead = async () => {
     try {
       await notificationService.markAllAsRead()
-      showToast("All notifications marked as read", { type: "success" })
+      showToast("All notifications marked as read", "success")
       loadNotifications() // Refresh the list
     } catch (error) {
       console.error("Error marking all as read:", error)
-      showToast("Failed to mark all notifications as read", { type: "error" })
+      showToast("Failed to mark all notifications as read", "error")
     }
   }
 
