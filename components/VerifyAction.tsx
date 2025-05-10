@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { StyleSheet, View, Text, Modal, TouchableOpacity, TextInput } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"
 

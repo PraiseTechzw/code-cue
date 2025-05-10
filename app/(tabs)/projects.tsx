@@ -59,7 +59,7 @@ export default function ProjectsScreen() {
       setProjects(data)
     } catch (error) {
       console.error("Error loading projects:", error)
-      showToast("Failed to load projects", "error")
+      showToast("Failed to load projects", { type: "error" })
     } finally {
       setLoading(false)
       setRefreshing(false)

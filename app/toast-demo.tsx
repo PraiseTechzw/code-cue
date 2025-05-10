@@ -4,7 +4,7 @@ import { useState } from "react"
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native"
 import { useToast } from "@/contexts/ToastContext"
 import { Stack } from "expo-router"
-import { Ionicons } from "@expo/vector-icons"
+import  Ionicons  from "@expo/vector-icons"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"
 

@@ -47,7 +47,7 @@ export default function InsightsScreen() {
       setInsights(insightsData)
     } catch (error) {
       console.error("Error loading insights:", error)
-      showToast("Failed to load insights", "error")
+      showToast("Failed to load insights", { type: "error" })
 
       // Use fallback insights
       const fallbackInsights = aiService.getFallbackInsights()

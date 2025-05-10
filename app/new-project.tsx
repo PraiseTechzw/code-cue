@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
 import * as Haptics from "expo-haptics"
@@ -24,6 +24,7 @@ import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
+import React from "react"
 
 export default function NewProjectScreen() {
   const colorScheme = useColorScheme()
@@ -139,7 +140,7 @@ export default function NewProjectScreen() {
           end_date: formattedEndDate,
         })
 
-        showToast("Project created successfully", "success")
+        showToast("Project created successfully", { type: "success" })
 
         // Navigate back to projects screen
         router.push("/projects")
@@ -147,10 +148,10 @@ export default function NewProjectScreen() {
         console.error("Error creating project:", error)
 
         if (isOffline) {
-          showToast("Project saved offline. Will sync when online.", "info")
+          showToast("Project saved offline. Will sync when online.", { type: "info" })
           router.push("/projects")
         } else {
-          showToast("Failed to create project", "error")
+          showToast("Failed to create project", { type: "error" })
         }
       } finally {
         setLoading(false)

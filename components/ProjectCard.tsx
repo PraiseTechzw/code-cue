@@ -1,6 +1,6 @@
 "use client"
 
-import { View, Text, StyleSheet, Animated, Pressable } from "react-native"
+import { View, Text, StyleSheet, Animated, Pressable, Alert } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
@@ -10,6 +10,8 @@ import * as Haptics from "expo-haptics"
 import { ProgressBar } from "./ProgressBar"
 import Colors from "@/constants/Colors"
 import type { Project } from "@/services/projectService"
+import { useToast } from "@/contexts/ToastContext"
+import { projectService } from "@/services/projectService"
 
 interface ProjectCardProps {
   project: Project
@@ -21,6 +23,7 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const [isPressed, setIsPressed] = useState(false)
+  const { showToast } = useToast()
 
   // Animation for card hover effect
   const scaleAnim = useRef(new Animated.Value(1)).current
@@ -103,9 +106,31 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
 
   const handleLongPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    if (onLongPress) {
-      onLongPress(project)
-    }
+    Alert.alert(
+      "Delete Project",
+      `Are you sure you want to delete "${project.name}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await projectService.deleteProject(project.id)
+              showToast("Project deleted successfully", { type: "success" })
+              // Refresh the projects list
+              router.replace("/")
+            } catch (error) {
+              console.error("Error deleting project:", error)
+              showToast("Failed to delete project", { type: "error" })
+            }
+          }
+        }
+      ]
+    )
   }
 
   // Interpolate shadow values for animation

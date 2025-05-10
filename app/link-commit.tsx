@@ -11,7 +11,7 @@ import {
   FlatList,
   Animated,
 } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useColorScheme } from "react-native"
 import * as Haptics from "expo-haptics"

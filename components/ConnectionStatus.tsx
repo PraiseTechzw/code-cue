@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { StyleSheet, View, Text, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import NetInfo from "@react-native-community/netinfo"
 import * as Haptics from "expo-haptics"
@@ -25,6 +25,7 @@ export function ConnectionStatus() {
     lastSyncTime: null as number | null,
     error: null as string | null,
   })
+  const isSyncing = syncProgress.inProgress
 
   // Animations
   const heightAnim = useRef(new Animated.Value(0)).current
@@ -109,20 +110,15 @@ export function ConnectionStatus() {
   // Handle expand/collapse
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(heightAnim, {
-        toValue: expanded ? 1 : 0,
-        duration: 300,
-        useNativeDriver: false,
-      }),
       Animated.timing(opacityAnim, {
         toValue: expanded ? 1 : 0,
         duration: 300,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: expanded ? 0 : 50,
         duration: 300,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
     ]).start()
   }, [expanded])
@@ -146,136 +142,70 @@ export function ConnectionStatus() {
     outputRange: ["0%", "100%"],
   })
 
-  // Calculate content height
-  const contentHeight = heightAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 120],
-  })
-
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={[
-          styles.statusBar,
-          {
-            backgroundColor: isConnected ? theme.tintLight : theme.warningLight,
-          },
-        ]}
-        onPress={() => {
-          setExpanded(!expanded)
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-        }}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={`${isConnected ? "Online" : "Offline"} status. ${pendingChanges} pending changes.`}
-        accessibilityHint="Double tap to expand for more details"
-      >
-        <View style={styles.statusContent}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons
-              name={isConnected ? "cloud-done-outline" : "cloud-offline-outline"}
-              size={18}
-              color={isConnected ? theme.tint : theme.warning}
-            />
-          </View>
-
-          <Text style={[styles.statusText, { color: isConnected ? theme.tint : theme.warning }]}>
-            {isConnected ? "Online" : "Offline"}
-          </Text>
-
-          {pendingChanges > 0 && (
-            <View
-              style={[styles.badge, { backgroundColor: isConnected ? theme.tint : theme.warning }]}
-              accessibilityLabel={`${pendingChanges} pending changes`}
-            >
-              <Text style={styles.badgeText}>{pendingChanges}</Text>
-            </View>
-          )}
-        </View>
-
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isConnected ? theme.tint : theme.error,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      <View style={styles.content}>
         <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={isConnected ? theme.tint : theme.warning}
+          name={isConnected ? 'cloud-done-outline' : 'cloud-offline-outline'}
+          size={24}
+          color={isConnected ? '#4CAF50' : '#FF5252'}
         />
-      </TouchableOpacity>
-
-      {/* Progress bar for sync */}
-      {syncProgress.inProgress && (
-        <View style={styles.progressContainer}>
-          <Animated.View
-            style={[
-              styles.progressBar,
-              {
-                backgroundColor: theme.tint,
-                width: progressWidth,
-              },
-            ]}
-          />
-        </View>
-      )}
-
-      {/* Expanded content */}
-      <Animated.View
-        style={[
-          styles.expandedContent,
-          {
-            height: contentHeight,
-            opacity: opacityAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        <View style={styles.detailsContainer}>
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.textDim }]}>Last synced:</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>
-              {formatLastSyncTime(syncProgress.lastSyncTime)}
-            </Text>
-          </View>
-
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: theme.textDim }]}>Pending changes:</Text>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{pendingChanges}</Text>
-          </View>
-
-          {syncProgress.inProgress && (
+        <Text style={[styles.text, { color: '#ffffff' }]}>
+          {isConnected
+            ? isSyncing
+              ? 'Syncing offline changes...'
+              : 'Back online'
+            : 'You are offline'}
+        </Text>
+      </View>
+      {expanded && (
+        <Animated.View
+          style={[
+            styles.expandedContent,
+            {
+              opacity: opacityAnim,
+            },
+          ]}
+        >
+          <View style={styles.detailsContainer}>
             <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.textDim }]}>Sync progress:</Text>
+              <Text style={[styles.detailLabel, { color: theme.textDim }]}>Last synced:</Text>
               <Text style={[styles.detailValue, { color: theme.text }]}>
-                {syncProgress.completed}/{syncProgress.total}
+                {formatLastSyncTime(syncProgress.lastSyncTime)}
               </Text>
             </View>
-          )}
 
-          {syncProgress.error && (
-            <View style={styles.errorContainer}>
-              <Text style={[styles.errorText, { color: theme.error }]}>{syncProgress.error}</Text>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.textDim }]}>Pending changes:</Text>
+              <Text style={[styles.detailValue, { color: theme.text }]}>{pendingChanges}</Text>
             </View>
-          )}
-        </View>
 
-        {isConnected && pendingChanges > 0 && (
-          <TouchableOpacity
-            style={[styles.syncButton, { backgroundColor: theme.tint }]}
-            onPress={handleSync}
-            disabled={syncProgress.inProgress}
-            accessibilityRole="button"
-            accessibilityLabel="Sync now"
-            accessibilityHint="Synchronize pending changes with the server"
-          >
-            {syncProgress.inProgress ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons name="sync" size={16} color="#fff" style={styles.syncIcon} />
-                <Text style={styles.syncButtonText}>Sync Now</Text>
-              </>
+            {syncProgress.inProgress && (
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: theme.textDim }]}>Sync progress:</Text>
+                <Text style={[styles.detailValue, { color: theme.text }]}>
+                  {syncProgress.completed}/{syncProgress.total}
+                </Text>
+              </View>
             )}
-          </TouchableOpacity>
-        )}
-      </Animated.View>
-    </View>
+
+            {syncProgress.error && (
+              <View style={styles.errorContainer}>
+                <Text style={[styles.errorText, { color: theme.error }]}>{syncProgress.error}</Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      )}
+    </Animated.View>
   )
 }
 
@@ -287,49 +217,18 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
-  statusBar: {
+  content: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    padding: 16,
   },
-  statusContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusIconContainer: {
-    marginRight: 8,
-  },
-  statusText: {
+  text: {
     fontSize: 14,
     fontWeight: "500",
-  },
-  badge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
     marginLeft: 8,
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  progressContainer: {
-    height: 2,
-    backgroundColor: "rgba(0,0,0,0.1)",
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
   },
   expandedContent: {
-    overflow: "hidden",
-    paddingHorizontal: 16,
+    padding: 16,
   },
   detailsContainer: {
     marginTop: 8,
@@ -353,21 +252,5 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-  },
-  syncButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  syncIcon: {
-    marginRight: 8,
-  },
-  syncButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
   },
 })

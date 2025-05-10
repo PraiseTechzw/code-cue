@@ -69,7 +69,7 @@ export default function TaskDetailScreen() {
       }
     } catch (error) {
       console.error("Error loading task data:", error)
-      showToast("Failed to load task data", "error")
+      showToast("Failed to load task data", {type: 'error'})
     } finally {
       setLoading(false)
     }
@@ -99,10 +99,10 @@ export default function TaskDetailScreen() {
     try {
       await taskService.updateTask(task.id, { status: newStatus })
       setTask({ ...task, status: newStatus })
-      showToast(`Task status updated to ${newStatus}`, "success")
+      showToast(`Task status updated to ${newStatus}`, {type:"success"})
     } catch (error) {
       console.error("Error updating task status:", error)
-      showToast("Failed to update task status", "error")
+      showToast("Failed to update task status", {type: "error"})
     }
   }
 
@@ -118,10 +118,10 @@ export default function TaskDetailScreen() {
       // Add the new comment to the list
       setComments([...comments, newCommentData])
       setNewComment("")
-      showToast("Comment added", "success")
+      showToast("Comment added", {type: "success"})
     } catch (error) {
       console.error("Error adding comment:", error)
-      showToast("Failed to add comment", "error")
+      showToast("Failed to add comment",{type:  "error"})
     }
   }
 
@@ -138,10 +138,10 @@ export default function TaskDetailScreen() {
       // Add the new subtask to the list
       setSubtasks([...subtasks, newSubtaskData])
       setNewSubtask("")
-      showToast("Subtask added", "success")
+      showToast("Subtask added", {type: "success"})
     } catch (error) {
       console.error("Error adding subtask:", error)
-      showToast("Failed to add subtask", "error")
+      showToast("Failed to add subtask", {type: "error"})
     }
   }
 
@@ -157,7 +157,7 @@ export default function TaskDetailScreen() {
       setSubtasks(updatedSubtasks)
     } catch (error) {
       console.error("Error toggling subtask:", error)
-      showToast("Failed to update subtask", "error")
+      showToast("Failed to update subtask",{type:  "error"})
     }
   }
 
@@ -176,10 +176,10 @@ export default function TaskDetailScreen() {
           description: editedDescription,
         })
 
-        showToast("Task updated successfully", "success")
+        showToast("Task updated successfully",{ type: "success"})
       } catch (error) {
         console.error("Error updating task:", error)
-        showToast("Failed to update task", "error")
+        showToast("Failed to update task", {type: "error"})
       }
     }
 
@@ -193,11 +193,11 @@ export default function TaskDetailScreen() {
   const confirmDeleteTask = async () => {
     try {
       await taskService.deleteTask(task.id)
-      showToast("Task deleted successfully", "success")
+      showToast("Task deleted successfully", {type: "success"})
       router.back()
     } catch (error) {
       console.error("Error deleting task:", error)
-      showToast("Failed to delete task", "error")
+      showToast("Failed to delete task", {type: "error"})
     } finally {
       setShowDeleteConfirmation(false)
     }

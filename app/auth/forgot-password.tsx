@@ -17,6 +17,7 @@ import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 export default function ForgotPasswordScreen() {
   const router = useRouter()

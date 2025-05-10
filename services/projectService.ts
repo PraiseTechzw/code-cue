@@ -2,8 +2,16 @@ import { supabase } from "@/lib/supabase"
 import { offlineStore } from "./offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { v4 as uuidv4 } from "uuid"
 import type { Database } from "@/types/supabase"
+
+// Custom UUID generation function for React Native
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"]
 export type NewProject = Database["public"]["Tables"]["projects"]["Insert"]
@@ -139,24 +147,143 @@ export const getProjectById = async (projectId: string): Promise<any> => {
 export const createProject = async (projectData: any): Promise<any> => {
   try {
     const online = await isOnline()
-    const projectId = uuidv4()
+    const projectId = generateUUID()
     const now = new Date().toISOString()
 
-    // Prepare project data
+    // Get current user and ensure authentication
+    const { data: { session }, error: authError } = await supabase.auth.getSession()
+    
+    // Log authentication state for debugging
+    console.log("Auth state:", {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id,
+      authError: authError
+    })
+
+    if (authError) {
+      console.error("Auth error:", authError)
+      throw new Error("Authentication error: " + authError.message)
+    }
+
+    if (!session?.user) {
+      throw new Error("No active session found. Please sign in again.")
+    }
+
+    // Ensure user has a profile
+    let { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+
+    console.log("Profile check:", { profile, profileError })
+
+    if (profileError) {
+      throw new Error(`Failed to fetch profile: ${profileError.message}`)
+    }
+
+    // If profile exists but has no role, update it
+    if (profile && !profile.role) {
+      console.log("Updating profile to add role")
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          role: 'user',
+          updated_at: now
+        })
+        .eq('id', session.user.id)
+        .select()
+        .single()
+
+      console.log("Profile update result:", { updatedProfile, updateError })
+
+      if (updateError) {
+        throw new Error(`Failed to update profile with role: ${updateError.message}`)
+      }
+
+      if (!updatedProfile) {
+        throw new Error("Profile update succeeded but no profile data returned")
+      }
+
+      profile = updatedProfile
+    }
+
+    // If no profile exists, create one
+    if (!profile) {
+      console.log("Creating new profile for user:", session.user.id)
+      
+      const { data: newProfile, error: createProfileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: session.user.id,
+          email: session.user.email,
+          role: 'user',
+          created_at: now,
+          updated_at: now
+        })
+        .select()
+        .single()
+
+      console.log("Profile creation result:", { newProfile, createProfileError })
+
+      if (createProfileError) {
+        throw new Error(`Failed to create user profile: ${createProfileError.message}`)
+      }
+
+      if (!newProfile) {
+        throw new Error("Profile creation succeeded but no profile data returned")
+      }
+
+      profile = newProfile
+    }
+
+    // Double-check profile after creation/verification
+    const { data: verifiedProfile, error: verifyError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+
+    console.log("Verified profile:", { verifiedProfile, verifyError })
+
+    if (verifyError || !verifiedProfile) {
+      throw new Error("Failed to verify user profile after creation")
+    }
+
+    if (!verifiedProfile.role) {
+      throw new Error("User profile is missing required role field")
+    }
+
+    // Prepare project data with owner_id
     const newProject = {
       id: projectId,
       ...projectData,
+      owner_id: session.user.id,
       created_at: now,
       updated_at: now,
     }
 
+    // Log project data for debugging
+    console.log("Creating project with data:", {
+      projectId,
+      ownerId: session.user.id,
+      hasName: !!projectData.name,
+      hasDescription: !!projectData.description,
+      userRole: verifiedProfile.role
+    })
+
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
         table_name: "projects",
         record_id: projectId,
         operation: "INSERT",
         data: newProject,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache
@@ -165,10 +292,37 @@ export const createProject = async (projectData: any): Promise<any> => {
       return newProject
     }
 
-    // If online, create project
-    const { data, error } = await supabase.from("projects").insert(newProject).select().single()
+    // If online, create project with RLS enabled
+    const { data, error } = await supabase
+      .from("projects")
+      .insert(newProject)
+      .select()
+      .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("Supabase error details:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        projectData: {
+          id: projectId,
+          ownerId: session.user.id,
+          name: projectData.name,
+          description: projectData.description,
+          userRole: verifiedProfile.role
+        }
+      })
+      
+      if (error.code === "42501") {
+        throw new Error(
+          `Permission denied. User ID: ${session.user.id}, Project ID: ${projectId}. ` +
+          `User role: ${verifiedProfile.role}. ` +
+          `Please ensure you have the correct permissions.`
+        )
+      }
+      throw error
+    }
 
     // Update cache
     await updateProjectsCache(data)
@@ -195,10 +349,14 @@ export const updateProject = async (projectId: string, updates: any): Promise<an
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
         table_name: "projects",
         record_id: projectId,
         operation: "UPDATE",
         data: updateData,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache
@@ -230,10 +388,14 @@ export const deleteProject = async (projectId: string): Promise<boolean> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
         table_name: "projects",
         record_id: projectId,
         operation: "DELETE",
         data: null,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache

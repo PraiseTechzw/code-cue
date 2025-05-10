@@ -10,6 +10,7 @@ export interface Database {
           avatar_url: string | null
           theme: string | null
           push_token: string | null
+          role: string
           created_at: string
           updated_at: string
         }
@@ -19,6 +20,7 @@ export interface Database {
           avatar_url?: string | null
           theme?: string | null
           push_token?: string | null
+          role?: string
           created_at?: string
           updated_at?: string
         }
@@ -28,6 +30,7 @@ export interface Database {
           avatar_url?: string | null
           theme?: string | null
           push_token?: string | null
+          role?: string
           created_at?: string
           updated_at?: string
         }
@@ -38,27 +41,33 @@ export interface Database {
           name: string
           description: string | null
           progress: number
-          user_id: string
+          owner_id: string
           created_at: string
           updated_at: string
+          start_date: string | null
+          end_date: string | null
         }
         Insert: {
           id?: string
           name: string
           description?: string | null
           progress?: number
-          user_id: string
+          owner_id: string
           created_at?: string
           updated_at?: string
+          start_date?: string | null
+          end_date?: string | null
         }
         Update: {
           id?: string
           name?: string
           description?: string | null
           progress?: number
-          user_id?: string
+          owner_id?: string
           created_at?: string
           updated_at?: string
+          start_date?: string | null
+          end_date?: string | null
         }
       }
       tasks: {

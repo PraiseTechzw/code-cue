@@ -83,6 +83,9 @@ const updateSyncProgress = (update: Partial<SyncProgress>) => {
 // Cache for in-memory data
 const cache: Record<string, any> = {}
 
+// Initialize state
+let isInitialized = false
+
 // Function to generate a unique ID
 const generateId = () => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
@@ -236,6 +239,8 @@ const setLastSyncTime = async (time: number): Promise<void> => {
 
 // Initialize the offlineStore
 export const initOfflineStore = async () => {
+  if (isInitialized) return
+
   try {
     // Load last sync time
     const lastSyncTime = await getLastSyncTime()
@@ -244,12 +249,21 @@ export const initOfflineStore = async () => {
     // Set up network change listener
     NetInfo.addEventListener((state) => {
       // If connection is restored, try to sync
-      if (state.isConnected && !state.isConnectedPreviously) {
+      if (state.isConnected) {
         syncOfflineChanges()
       }
     })
+
+    isInitialized = true
   } catch (error) {
     console.error("Error initializing offline store:", error)
+  }
+}
+
+// Helper to ensure store is initialized
+const ensureInitialized = async () => {
+  if (!isInitialized) {
+    await initOfflineStore()
   }
 }
 
@@ -528,25 +542,54 @@ export const offlineStore = {
   },
 
   // Offline changes tracking
-  getOfflineChanges,
+  async getOfflineChanges() {
+    await ensureInitialized()
+    return getOfflineChanges()
+  },
 
-  getPendingChangesCount,
+  async getPendingChangesCount() {
+    await ensureInitialized()
+    return getPendingChangesCount()
+  },
 
-  addOfflineChange,
+  async addOfflineChange(change: OfflineChange) {
+    await ensureInitialized()
+    return addOfflineChange(change)
+  },
 
-  markChangeSynced,
+  async markChangeSynced(id: string) {
+    await ensureInitialized()
+    return markChangeSynced(id)
+  },
 
-  removeChange,
+  async removeChange(id: string) {
+    await ensureInitialized()
+    return removeChange(id)
+  },
 
-  clearSyncedChanges,
+  async clearSyncedChanges() {
+    await ensureInitialized()
+    return clearSyncedChanges()
+  },
 
-  syncOfflineChanges,
+  async syncOfflineChanges() {
+    await ensureInitialized()
+    return syncOfflineChanges()
+  },
 
-  getLastSyncTime,
+  async getLastSyncTime() {
+    await ensureInitialized()
+    return getLastSyncTime()
+  },
 
-  setLastSyncTime,
+  async setLastSyncTime(time: number) {
+    await ensureInitialized()
+    return setLastSyncTime(time)
+  },
 
-  addSyncListener,
+  addSyncListener(listener: SyncListener) {
+    return addSyncListener(listener)
+  },
 
   initOfflineStore,
 
@@ -646,6 +689,33 @@ export const offlineStore = {
     } catch (error) {
       console.error("Error getting last sync time:", error)
       return null
+    }
+  },
+
+  // AsyncStorage methods
+  async setItem(key: string, value: any): Promise<void> {
+    try {
+      await AsyncStorage.setItem(key, JSON.stringify(value))
+    } catch (error) {
+      console.error(`Error setting item ${key} in AsyncStorage:`, error)
+    }
+  },
+
+  async getItem(key: string): Promise<any> {
+    try {
+      const value = await AsyncStorage.getItem(key)
+      return value ? JSON.parse(value) : null
+    } catch (error) {
+      console.error(`Error getting item ${key} from AsyncStorage:`, error)
+      return null
+    }
+  },
+
+  async removeItem(key: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(key)
+    } catch (error) {
+      console.error(`Error removing item ${key} from AsyncStorage:`, error)
     }
   },
 }

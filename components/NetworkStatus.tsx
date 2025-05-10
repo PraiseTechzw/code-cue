@@ -6,7 +6,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { offlineStore } from '@/services/offlineStore';
 
 export const NetworkStatus = () => {
-  const { isDarkMode } = useTheme();
+  const { isDark } = useTheme();
   const [isConnected, setIsConnected] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const slideAnim = new Animated.Value(-50);
@@ -68,7 +68,7 @@ export const NetworkStatus = () => {
       style={[
         styles.container,
         {
-          backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+          backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
           transform: [{ translateY: slideAnim }],
         },
       ]}
@@ -79,7 +79,7 @@ export const NetworkStatus = () => {
           size={24}
           color={isConnected ? '#4CAF50' : '#FF5252'}
         />
-        <Text style={[styles.text, { color: isDarkMode ? '#ffffff' : '#000000' }]}>
+        <Text style={[styles.text, { color: isDark ? '#ffffff' : '#000000' }]}>
           {isConnected
             ? isSyncing
               ? 'Syncing offline changes...'

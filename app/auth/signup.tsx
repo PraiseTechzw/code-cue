@@ -20,6 +20,7 @@ import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 export default function SignUpScreen() {
   const router = useRouter()
@@ -98,10 +99,10 @@ export default function SignUpScreen() {
     if (validateForm()) {
       const success = await signUp(email, password, fullName)
       if (success) {
-        showToast("Account created successfully! Please check your email to verify your account.", "success", 5000)
+        showToast("Account created successfully! Please check your email to verify your account.",  { type: "success" })
         router.push("/auth/login")
       } else {
-        showToast("Failed to create account. Please try again.", "error")
+        showToast("Failed to create account. Please try again.", { type: "error" })
       }
     }
   }

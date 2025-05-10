@@ -19,6 +19,7 @@ import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 export default function LoginScreen() {
   const router = useRouter()
@@ -83,9 +84,9 @@ export default function LoginScreen() {
     if (validateForm()) {
       const success = await signIn(email, password)
       if (success) {
-        showToast("Login successful", "success")
+        showToast("Login successful", { type: "success" })
       } else {
-        showToast("Login failed. Please check your credentials.", "error")
+        showToast("Login failed. Please check your credentials.", { type: "error" })
       }
     }
   }

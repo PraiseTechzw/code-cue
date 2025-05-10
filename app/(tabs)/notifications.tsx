@@ -28,7 +28,7 @@ export default function NotificationsScreen() {
       setNotifications(data)
     } catch (error) {
       console.error("Error loading notifications:", error)
-      showToast("Failed to load notifications", "error")
+      showToast("Failed to load notifications", { type: "error" })
     } finally {
       setLoading(false)
     }
@@ -37,11 +37,11 @@ export default function NotificationsScreen() {
   const handleMarkAllRead = async () => {
     try {
       await notificationService.markAllAsRead()
-      showToast("All notifications marked as read", "success")
+      showToast("All notifications marked as read", { type: "success" })
       loadNotifications() // Refresh the list
     } catch (error) {
       console.error("Error marking all as read:", error)
-      showToast("Failed to mark all notifications as read", "error")
+      showToast("Failed to mark all notifications as read", { type: "error" })
     }
   }
 

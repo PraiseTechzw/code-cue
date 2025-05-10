@@ -2,7 +2,7 @@
 
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from "react-native"
 import { useRouter } from "expo-router"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import Colors from "@/constants/Colors"
 

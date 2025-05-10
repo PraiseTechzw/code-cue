@@ -131,7 +131,7 @@ export default function ProjectDetailScreen() {
       })
     } catch (error) {
       console.error("Error loading project data:", error)
-      showToast("Failed to load project data", "error")
+      showToast("Failed to load project data",  { type: "error" })
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -162,17 +162,17 @@ export default function ProjectDetailScreen() {
 
   const handleEditProject = () => {
     // Navigate to edit project screen
-    router.push(`/edit-project?id=${id}`)
+    router.push(`/edit-project/${id}`)
   }
 
   const handleDeleteProject = async () => {
     try {
       await projectService.deleteProject(id as string)
-      showToast("Project deleted successfully", "success")
+      showToast("Project deleted successfully",{type: 'success'})
       router.replace("/projects")
     } catch (error) {
       console.error("Error deleting project:", error)
-      showToast("Failed to delete project", "error")
+      showToast("Failed to delete project",  { type: "error" })
     }
   }
 
@@ -468,14 +468,14 @@ export default function ProjectDetailScreen() {
       </ScrollView>
 
       <VerifyAction
-        isVisible={showDeleteConfirm}
+        visible={showDeleteConfirm}
         title="Delete Project"
         message="Are you sure you want to delete this project? This action cannot be undone and all associated tasks will be deleted."
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={handleDeleteProject}
         onCancel={() => setShowDeleteConfirm(false)}
-        type="danger"
+        destructive={true}
       />
 
       <ConnectionStatus />

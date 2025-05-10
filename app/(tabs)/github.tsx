@@ -25,6 +25,7 @@ import { CommitItem } from "@/components/CommitItem"
 import { githubService } from "@/services/githubService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 // GitHub OAuth configuration
 const GITHUB_CLIENT_ID = "your-github-client-id" // Replace with your actual GitHub client ID
@@ -77,11 +78,10 @@ export default function GitHubScreen() {
           redirectUri: GITHUB_REDIRECT_URI,
         })
 
-        await request.prepareAsync(discovery)
         setAuthRequest(request)
       } catch (error) {
         console.error("Error creating auth request:", error)
-        showToast("Failed to prepare GitHub authentication", "error")
+        showToast("Failed to prepare GitHub authentication", { type: "error" })
       }
     }
 
@@ -157,7 +157,7 @@ export default function GitHubScreen() {
       }
     } catch (error) {
       console.error("Error loading GitHub data:", error)
-      showToast("Failed to load GitHub data", "error")
+      showToast("Failed to load GitHub data", { type: "error" })
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -172,7 +172,7 @@ export default function GitHubScreen() {
   const handleConnect = async () => {
     try {
       if (!authRequest) {
-        showToast("GitHub authentication is not ready", "error")
+        showToast("GitHub authentication is not ready", { type: "error" })
         return
       }
 
@@ -204,20 +204,20 @@ export default function GitHubScreen() {
           // Refresh the GitHub data
           await loadGitHubData()
 
-          showToast("GitHub account connected successfully", "success")
+          showToast("GitHub account connected successfully", { type: "success" })
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
         } else {
           throw new Error("Failed to get access token")
         }
       } else if (result.type === "error") {
-        showToast(`Authentication error: ${result.error?.message || "Unknown error"}`, "error")
+        showToast(`Authentication error: ${result.error?.message || "Unknown error"}`, { type: "error" })
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       } else if (result.type === "dismiss") {
-        showToast("GitHub authentication was cancelled", "info")
+        showToast("GitHub authentication was cancelled", { type: "info" })
       }
     } catch (error) {
       console.error("Error connecting to GitHub:", error)
-      showToast("Failed to connect GitHub account", "error")
+      showToast("Failed to connect GitHub account", { type: "error" })
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     } finally {
       setAuthInProgress(false)
@@ -238,7 +238,7 @@ export default function GitHubScreen() {
       setCommits(commitsData)
     } catch (error) {
       console.error("Error loading commits:", error)
-      showToast("Failed to load commits", "error")
+      showToast("Failed to load commits", { type: "error" })
     } finally {
       setLoading(false)
     }
@@ -263,10 +263,10 @@ export default function GitHubScreen() {
       setSelectedRepo(null)
       setCommits([])
 
-      showToast("GitHub account disconnected successfully", "success")
+      showToast("GitHub account disconnected successfully", { type: "success" })
     } catch (error) {
       console.error("Error disconnecting GitHub:", error)
-      showToast("Failed to disconnect GitHub account", "error")
+      showToast("Failed to disconnect GitHub account", { type: "error" })
     }
   }
 
@@ -416,7 +416,10 @@ export default function GitHubScreen() {
                     <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
                     <TouchableOpacity
                       style={styles.viewAllButton}
-                      onPress={() => router.push(`/repository/${selectedRepo.id}`)}
+                      onPress={() => router.push({
+                        pathname: "/repositories",
+                        params: { repoId: selectedRepo.id }
+                      })}
                     >
                       <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
                       <Ionicons name="arrow-forward" size={16} color={theme.tint} />

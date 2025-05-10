@@ -1,17 +1,26 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useRef } from "react"
-import { Tabs } from "expo-router"
-import { useColorScheme, Animated, Dimensions, Pressable, StyleSheet, View, Text, ColorSchemeName } from "react-native"
-import Ionicons from "@expo/vector-icons/Ionicons"
-import { notificationService } from "@/services/notificationService"
-import { ConnectionStatus } from "@/components/ConnectionStatus"
-import Colors from "@/constants/Colors"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import * as Haptics from "expo-haptics"
-import React from "react"
+import { useEffect, useState, useRef } from "react";
+import { Tabs } from "expo-router";
+import {
+  useColorScheme,
+  Animated,
+  Dimensions,
+  Pressable,
+  StyleSheet,
+  View,
+  Text,
+  ColorSchemeName,
+} from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { notificationService } from "@/services/notificationService";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+import Colors from "@/constants/Colors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import React from "react";
 
-type IconName = keyof typeof Ionicons.glyphMap
+type IconName = keyof typeof Ionicons.glyphMap;
 
 interface TabBarButtonProps {
   isFocused: boolean;
@@ -23,28 +32,35 @@ interface TabBarButtonProps {
 }
 
 // Custom Tab Bar Button component
-function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }: TabBarButtonProps) {
-  const theme = Colors[colorScheme ?? "light"]
-  const focusAnim = useRef(new Animated.Value(0)).current
+function TabBarButton({
+  isFocused,
+  icon,
+  label,
+  onPress,
+  badge = 0,
+  colorScheme = "light",
+}: TabBarButtonProps) {
+  const theme = Colors[colorScheme ?? "light"];
+  const focusAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(focusAnim, {
       toValue: isFocused ? 1 : 0,
       duration: 200,
       useNativeDriver: true,
-    }).start()
-  }, [isFocused])
+    }).start();
+  }, [isFocused]);
 
   const scale = focusAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.1],
-  })
+  });
 
   const handlePress = () => {
     // Provide haptic feedback on tab press
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    onPress()
-  }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
 
   return (
     <Pressable
@@ -54,9 +70,15 @@ function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme 
       accessibilityState={{ selected: isFocused }}
       accessibilityLabel={`${label} tab`}
     >
-      <Animated.View style={[styles.tabButtonContent, { transform: [{ scale }] }]}>
+      <Animated.View
+        style={[styles.tabButtonContent, { transform: [{ scale }] }]}
+      >
         <View style={styles.iconContainer}>
-          <Ionicons name={icon} size={24} color={isFocused ? theme.tint : theme.tabIconDefault} />
+          <Ionicons
+            name={icon}
+            size={24}
+            color={isFocused ? theme.tint : theme.tabIconDefault}
+          />
 
           {badge > 0 && (
             <View style={[styles.badge, { backgroundColor: theme.tint }]}>
@@ -99,34 +121,34 @@ function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme 
         )}
       </Animated.View>
     </Pressable>
-  )
+  );
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? "light"]
-  const [unreadCount, setUnreadCount] = useState(0)
-  const insets = useSafeAreaInsets()
-  const { width } = Dimensions.get("window")
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const [unreadCount, setUnreadCount] = useState(0);
+  const insets = useSafeAreaInsets();
+  const { width } = Dimensions.get("window");
 
   useEffect(() => {
     // Get initial unread count
-    loadUnreadCount()
+    loadUnreadCount();
 
     // Set up interval to refresh unread count
-    const interval = setInterval(loadUnreadCount, 30000) // Every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000); // Every 30 seconds
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => clearInterval(interval);
+  }, []);
 
   const loadUnreadCount = async () => {
     try {
-      const count = await notificationService.getUnreadCount()
-      setUnreadCount(count)
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
     } catch (error) {
-      console.error("Error loading unread count:", error)
+      console.error("Error loading unread count:", error);
     }
-  }
+  };
 
   // Custom tab bar component
   const renderTabBar = ({ state, descriptors, navigation }) => {
@@ -142,45 +164,47 @@ export default function TabLayout() {
         ]}
       >
         {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key]
-          const label = options.title || route.name
+          const { options } = descriptors[route.key];
+          const label = options.title || route.name;
 
-          const isFocused = state.index === index
+          const isFocused = state.index === index;
 
           // Determine icon based on route name
-          let iconName: IconName = "ellipsis-horizontal"
+          let iconName: IconName = "ellipsis-horizontal";
           switch (route.name) {
             case "index":
-              iconName = isFocused ? "home" : "home-outline"
-              break
+              iconName = isFocused ? "home" : "home-outline";
+              break;
             case "projects":
-              iconName = isFocused ? "folder" : "folder-outline"
-              break
+              iconName = isFocused ? "folder" : "folder-outline";
+              break;
             case "github":
-              iconName = "logo-github"
-              break
+              iconName = "logo-github";
+              break;
             case "insights":
-              iconName = isFocused ? "bulb" : "bulb-outline"
-              break
+              iconName = isFocused ? "bulb" : "bulb-outline";
+              break;
             case "notifications":
-              iconName = isFocused ? "notifications" : "notifications-outline"
-              break
+              iconName = isFocused ? "notifications" : "notifications-outline";
+              break;
+            case "settings":
+              iconName = isFocused ? "settings" : "settings-outline";
           }
 
           // Show badge only for notifications tab
-          const badge = route.name === "notifications" ? unreadCount : 0
+          const badge = route.name === "notifications" ? unreadCount : 0;
 
           const onPress = () => {
             const event = navigation.emit({
               type: "tabPress",
               target: route.key,
               canPreventDefault: true,
-            })
+            });
 
             if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name)
+              navigation.navigate(route.name);
             }
-          }
+          };
 
           return (
             <TabBarButton
@@ -192,11 +216,11 @@ export default function TabLayout() {
               badge={badge}
               colorScheme={colorScheme}
             />
-          )
+          );
         })}
       </View>
-    )
-  }
+    );
+  };
 
   return (
     <>
@@ -254,9 +278,15 @@ export default function TabLayout() {
             title: "Notifications",
           }}
         />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: "Settings",
+          }}
+        />
       </Tabs>
     </>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -310,4 +340,4 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "bold",
   },
-})
+});

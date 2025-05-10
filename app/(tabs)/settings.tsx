@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from "react-native"
 import { useRouter } from "expo-router"
-import Ionicons  from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
@@ -24,6 +24,7 @@ import { VerifyAction } from "@/components/VerifyAction"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Application from "expo-application"
+import { v4 as generateUUID } from "uuid"
 
 export default function SettingsScreen() {
   const router = useRouter()
@@ -171,10 +172,14 @@ export default function SettingsScreen() {
       // Store change for offline sync
       if (!isConnected) {
         await offlineStore.addOfflineChange({
+          id: generateUUID(),
           table_name: "profiles",
           record_id: user?.id || "",
           operation: "UPDATE",
           data: { push_token: value ? await AsyncStorage.getItem("pushToken") : null },
+          created_at: new Date().toISOString(),
+          synced: false,
+          retry_count: 0
         })
         showToast("Push notification settings will be synced when online", { type: "info" })
       }
@@ -265,7 +270,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ConnectionStatus lastSyncTime={lastSynced} />
+      <ConnectionStatus />
 
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
