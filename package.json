@@ -15,6 +15,7 @@
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
     "@google/generative-ai": "^0.24.1",
+    "@gorhom/bottom-sheet": "^5.1.4",
     "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-native-community/datetimepicker": "^8.3.0",
     "@react-native-community/netinfo": "^11.4.1",
@@ -39,6 +40,7 @@
     "expo-status-bar": "~2.2.3",
     "expo-system-ui": "~5.0.7",
     "expo-web-browser": "~14.1.6",
+    "moti": "^0.30.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",

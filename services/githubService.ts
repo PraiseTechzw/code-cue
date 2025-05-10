@@ -186,13 +186,14 @@ export const githubService = {
 
       // Save repositories to database
       for (const repo of repos) {
-        await this.saveRepository({
+        const savedRepo = await this.saveRepository({
           repo_id: repo.id.toString(),
           name: repo.name,
           full_name: repo.full_name,
           description: repo.description,
           html_url: repo.html_url
         })
+        // Only use savedRepo if not null (no notification or id usage here, but safe for future use)
       }
 
       // Fetch and cache the updated repositories
@@ -289,10 +290,10 @@ export const githubService = {
         }
       }
 
-      const { data, error } = await supabase.from("github_repositories").select("*").eq("id", id).single()
+      const { data, error } = await supabase.from("github_repositories").select("*").eq("id", id).maybeSingle()
 
       if (error) throw error
-
+      if (!data) return null
       return data
     } catch (error) {
       console.error("Error fetching GitHub repository:", error)
@@ -333,6 +334,17 @@ export const githubService = {
 
         if (error) throw error
         data = updatedData
+
+        if (data) {
+          // Create notification for updated repository
+          await notificationService.createNotification({
+            title: "Repository Updated",
+            description: `You updated the repository: ${repository.name}`,
+            type: "repository_updated",
+            related_id: data.id,
+            related_type: "repository"
+          })
+        }
       } else {
         // Create new repository
         const { data: newData, error } = await supabase
@@ -347,22 +359,27 @@ export const githubService = {
         if (error) throw error
         data = newData
 
-        // Create notification for new repository
-        await notificationService.createNotification({
-          title: "Repository Added",
-          description: `You added the repository: ${repository.name}`,
-          type: "repository_added",
-          related_id: data.id,
-          related_type: "repository"
-        })
+        if (data) {
+          // Create notification for new repository
+          await notificationService.createNotification({
+            title: "Repository Added",
+            description: `You added the repository: ${repository.name}`,
+            type: "repository_added",
+            related_id: data.id,
+            related_type: "repository"
+          })
+        }
       }
 
       // Update cached repositories
       const cachedRepos = (await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)) || []
-      const updatedRepos = existingRepo
-        ? cachedRepos.map((r: any) => (r.id === existingRepo.id ? data : r))
-        : [data, ...cachedRepos]
-      await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, updatedRepos)
+      let updatedRepos = cachedRepos
+      if (data) {
+        updatedRepos = existingRepo
+          ? cachedRepos.map((r: any) => (r.id === existingRepo.id ? data : r))
+          : [data, ...cachedRepos]
+        await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, updatedRepos)
+      }
 
       return data
     } catch (error) {
