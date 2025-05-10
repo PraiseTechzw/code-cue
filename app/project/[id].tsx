@@ -13,7 +13,7 @@ import {
 } from "react-native"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useLocalSearchParams, router } from "expo-router"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import * as Haptics from "expo-haptics"
 

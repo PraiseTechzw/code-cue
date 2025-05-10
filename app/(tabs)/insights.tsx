@@ -1,7 +1,7 @@
 "use client"
 
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
 

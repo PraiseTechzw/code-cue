@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from "react-native"
 import { useRouter } from "expo-router"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import * as ImagePicker from "expo-image-picker"
 import { useAuth } from "@/contexts/AuthContext"

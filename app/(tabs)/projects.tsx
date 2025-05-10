@@ -10,7 +10,7 @@ import {
   Animated,
   ActivityIndicator,
 } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useRef, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"

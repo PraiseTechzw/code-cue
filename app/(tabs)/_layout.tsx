@@ -2,16 +2,28 @@
 
 import { useEffect, useState, useRef } from "react"
 import { Tabs } from "expo-router"
-import { useColorScheme, Animated, Dimensions, Pressable, StyleSheet, View, Text } from "react-native"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import { useColorScheme, Animated, Dimensions, Pressable, StyleSheet, View, Text, ColorSchemeName } from "react-native"
+import Ionicons from "@expo/vector-icons/Ionicons"
 import { notificationService } from "@/services/notificationService"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import Colors from "@/constants/Colors"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Haptics from "expo-haptics"
+import React from "react"
+
+type IconName = keyof typeof Ionicons.glyphMap
+
+interface TabBarButtonProps {
+  isFocused: boolean;
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  badge?: number;
+  colorScheme?: ColorSchemeName;
+}
 
 // Custom Tab Bar Button component
-function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }) {
+function TabBarButton({ isFocused, icon, label, onPress, badge = 0, colorScheme = "light" }: TabBarButtonProps) {
   const theme = Colors[colorScheme ?? "light"]
   const focusAnim = useRef(new Animated.Value(0)).current
 
@@ -136,7 +148,7 @@ export default function TabLayout() {
           const isFocused = state.index === index
 
           // Determine icon based on route name
-          let iconName = ""
+          let iconName: IconName = "ellipsis-horizontal"
           switch (route.name) {
             case "index":
               iconName = isFocused ? "home" : "home-outline"
@@ -153,8 +165,6 @@ export default function TabLayout() {
             case "notifications":
               iconName = isFocused ? "notifications" : "notifications-outline"
               break
-            default:
-              iconName = "ellipsis-horizontal"
           }
 
           // Show badge only for notifications tab
@@ -211,7 +221,6 @@ export default function TabLayout() {
           headerTitleStyle: {
             fontWeight: "600",
           },
-          animation: "slide_from_right",
         }}
         tabBar={renderTabBar}
       >

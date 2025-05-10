@@ -2,7 +2,7 @@
 
 import { StyleSheet, View, Text, FlatList, TouchableOpacity } from "react-native"
 import { useState, useEffect } from "react"
-import { Ionicons } from "@expo/vector-icons/Ionicons"
+import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { notificationService } from "@/services/notificationService"
 import { useToast } from "@/contexts/ToastContext"

@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native"
 import Colors from "@/constants/Colors"
 import { router } from "expo-router"
+import { useColorScheme } from "react-native"
 
 interface Props {
   children: ReactNode
@@ -11,6 +12,40 @@ interface State {
   hasError: boolean
   error: Error | null
   errorInfo: ErrorInfo | null
+}
+
+interface ErrorDisplayProps {
+  error: Error | null
+  errorInfo: ErrorInfo | null
+  onReset: () => void
+  onGoHome: () => void
+}
+
+function ErrorDisplay({ error, errorInfo, onReset, onGoHome }: ErrorDisplayProps) {
+  const colorScheme = useColorScheme()
+  const theme = Colors[colorScheme ?? "light"]
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.title, { color: theme.text }]}>Something went wrong</Text>
+      <Text style={[styles.subtitle, { color: theme.textDim }]}>We're sorry for the inconvenience</Text>
+
+      <ScrollView style={[styles.errorContainer, { backgroundColor: theme.cardBackground }]}>
+        <Text style={[styles.errorText, { color: theme.error }]}>{error?.toString()}</Text>
+        {errorInfo && <Text style={[styles.stackTrace, { color: theme.textDim }]}>{errorInfo.componentStack}</Text>}
+      </ScrollView>
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: theme.tint }]} onPress={onReset}>
+          <Text style={styles.buttonText}>Try Again</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, { backgroundColor: "transparent", borderColor: theme.border }]} onPress={onGoHome}>
+          <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Go to Home</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -57,25 +92,12 @@ class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.subtitle}>We're sorry for the inconvenience</Text>
-
-          <ScrollView style={styles.errorContainer}>
-            <Text style={styles.errorText}>{this.state.error?.toString()}</Text>
-            {this.state.errorInfo && <Text style={styles.stackTrace}>{this.state.errorInfo.componentStack}</Text>}
-          </ScrollView>
-
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={this.resetError}>
-              <Text style={styles.buttonText}>Try Again</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={this.goToHome}>
-              <Text style={styles.secondaryButtonText}>Go to Home</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ErrorDisplay
+          error={this.state.error}
+          errorInfo={this.state.errorInfo}
+          onReset={this.resetError}
+          onGoHome={this.goToHome}
+        />
       )
     }
 
@@ -87,19 +109,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: Colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: Colors.text,
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.textSecondary,
     marginBottom: 20,
   },
   errorContainer: {
@@ -107,17 +126,14 @@ const styles = StyleSheet.create({
     width: "100%",
     marginVertical: 20,
     padding: 15,
-    backgroundColor: Colors.errorBackground,
     borderRadius: 8,
   },
   errorText: {
-    color: Colors.error,
     fontSize: 14,
     fontFamily: "monospace",
     marginBottom: 10,
   },
   stackTrace: {
-    color: Colors.textSecondary,
     fontSize: 12,
     fontFamily: "monospace",
   },
@@ -134,14 +150,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minWidth: 150,
-  },
-  primaryButton: {
-    backgroundColor: Colors.primary,
-  },
-  secondaryButton: {
-    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   buttonText: {
     color: "white",
@@ -149,7 +158,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   secondaryButtonText: {
-    color: Colors.text,
     fontWeight: "bold",
     fontSize: 16,
   },

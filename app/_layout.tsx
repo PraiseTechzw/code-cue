@@ -9,7 +9,6 @@ import { useColorScheme, AppState, View, ActivityIndicator } from "react-native"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { ToastProvider } from "@/contexts/ToastContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
-import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
@@ -17,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as SplashScreen from "expo-splash-screen"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import Colors from "@/constants/Colors"
+import ErrorBoundary from "@/components/ErrorBoundary"
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
