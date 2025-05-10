@@ -12,6 +12,7 @@ import Colors from "@/constants/Colors"
 import type { Project } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import { projectService } from "@/services/projectService"
+import { taskService } from "@/services/taskService"
 
 interface ProjectCardProps {
   project: Project
@@ -55,12 +56,24 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
     completed: 0,
   })
 
-  // Simulate task stats calculation (in a real app, this would come from props or a service)
+  // Fetch real task data
   useEffect(() => {
-    // This would typically come from the project data or a service
-    const total = Math.floor(Math.random() * 10) + 1
-    const completed = Math.floor(Math.random() * (total + 1))
-    setTaskStats({ total, completed })
+    const fetchTaskStats = async () => {
+      try {
+        const tasks = await taskService.getTasksByProject(project.id)
+        const total = tasks.length
+        const completed = tasks.filter(task => task.status === 'done').length
+        
+        setTaskStats({
+          total,
+          completed
+        })
+      } catch (error) {
+        console.error('Error fetching task stats:', error)
+      }
+    }
+
+    fetchTaskStats()
   }, [project.id])
 
   const handlePressIn = () => {
@@ -179,9 +192,11 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
           </Text>
 
           <View style={styles.progressContainer}>
-            <ProgressBar progress={project.progress || 0} />
+            <ProgressBar progress={taskStats.total > 0 ? (taskStats.completed / taskStats.total) * 100 : 0} />
             <View style={styles.progressTextContainer}>
-              <Text style={[styles.progressText, { color: theme.textDim }]}>{project.progress || 0}% complete</Text>
+              <Text style={[styles.progressText, { color: theme.textDim }]}>
+                {taskStats.total > 0 ? Math.round((taskStats.completed / taskStats.total) * 100) : 0}% complete
+              </Text>
               <Text style={[styles.taskCount, { color: theme.textDim }]}>
                 {taskStats.completed}/{taskStats.total} tasks
               </Text>

@@ -8,7 +8,7 @@ interface TaskItemProps {
   task: {
     id: string
     title: string
-    dueDate?: string
+    due_date?: string
     priority: string
   }
   status: "todo" | "inProgress" | "done"
@@ -68,7 +68,7 @@ export function TaskItem({ task, status }: TaskItemProps) {
         <View style={styles.meta}>
           <View style={styles.dateContainer}>
             <Ionicons name="calendar-outline" size={14} color={theme.textDim} />
-            <Text style={[styles.date, { color: theme.textDim }]}>{formatDate(task.dueDate)}</Text>
+            <Text style={[styles.date, { color: theme.textDim }]}>{formatDate(task.due_date)}</Text>
           </View>
           <View style={[styles.priorityTag, { backgroundColor: getPriorityColor() }]}>
             <Text style={styles.priorityText}>{task.priority}</Text>

@@ -18,6 +18,8 @@ export type ColorTheme = {
   highPriority: string
   mediumPriority: string
   lowPriority: string
+  warningBackground: string
+  warningText: string
 }
 
 export type Colors = {
@@ -60,6 +62,8 @@ const Colors: Colors = {
     highPriority: "#F44336",
     mediumPriority: "#FF9800",
     lowPriority: "#4CAF50",
+    warningBackground: "#FFF3E0",
+    warningText: "#FF9800",
   },
   dark: {
     text: "#F9FAFB",
@@ -79,6 +83,8 @@ const Colors: Colors = {
     highPriority: "#F44336",
     mediumPriority: "#FF9800",
     lowPriority: "#4CAF50",
+    warningBackground: "#2D2010",
+    warningText: "#FF9800",
   },
   // Task priorities
   highPriority: "#FF3B30",

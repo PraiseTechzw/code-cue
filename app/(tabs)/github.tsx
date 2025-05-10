@@ -1,5 +1,6 @@
 "use client"
 
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   StyleSheet,
   View,
@@ -12,8 +13,7 @@ import {
   Linking,
   RefreshControl,
 } from "react-native"
-import { useState, useRef, useEffect, useCallback } from "react"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import Ionicons from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { router } from "expo-router"
 import * as AuthSession from "expo-auth-session"
@@ -24,10 +24,11 @@ import * as Haptics from "expo-haptics"
 import { CommitItem } from "@/components/CommitItem"
 import { githubService } from "@/services/githubService"
 import { useToast } from "@/contexts/ToastContext"
+import { useAuth } from "@/contexts/AuthContext"
 import Colors from "@/constants/Colors"
-import React from "react"
+import type { GithubRepository } from "@/services/githubService"
 
-// GitHub OAuth configuration
+// Remove OAuth configuration
 const GITHUB_CLIENT_ID = "your-github-client-id" // Replace with your actual GitHub client ID
 const GITHUB_REDIRECT_URI = AuthSession.makeRedirectUri({
   scheme: "devcue",
@@ -45,84 +46,61 @@ export default function GitHubScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const { showToast } = useToast()
+  const { isConnected } = useAuth()
   const isFocused = useIsFocused()
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [connection, setConnection] = useState<any>(null)
-  const [repositories, setRepositories] = useState<any[]>([])
-  const [selectedRepo, setSelectedRepo] = useState<any>(null)
+  const [repositories, setRepositories] = useState<GithubRepository[]>([])
+  const [selectedRepo, setSelectedRepo] = useState<GithubRepository | null>(null)
   const [commits, setCommits] = useState<any[]>([])
-  const [authRequest, setAuthRequest] = useState<AuthSession.AuthRequest | null>(null)
   const [authInProgress, setAuthInProgress] = useState(false)
 
   // Animation for the connect button
   const pulseAnim = useRef(new Animated.Value(1)).current
   const fadeAnim = useRef(new Animated.Value(0)).current
   const slideAnim = useRef(new Animated.Value(50)).current
+  const buttonScale = useRef(new Animated.Value(1)).current
 
   // Load GitHub data when the screen is focused
   useEffect(() => {
     if (isFocused) {
-      loadGitHubData()
+      loadGitHubData(true)
     }
   }, [isFocused])
 
-  // Create GitHub OAuth request
-  useEffect(() => {
-    async function createAuthRequest() {
-      try {
-        const request = new AuthSession.AuthRequest({
-          clientId: GITHUB_CLIENT_ID,
-          scopes: ["user", "repo"],
-          redirectUri: GITHUB_REDIRECT_URI,
-        })
+  const handleConnect = async () => {
+    try {
+      setAuthInProgress(true)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
-        setAuthRequest(request)
-      } catch (error) {
-        console.error("Error creating auth request:", error)
-        showToast("Failed to prepare GitHub authentication", { type: "error" })
-      }
-    }
-
-    createAuthRequest()
-  }, [])
-
-  // Start pulsing animation
-  useEffect(() => {
-    if (!connection) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.05,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start()
-    } else {
-      // Animate in the content when connection exists
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 500,
+      // Button press animation
+      Animated.sequence([
+        Animated.timing(buttonScale, {
+          toValue: 0.95,
+          duration: 100,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 500,
+        Animated.timing(buttonScale, {
+          toValue: 1,
+          duration: 100,
           useNativeDriver: true,
         }),
       ]).start()
-    }
-  }, [connection])
 
-  const loadGitHubData = async () => {
+      // Navigate to manual connection screen
+      router.push("/github-connect" as any)
+    } catch (error) {
+      console.error("Error connecting to GitHub:", error)
+      showToast("Failed to connect GitHub account", { type: "error" })
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+    } finally {
+      setAuthInProgress(false)
+    }
+  }
+
+  const loadGitHubData = async (forceRefreshFromGitHub = false) => {
     try {
       setLoading(true)
 
@@ -131,9 +109,17 @@ export default function GitHubScreen() {
       setConnection(connectionData)
 
       if (connectionData) {
-        // Get repositories
-        const reposData = await githubService.getRepositories()
+        let reposData = await githubService.getRepositories()
+        console.log('Fetched repositories:', reposData)
         setRepositories(reposData)
+        console.log('Repositories state set:', reposData)
+
+        // If no repos or force refresh, fetch from GitHub and save
+        if (reposData.length === 0 || forceRefreshFromGitHub) {
+          await githubService.fetchAndCacheRepositories(connectionData.access_token, connectionData.user_id)
+          reposData = await githubService.getRepositories()
+          setRepositories(reposData)
+        }
 
         // Select first repo if available or previously selected repo
         const lastSelectedRepoId = await SecureStore.getItemAsync("lastSelectedGitHubRepo")
@@ -142,7 +128,7 @@ export default function GitHubScreen() {
           let repoToSelect = reposData[0]
 
           if (lastSelectedRepoId) {
-            const savedRepo = reposData.find((repo) => repo.id === lastSelectedRepoId)
+            const savedRepo = reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId)
             if (savedRepo) {
               repoToSelect = savedRepo
             }
@@ -164,67 +150,25 @@ export default function GitHubScreen() {
     }
   }
 
+  // Manual refresh from GitHub
+  const handleRefreshFromGitHub = useCallback(async () => {
+    if (connection) {
+      setRefreshing(true)
+      await loadGitHubData(true)
+    }
+  }, [connection])
+
   const onRefresh = useCallback(() => {
     setRefreshing(true)
     loadGitHubData()
   }, [])
 
-  const handleConnect = async () => {
-    try {
-      if (!authRequest) {
-        showToast("GitHub authentication is not ready", { type: "error" })
-        return
-      }
-
-      setAuthInProgress(true)
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-      // Start the OAuth flow
-      const result = await authRequest.promptAsync(discovery)
-
-      if (result.type === "success") {
-        // Exchange code for token using your backend
-        const { code } = result.params
-
-        // Call your backend API to exchange the code for a token
-        const response = await fetch("https://your-backend-api.com/github/oauth/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ code }),
-        })
-
-        const data = await response.json()
-
-        if (data.access_token && data.github_user) {
-          // Save the GitHub connection
-          await githubService.saveConnection(data.github_user.login, data.access_token)
-
-          // Refresh the GitHub data
-          await loadGitHubData()
-
-          showToast("GitHub account connected successfully", { type: "success" })
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-        } else {
-          throw new Error("Failed to get access token")
-        }
-      } else if (result.type === "error") {
-        showToast(`Authentication error: ${result.error?.message || "Unknown error"}`, { type: "error" })
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-      } else if (result.type === "dismiss") {
-        showToast("GitHub authentication was cancelled", { type: "info" })
-      }
-    } catch (error) {
-      console.error("Error connecting to GitHub:", error)
-      showToast("Failed to connect GitHub account", { type: "error" })
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
-    } finally {
-      setAuthInProgress(false)
-    }
+  const handleManualConnect = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    router.push("/github-connect")
   }
 
-  const handleSelectRepo = async (repo: any) => {
+  const handleSelectRepo = async (repo: GithubRepository) => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       setSelectedRepo(repo)
@@ -247,32 +191,29 @@ export default function GitHubScreen() {
   const handleLinkCommit = (commitId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     // Navigate to link commit to task screen
-    router.push(`/link-commit?commitId=${commitId}`)
+    router.push({
+      pathname: "/link-commit",
+      params: { commitId }
+    } as any)
   }
 
   const handleDisconnect = async () => {
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-
-      // Disconnect GitHub account
+      setLoading(true)
       await githubService.disconnectGithub()
-
-      // Clear state
-      setConnection(null)
-      setRepositories([])
-      setSelectedRepo(null)
-      setCommits([])
-
-      showToast("GitHub account disconnected successfully", { type: "success" })
+      showToast("GitHub account disconnected", { type: "success" })
+      router.replace("/github")
     } catch (error) {
       console.error("Error disconnecting GitHub:", error)
       showToast("Failed to disconnect GitHub account", { type: "error" })
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleAddRepository = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    router.push("/add-repository")
+    router.push("/add-repository" as any)
   }
 
   const handleViewRepository = (repo: any) => {
@@ -313,12 +254,15 @@ export default function GitHubScreen() {
           <Text style={[styles.connectDescription, { color: theme.textDim }]}>
             Link your GitHub account to track commits, pull requests, and issues directly in your projects.
           </Text>
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
             <TouchableOpacity
               style={[styles.connectButton, { backgroundColor: theme.tint }]}
               onPress={handleConnect}
-              disabled={authInProgress || !authRequest}
+              disabled={authInProgress || !isConnected}
               activeOpacity={0.8}
+              accessibilityLabel="Connect GitHub Account"
+              accessibilityHint="Opens the GitHub connection screen"
             >
               {authInProgress ? (
                 <ActivityIndicator color="#fff" />
@@ -330,10 +274,14 @@ export default function GitHubScreen() {
               )}
             </TouchableOpacity>
           </Animated.View>
-          {!authRequest && (
-            <Text style={[styles.authWarning, { color: theme.error }]}>
-              GitHub authentication is initializing. Please wait...
-            </Text>
+
+          {!isConnected && (
+            <View style={[styles.offlineWarning, { backgroundColor: theme.warningBackground }]}>
+              <Ionicons name="cloud-offline-outline" size={18} color={theme.warningText} />
+              <Text style={[styles.offlineText, { color: theme.warningText }]}>
+                You're offline. Connect to the internet to link your GitHub account.
+              </Text>
+            </View>
           )}
         </View>
       ) : (
@@ -356,6 +304,8 @@ export default function GitHubScreen() {
             <TouchableOpacity
               style={[styles.disconnectButton, { borderColor: theme.border }]}
               onPress={handleDisconnect}
+              accessibilityLabel="Disconnect GitHub"
+              accessibilityHint="Disconnects your GitHub account from the app"
             >
               <Ionicons name="log-out-outline" size={18} color={theme.error} />
               <Text style={[styles.disconnectText, { color: theme.error }]}>Disconnect</Text>
@@ -374,7 +324,7 @@ export default function GitHubScreen() {
                     author: item.author,
                     timestamp: item.committed_at,
                     hash: item.commit_id.substring(0, 7),
-                    repo: selectedRepo.name,
+                    repo: selectedRepo ? selectedRepo.name : "",
                   }}
                   onLinkPress={() => handleLinkCommit(item.id)}
                   onPress={() => handleViewCommit(item)}
@@ -386,6 +336,8 @@ export default function GitHubScreen() {
                   <TouchableOpacity
                     style={[styles.repoSelector, { backgroundColor: theme.cardBackground }]}
                     onPress={handleViewAllRepositories}
+                    accessibilityLabel="Select Repository"
+                    accessibilityHint="Opens the repository selection screen"
                   >
                     <Ionicons name="git-branch-outline" size={18} color={theme.tint} style={styles.repoIcon} />
                     <Text style={[styles.repoSelectorText, { color: theme.text }]}>
@@ -398,6 +350,8 @@ export default function GitHubScreen() {
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
                       onPress={() => handleViewRepository(selectedRepo)}
+                      accessibilityLabel="Open Repository"
+                      accessibilityHint="Opens the repository in a web browser"
                     >
                       <Ionicons name="open-outline" size={16} color={theme.tint} />
                       <Text style={[styles.actionButtonText, { color: theme.tint }]}>Open Repo</Text>
@@ -406,6 +360,8 @@ export default function GitHubScreen() {
                     <TouchableOpacity
                       style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
                       onPress={handleAddRepository}
+                      accessibilityLabel="Add Repository"
+                      accessibilityHint="Opens the add repository screen"
                     >
                       <Ionicons name="add-outline" size={16} color={theme.tint} />
                       <Text style={[styles.actionButtonText, { color: theme.tint }]}>Add Repo</Text>
@@ -416,10 +372,9 @@ export default function GitHubScreen() {
                     <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
                     <TouchableOpacity
                       style={styles.viewAllButton}
-                      onPress={() => router.push({
-                        pathname: "/repositories",
-                        params: { repoId: selectedRepo.id }
-                      })}
+                      onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.id}` as any)}
+                      accessibilityLabel="View All Commits"
+                      accessibilityHint="Shows all commits for this repository"
                     >
                       <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
                       <Ionicons name="arrow-forward" size={16} color={theme.tint} />
@@ -461,12 +416,23 @@ export default function GitHubScreen() {
               <TouchableOpacity
                 style={[styles.addRepoButton, { backgroundColor: theme.tint }]}
                 onPress={handleAddRepository}
+                accessibilityLabel="Add Repository"
+                accessibilityHint="Opens the add repository screen"
               >
                 <Ionicons name="add" size={20} color="#fff" />
                 <Text style={styles.addRepoButtonText}>Add Repository</Text>
               </TouchableOpacity>
             </View>
           )}
+
+          {/* Manual refresh button */}
+          <TouchableOpacity
+            style={{ alignSelf: 'flex-end', margin: 16, padding: 8, backgroundColor: theme.tintLight, borderRadius: 8 }}
+            onPress={handleRefreshFromGitHub}
+          >
+            <Ionicons name="refresh" size={18} color={theme.tint} />
+            <Text style={{ color: theme.tint, fontWeight: 'bold', marginLeft: 6 }}>Refresh from GitHub</Text>
+          </TouchableOpacity>
         </Animated.View>
       )}
     </View>
@@ -524,6 +490,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  offlineWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+    maxWidth: 300,
+  },
+  offlineText: {
+    fontSize: 14,
+    marginLeft: 8,
+    flex: 1,
   },
   authWarning: {
     marginTop: 16,

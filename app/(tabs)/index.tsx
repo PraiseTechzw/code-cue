@@ -9,6 +9,7 @@ import {
   Animated,
   ActivityIndicator,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native"
 import { useState, useRef, useEffect } from "react"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
@@ -160,8 +161,14 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
-      refreshing={loading}
-      onRefresh={loadData}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={loadData}
+          colors={[theme.tint]}
+          tintColor={theme.tint}
+        />
+      }
     >
       <Pressable onPress={handleProjectPress}>
         <View style={styles.header}>
@@ -211,7 +218,7 @@ export default function HomeScreen() {
                     task={{
                       id: task.id,
                       title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
+                      due_date: task.due_date,
                       priority: task.priority,
                     }}
                     status="todo"
@@ -254,7 +261,7 @@ export default function HomeScreen() {
                     task={{
                       id: task.id,
                       title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
+                      due_date: task.due_date,
                       priority: task.priority,
                     }}
                     status="inProgress"
@@ -297,7 +304,7 @@ export default function HomeScreen() {
                     task={{
                       id: task.id,
                       title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
+                      due_date: task.due_date,
                       priority: task.priority,
                     }}
                     status="done"

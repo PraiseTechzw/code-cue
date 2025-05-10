@@ -2,8 +2,17 @@ import { supabase } from "@/lib/supabase"
 import { offlineStore } from "./offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { v4 as uuidv4 } from "uuid"
 import type { Database } from "@/types/supabase"
+
+// UUID v4 generator that doesn't rely on crypto
+const generateUUID = () => {
+  const pattern = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+  return pattern.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
 
 export type Task = Database["public"]["Tables"]["tasks"]["Row"]
 export type NewTask = Database["public"]["Tables"]["tasks"]["Insert"]
@@ -51,9 +60,10 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
     // Build query
     let query = supabase.from("tasks").select(`
       *,
+      user:profiles!user_id(*),
       project:projects(*),
       subtasks:subtasks(*),
-      comments:comments(*, profiles(*))
+      comments:comments(*)
     `)
 
     // Apply filters
@@ -132,7 +142,7 @@ export const getTasksByProject = async (projectId: string): Promise<any[]> => {
       .select(`
         *,
         subtasks:subtasks(*),
-        comments:comments(*, profiles(*))
+        comments:comments(*)
       `)
       .eq("project_id", projectId)
       .order("created_at", { ascending: false })
@@ -200,8 +210,7 @@ export const getTaskById = async (taskId: string): Promise<any> => {
         *,
         project:projects(*),
         subtasks:subtasks(*),
-        comments:comments(*, profiles(*)),
-        user:profiles(*)
+        comments:comments(*)
       `)
       .eq("id", taskId)
       .single()
@@ -242,7 +251,7 @@ export const getTaskById = async (taskId: string): Promise<any> => {
 export const createTask = async (taskData: any): Promise<any> => {
   try {
     const online = await isOnline()
-    const taskId = uuidv4()
+    const taskId = generateUUID()
     const now = new Date().toISOString()
 
     // Prepare task data
@@ -256,6 +265,10 @@ export const createTask = async (taskData: any): Promise<any> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "tasks",
         record_id: taskId,
         operation: "INSERT",
@@ -298,6 +311,10 @@ export const updateTask = async (taskId: string, updates: any): Promise<any> => 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "tasks",
         record_id: taskId,
         operation: "UPDATE",
@@ -333,6 +350,10 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "tasks",
         record_id: taskId,
         operation: "DELETE",
@@ -364,7 +385,7 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
 export const createSubtask = async (subtaskData: any): Promise<any> => {
   try {
     const online = await isOnline()
-    const subtaskId = uuidv4()
+    const subtaskId = generateUUID()
     const now = new Date().toISOString()
 
     // Prepare subtask data
@@ -378,6 +399,10 @@ export const createSubtask = async (subtaskData: any): Promise<any> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "subtasks",
         record_id: subtaskId,
         operation: "INSERT",
@@ -427,6 +452,10 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "subtasks",
         record_id: subtaskId,
         operation: "UPDATE",
@@ -491,7 +520,7 @@ export const getSubtaskById = async (subtaskId: string): Promise<any> => {
 export const createComment = async (commentData: any): Promise<any> => {
   try {
     const online = await isOnline()
-    const commentId = uuidv4()
+    const commentId = generateUUID()
     const now = new Date().toISOString()
 
     // Prepare comment data
@@ -505,6 +534,10 @@ export const createComment = async (commentData: any): Promise<any> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
+        id: generateUUID(),
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0,
         table_name: "comments",
         record_id: commentId,
         operation: "INSERT",

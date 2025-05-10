@@ -293,7 +293,7 @@ export default function ProjectDetailScreen() {
             <Text style={[styles.progressPercentage, { color: theme.tint }]}>{project.progress || 0}%</Text>
           </View>
         </View>
-        <ProgressBar progress={project.progress || 0} />
+        <ProgressBar progress={typeof project.progress === 'number' ? project.progress : 0} />
 
         <View style={styles.statsContainer}>
           <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
@@ -452,7 +452,16 @@ export default function ProjectDetailScreen() {
       >
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
-            <TaskItem key={task.id} task={task} status={task.status as "todo" | "inProgress" | "done"} />
+            <TaskItem 
+              key={task.id} 
+              task={{
+                id: task.id,
+                title: task.title,
+                due_date: task.due_date,
+                priority: task.priority
+              }} 
+              status={task.status as "todo" | "inProgress" | "done"} 
+            />
           ))
         ) : (
           <View style={styles.emptyTasksContainer}>

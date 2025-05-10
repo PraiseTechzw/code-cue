@@ -8,9 +8,9 @@ interface Task {
   title: string
   status: string
   priority: string
-  assignee?: {
+  user?: {
     id: string
-    name: string
+    full_name: string
     avatar_url?: string
   }
 }
@@ -90,10 +90,8 @@ export function TaskList({ tasks, onTaskPress, showAssignee }: TaskListProps) {
             />
             <View>
               <Text style={[styles.taskTitle, { color: theme.text }]}>{task.title}</Text>
-              {showAssignee && task.assignee && (
-                <Text style={[styles.assigneeText, { color: theme.textDim }]}>
-                  Assigned to {task.assignee.name}
-                </Text>
+              {showAssignee && task.user && (
+                <Text style={[styles.assigneeText, { color: theme.textDim }]}>Assigned to {task.user.full_name}</Text>
               )}
             </View>
           </View>

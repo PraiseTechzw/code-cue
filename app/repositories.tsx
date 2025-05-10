@@ -71,7 +71,7 @@ export default function RepositoriesScreen() {
       setProjects(projectsData)
     } catch (error) {
       console.error("Error loading data:", error)
-      showToast("Failed to load repositories", "error")
+      showToast("Failed to load repositories", {type: 'error'})
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -108,7 +108,7 @@ export default function RepositoriesScreen() {
       })
     } catch (error) {
       console.error("Error preparing to link repository:", error)
-      showToast("Failed to prepare project linking", "error")
+      showToast("Failed to prepare project linking",  {type: 'error'})
     }
   }
 

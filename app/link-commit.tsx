@@ -20,6 +20,7 @@ import { githubService } from "@/services/githubService"
 import { taskService } from "@/services/taskService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
+import React from "react"
 
 export default function LinkCommitScreen() {
   const { commitId } = useLocalSearchParams()
@@ -91,11 +92,10 @@ export default function LinkCommitScreen() {
       setTasks(tasksData)
     } catch (error) {
       console.error("Error loading data:", error)
-      showToast("Failed to load data", "error")
+      showToast("Failed to load data", { type: "error" })
     } finally {
       setLoading(false)
     }
-  }
 
   const handleSelectTask = (taskId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -104,7 +104,7 @@ export default function LinkCommitScreen() {
 
   const handleLinkCommit = async () => {
     if (!selectedTaskId) {
-      showToast("Please select a task", "error")
+      showToast("Please select a task", { type: "error" })
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       return
     }
@@ -116,14 +116,14 @@ export default function LinkCommitScreen() {
       // Link commit to task
       await githubService.linkCommitToTask(commit.id, selectedTaskId)
 
-      showToast("Commit linked to task successfully", "success")
+      showToast("Commit linked to task successfully", { type: "success" })
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
       // Navigate back
       router.back()
     } catch (error) {
       console.error("Error linking commit:", error)
-      showToast("Failed to link commit", "error")
+      showToast("Failed to link commit", { type: "error" })
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
     } finally {
       setLinking(false)
@@ -517,3 +517,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 })
+}

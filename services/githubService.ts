@@ -4,6 +4,7 @@ import { notificationService } from "./notificationService"
 import * as SecureStore from "expo-secure-store"
 import NetInfo from "@react-native-community/netinfo"
 import { offlineStore } from "./offlineStore"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 export type GithubRepository = Database["public"]["Tables"]["github_repositories"]["Row"]
 export type GithubCommit = Database["public"]["Tables"]["github_commits"]["Row"]
@@ -53,6 +54,34 @@ export const githubService = {
     }
   },
 
+  async connectGitHub({ username, accessToken }: { username: string; accessToken: string }) {
+    try {
+      // Validate the token by making a test API call
+      const response = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `token ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status} - Invalid token or insufficient permissions`)
+      }
+
+      const userData = await response.json()
+
+      // Verify the username matches
+      if (userData.login.toLowerCase() !== username.toLowerCase()) {
+        throw new Error("The provided username does not match the token owner")
+      }
+
+      // Save the connection with verified data
+      return await this.saveConnection(userData.login, accessToken)
+    } catch (error) {
+      console.error("Error connecting to GitHub:", error)
+      throw error
+    }
+  },
+
   async saveConnection(username: string, accessToken: string) {
     try {
       const user = (await supabase.auth.getUser()).data.user
@@ -79,7 +108,7 @@ export const githubService = {
           })
           .eq("id", existingConnection.id)
           .select()
-          .single()
+          .maybeSingle()
 
         if (error) throw error
         data = updatedData
@@ -94,7 +123,7 @@ export const githubService = {
             avatar_url: await this.fetchUserAvatar(username, accessToken),
           })
           .select()
-          .single()
+          .maybeSingle()
 
         if (error) throw error
         data = newData
@@ -103,8 +132,7 @@ export const githubService = {
         await notificationService.createNotification({
           title: "GitHub Connected",
           description: `You connected your GitHub account: ${username}`,
-          type: "github_connected",
-          user_id: user.id,
+          type: "github_connected"
         })
       }
 
@@ -112,7 +140,7 @@ export const githubService = {
       await offlineStore.setItem(CACHE_KEYS.CONNECTION, data)
 
       // Fetch and cache repositories after connecting
-      this.fetchAndCacheRepositories(accessToken, user.id)
+      await this.fetchAndCacheRepositories(accessToken, user.id)
 
       return data
     } catch (error) {
@@ -163,9 +191,7 @@ export const githubService = {
           name: repo.name,
           full_name: repo.full_name,
           description: repo.description,
-          html_url: repo.html_url,
-          default_branch: repo.default_branch,
-          is_private: repo.private,
+          html_url: repo.html_url
         })
       }
 
@@ -199,8 +225,8 @@ export const githubService = {
       await SecureStore.deleteItemAsync("lastSelectedGitHubRepo")
 
       // Clear all commit caches
-      const allKeys = await offlineStore.getAllKeys()
-      const commitCacheKeys = allKeys.filter((key) => key.startsWith(CACHE_KEYS.COMMITS))
+      const allKeys = await AsyncStorage.getAllKeys()
+      const commitCacheKeys = allKeys.filter((key: string) => key.startsWith(CACHE_KEYS.COMMITS))
       for (const key of commitCacheKeys) {
         await offlineStore.removeItem(key)
       }
@@ -303,7 +329,7 @@ export const githubService = {
           .update({ ...repository, updated_at: new Date().toISOString() })
           .eq("id", existingRepo.id)
           .select()
-          .single()
+          .maybeSingle()
 
         if (error) throw error
         data = updatedData
@@ -316,7 +342,7 @@ export const githubService = {
             user_id: user.id,
           })
           .select()
-          .single()
+          .maybeSingle()
 
         if (error) throw error
         data = newData
@@ -326,9 +352,8 @@ export const githubService = {
           title: "Repository Added",
           description: `You added the repository: ${repository.name}`,
           type: "repository_added",
-          user_id: user.id,
           related_id: data.id,
-          related_type: "repository",
+          related_type: "repository"
         })
       }
 
@@ -369,9 +394,8 @@ export const githubService = {
           title: "Repository Linked",
           description: `You linked repository ${data.name} to a project`,
           type: "repository_linked",
-          user_id: user.id,
           related_id: data.id,
-          related_type: "repository",
+          related_type: "repository"
         })
       }
 
@@ -489,9 +513,8 @@ export const githubService = {
           title: "Commit Linked",
           description: `You linked a commit to a task`,
           type: "commit_linked",
-          user_id: user.id,
           related_id: data.id,
-          related_type: "commit",
+          related_type: "commit"
         })
       }
 
@@ -532,8 +555,8 @@ export const githubService = {
           commit_id: commit.sha,
           message: commit.commit.message,
           author: commit.commit.author.name,
-          committed_at: commit.commit.author.date,
-          url: commit.html_url,
+          html_url: commit.html_url,
+          committed_at: commit.commit.author.date
         })
       }
 
@@ -576,10 +599,7 @@ export const githubService = {
         name: repoDetails.name,
         full_name: repoDetails.full_name,
         html_url: repoDetails.html_url,
-        project_id: repoDetails.project_id || null,
-        default_branch: "main", // Default value
-        is_private: false, // Default value
-        description: "", // Default value
+        project_id: repoDetails.project_id || null
       })
 
       return repo

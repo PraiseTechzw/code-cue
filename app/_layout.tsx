@@ -156,7 +156,7 @@ export default function RootLayout() {
             <ToastProvider>
               <AuthProvider>
                 <StatusBar style="auto" />
-                <ConnectionStatus lastSyncTime={lastSyncTime } />
+                <ConnectionStatus lastSyncTime={lastSyncTime} />
                 <Stack
                   screenOptions={{
                     headerShown: false,

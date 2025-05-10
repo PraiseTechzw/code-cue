@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useEffect, useState } from "react"
 import {
   StyleSheet,
   View,
@@ -34,7 +34,7 @@ export default function AddRepositoryScreen() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
   // Load projects when the component mounts
-  useState(() => {
+  useEffect(() => {
     loadProjects()
   }, [])
 
@@ -45,7 +45,7 @@ export default function AddRepositoryScreen() {
       setProjects(projectsData)
     } catch (error) {
       console.error("Error loading projects:", error)
-      showToast("Failed to load projects", "error")
+      showToast("Failed to load projects", {type: "error"})
     } finally {
       setLoadingProjects(false)
     }
@@ -87,13 +87,13 @@ export default function AddRepositoryScreen() {
           project_id: selectedProjectId,
         })
 
-        showToast("Repository added successfully", "success")
+          showToast("Repository added successfully", {type: "success"})
 
         // Navigate back to repositories screen
         router.push("/repositories")
       } catch (error) {
         console.error("Error adding repository:", error)
-        showToast("Failed to add repository", "error")
+        showToast("Failed to add repository", {type: "error"})
       } finally {
         setLoading(false)
       }
