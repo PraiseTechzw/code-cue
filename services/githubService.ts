@@ -395,9 +395,10 @@ export const githubService = {
         .update({ project_id: projectId })
         .eq("id", repositoryId)
         .select()
-        .single()
+        .maybeSingle()
 
       if (error) throw error
+      if (!data) throw new Error("Repository not found or not updated")
 
       // Update cached repositories
       const cachedRepos = (await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)) || []

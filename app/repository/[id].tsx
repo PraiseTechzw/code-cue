@@ -9,10 +9,14 @@ import {
   SafeAreaView,
   RefreshControl,
   Image,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { githubService } from '@/services/githubService';
+import { projectService } from '@/services/projectService';
+import { taskService } from '@/services/taskService';
 import Colors from '@/constants/Colors';
 
 export default function RepositoryDetailScreen() {
@@ -23,6 +27,15 @@ export default function RepositoryDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [linkingProject, setLinkingProject] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
+  const [linkingCommitId, setLinkingCommitId] = useState<string | null>(null);
   const theme = Colors['light']; // Replace with useColorScheme if you support dark mode
 
   const fetchData = useCallback(async () => {
@@ -45,6 +58,24 @@ export default function RepositoryDetailScreen() {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    (async () => {
+      const projectsData = await projectService.getProjects();
+      setProjects(projectsData);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (repo?.project_id) {
+      (async () => {
+        const tasksData = await taskService.getTasksByProject(repo.project_id);
+        setTasks(tasksData);
+      })();
+    } else {
+      setTasks([]);
+    }
+  }, [repo?.project_id]);
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchData();
@@ -59,6 +90,30 @@ export default function RepositoryDetailScreen() {
       const commitUrl = `${repo.html_url}/commit/${commit.commit_id}`;
       // Open in browser
       window.open(commitUrl, '_blank');
+    }
+  };
+
+  const handleLinkProject = async (projectId: string) => {
+    setLinkingProject(true);
+    try {
+      await githubService.linkRepositoryToProject(repo.id, projectId);
+      setRepo({ ...repo, project_id: projectId });
+      setShowProjectModal(false);
+    } finally {
+      setLinkingProject(false);
+    }
+  };
+
+  const handleLinkTask = async (commitId: string, taskId: string) => {
+    setLinkingTaskId(taskId);
+    setLinkingCommitId(commitId);
+    try {
+      await githubService.linkCommitToTask(commitId, taskId);
+      setCommits(commits.map(c => c.id === commitId ? { ...c, task_id: taskId } : c));
+      setShowTaskModal(false);
+    } finally {
+      setLinkingTaskId(null);
+      setLinkingCommitId(null);
     }
   };
 
@@ -114,6 +169,25 @@ export default function RepositoryDetailScreen() {
             <Text style={{ color: theme.textDim, fontSize: 13 }}>Updated {new Date(repo.updated_at).toLocaleDateString()}</Text>
           </View>
         )}
+        {repo?.project_id && projects.length > 0 && (
+          <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="briefcase-outline" size={16} color={theme.tint} style={{ marginRight: 4 }} />
+            <Text style={{ color: theme.textDim, fontSize: 13, marginRight: 8 }}>Linked Project:</Text>
+            <View style={{ backgroundColor: theme.tintLight, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ color: theme.tint, fontWeight: 'bold', fontSize: 13 }}>
+                {projects.find(p => p.id === repo.project_id)?.name || 'Project'}
+              </Text>
+            </View>
+          </View>
+        )}
+        <TouchableOpacity
+          style={{ marginTop: 10, alignSelf: 'flex-start', backgroundColor: theme.tintLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+          onPress={() => setShowProjectModal(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="link-outline" size={16} color={theme.tint} style={{ marginRight: 4 }} />
+          <Text style={{ color: theme.tint, fontWeight: '500', fontSize: 13 }}>Link to Project</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -140,6 +214,27 @@ export default function RepositoryDetailScreen() {
           <TouchableOpacity onPress={() => handleViewCommit(item)} style={{ marginLeft: 8 }} accessibilityLabel="View on GitHub">
             <Ionicons name="open-outline" size={16} color={theme.tint} />
           </TouchableOpacity>
+        )}
+        {repo?.project_id && (
+          <TouchableOpacity
+            style={{ marginLeft: 8, backgroundColor: theme.tintLight, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}
+            onPress={() => {
+              setShowTaskModal(true);
+              setLinkingCommitId(item.id);
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="link-outline" size={14} color={theme.tint} style={{ marginRight: 2 }} />
+            <Text style={{ color: theme.tint, fontWeight: '500', fontSize: 12 }}>Link to Task</Text>
+          </TouchableOpacity>
+        )}
+        {item.task_id && tasks.length > 0 && (
+          <View style={{ marginLeft: 8, backgroundColor: theme.tintLight, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Ionicons name="checkmark-done-outline" size={14} color={theme.tint} style={{ marginRight: 2 }} />
+            <Text style={{ color: theme.tint, fontWeight: '500', fontSize: 12 }}>
+              {tasks.find(t => t.id === item.task_id)?.name || 'Task'}
+            </Text>
+          </View>
         )}
       </View>
     </View>
@@ -187,6 +282,104 @@ export default function RepositoryDetailScreen() {
           </View>
         }
       />
+      {/* Project Link Modal */}
+      <Modal
+        visible={showProjectModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProjectModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+          activeOpacity={1}
+          onPressOut={() => setShowProjectModal(false)}
+        >
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.cardBackground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: theme.border }}>
+              <Ionicons name="search" size={18} color={theme.textDim} />
+              <TextInput
+                style={{ flex: 1, marginLeft: 8, color: theme.text, fontSize: 16 }}
+                placeholder="Search projects..."
+                placeholderTextColor={theme.textDim}
+                value={projectSearch}
+                onChangeText={setProjectSearch}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => setShowProjectModal(false)}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()))}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: 16, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: repo?.project_id === item.id ? theme.tintLight : 'transparent', borderRadius: 10 }}
+                  activeOpacity={0.7}
+                  onPress={() => handleLinkProject(item.id)}
+                  disabled={linkingProject}
+                >
+                  <Text style={{ color: theme.text, fontWeight: 'bold' }}>{item.name}</Text>
+                  {repo?.project_id === item.id && (
+                    <Ionicons name="checkmark-circle" size={18} color={theme.tint} style={{ position: 'absolute', right: 16, top: 20 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+              style={{ maxHeight: 300 }}
+              ListEmptyComponent={<View style={{ alignItems: 'center', padding: 32 }}><Ionicons name="alert-circle-outline" size={40} color={theme.textDim} /><Text style={{ color: theme.textDim, marginTop: 12 }}>No projects found</Text></View>}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      {/* Task Link Modal */}
+      <Modal
+        visible={showTaskModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTaskModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+          activeOpacity={1}
+          onPressOut={() => setShowTaskModal(false)}
+        >
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.cardBackground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: theme.border }}>
+              <Ionicons name="search" size={18} color={theme.textDim} />
+              <TextInput
+                style={{ flex: 1, marginLeft: 8, color: theme.text, fontSize: 16 }}
+                placeholder="Search tasks..."
+                placeholderTextColor={theme.textDim}
+                value={taskSearch}
+                onChangeText={setTaskSearch}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => setShowTaskModal(false)}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={tasks.filter(t => t.name.toLowerCase().includes(taskSearch.toLowerCase()))}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: 16, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: linkingTaskId === item.id ? theme.tintLight : 'transparent', borderRadius: 10 }}
+                  activeOpacity={0.7}
+                  onPress={() => handleLinkTask(linkingCommitId, item.id)}
+                  disabled={linkingTaskId === item.id}
+                >
+                  <Text style={{ color: theme.text, fontWeight: 'bold' }}>{item.name}</Text>
+                  {linkingTaskId === item.id && (
+                    <Ionicons name="checkmark-circle" size={18} color={theme.tint} style={{ position: 'absolute', right: 16, top: 20 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+              style={{ maxHeight: 300 }}
+              ListEmptyComponent={<View style={{ alignItems: 'center', padding: 32 }}><Ionicons name="alert-circle-outline" size={40} color={theme.textDim} /><Text style={{ color: theme.textDim, marginTop: 12 }}>No tasks found</Text></View>}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
