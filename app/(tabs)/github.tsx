@@ -345,27 +345,27 @@ export default function GitHubScreen() {
           {selectedRepo.description ? (
             <Text style={{ color: theme.textDim, fontSize: 14, marginBottom: 8 }}>{selectedRepo.description}</Text>
           ) : null}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', flexShrink: 1, marginTop: 4 }}>
             {/* Owner */}
             {selectedRepo.full_name && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 6 }}>
                 <Ionicons name="person-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
                 <Text style={{ color: theme.textDim, fontSize: 13 }}>{selectedRepo.full_name.split('/')[0]}</Text>
               </View>
             )}
             {/* Visibility */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 6 }}>
               <Ionicons name={'earth-outline'} size={15} color={theme.textDim} style={{ marginRight: 2 }} />
               <Text style={{ color: theme.textDim, fontSize: 13 }}>Public</Text>
             </View>
             {/* Commit count */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 6 }}>
               <Ionicons name="git-commit-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
               <Text style={{ color: theme.textDim, fontSize: 13 }}>{commits.length} Commits</Text>
             </View>
             {/* Last updated */}
             {selectedRepo.updated_at && (
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                 <Ionicons name="time-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
                 <Text style={{ color: theme.textDim, fontSize: 13 }}>Updated {new Date(selectedRepo.updated_at).toLocaleDateString()}</Text>
               </View>

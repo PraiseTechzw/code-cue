@@ -559,6 +559,11 @@ export const githubService = {
         },
       })
 
+      if (response.status === 409) {
+        // Repo is empty (no commits on default branch)
+        return []
+      }
+
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status}`)
       }
