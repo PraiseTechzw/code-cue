@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   StyleSheet,
@@ -14,16 +14,16 @@ import {
   FlatList,
   Platform,
   ScrollView,
-} from "react-native"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
-import { router } from "expo-router"
-import { useColorScheme } from "react-native"
-import * as Haptics from "expo-haptics"
-import { LinearGradient } from "expo-linear-gradient"
-import { MotiView, MotiText, AnimatePresence } from "moti"
-import { Skeleton } from "moti/skeleton"
-import { GestureHandlerRootView } from "react-native-gesture-handler"
+} from "react-native";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
+import { useColorScheme } from "react-native";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { MotiView, MotiText, AnimatePresence } from "moti";
+import { Skeleton } from "moti/skeleton";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -32,80 +32,89 @@ import {
   interpolate,
   Extrapolate,
   runOnJS,
-} from "react-native-reanimated"
-import { BottomSheetModal, BottomSheetModalProvider } from "@gorhom/bottom-sheet"
-import { format } from "date-fns"
+} from "react-native-reanimated";
+import {
+  BottomSheetModal,
+  BottomSheetModalProvider,
+} from "@gorhom/bottom-sheet";
+import { format } from "date-fns";
 
-import { ProgressBar } from "@/components/ProgressBar"
-import { TaskItem } from "@/components/TaskItem"
-import { projectService } from "@/services/projectService"
-import { taskService } from "@/services/taskService"
-import { useToast } from "@/contexts/ToastContext"
-import Colors from "@/constants/Colors"
+import { ProgressBar } from "@/components/ProgressBar";
+import { TaskItem } from "@/components/TaskItem";
+import { projectService } from "@/services/projectService";
+import { taskService } from "@/services/taskService";
+import { useToast } from "@/contexts/ToastContext";
+import Colors from "@/constants/Colors";
 
-const { width, height } = Dimensions.get("window")
-const HEADER_MAX_HEIGHT = 280
-const HEADER_MIN_HEIGHT = Platform.OS === "ios" ? 120 : 100
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT
+const { width, height } = Dimensions.get("window");
+const HEADER_MAX_HEIGHT = 280;
+const HEADER_MIN_HEIGHT = Platform.OS === "ios" ? 120 : 100;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? "light"]
-  const { showToast } = useToast()
-  const bottomSheetModalRef = useRef<BottomSheetModal>(null)
-  const snapPoints = useMemo(() => ["25%", "50%", "75%"], [])
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const { showToast } = useToast();
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  const snapPoints = useMemo(() => ["25%", "50%", "75%"], []);
 
   // State
   const [expandedSections, setExpandedSections] = useState({
     todo: true,
     inProgress: true,
     done: false,
-  })
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [currentProject, setCurrentProject] = useState<any>(null)
-  const [projects, setProjects] = useState<any[]>([])
+  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentProject, setCurrentProject] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any>({
     todo: [],
     inProgress: [],
     done: [],
-  })
+  });
   const [stats, setStats] = useState({
     completed: 0,
     total: 0,
     overdue: 0,
     upcoming: 0,
-  })
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
-  const [filteredTasks, setFilteredTasks] = useState<any[]>([])
-  const [selectedFilter, setSelectedFilter] = useState("all")
-  const [greeting, setGreeting] = useState("")
+  });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [filteredTasks, setFilteredTasks] = useState<any[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState("all");
+  const [greeting, setGreeting] = useState("");
 
   // Animation values
-  const scrollY = useSharedValue(0)
-  const searchBarOpacity = useSharedValue(0)
-  const fabScale = useSharedValue(1)
-  const fabRotation = useSharedValue(0)
-  const todoRotation = useRef(new Animated.Value(expandedSections.todo ? 1 : 0)).current
-  const inProgressRotation = useRef(new Animated.Value(expandedSections.inProgress ? 1 : 0)).current
-  const doneRotation = useRef(new Animated.Value(expandedSections.done ? 1 : 0)).current
+  const scrollY = useSharedValue(0);
+  const searchBarOpacity = useSharedValue(0);
+  const fabScale = useSharedValue(1);
+  const fabRotation = useSharedValue(0);
+  const todoRotation = useRef(
+    new Animated.Value(expandedSections.todo ? 1 : 0)
+  ).current;
+  const inProgressRotation = useRef(
+    new Animated.Value(expandedSections.inProgress ? 1 : 0)
+  ).current;
+  const doneRotation = useRef(
+    new Animated.Value(expandedSections.done ? 1 : 0)
+  ).current;
 
   // Calculate rotation for each section
   const todoRotateZ = todoRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "180deg"],
-  })
+  });
 
   const inProgressRotateZ = inProgressRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "180deg"],
-  })
+  });
 
   const doneRotateZ = doneRotation.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "180deg"],
-  })
+  });
 
   // Animated styles
   const headerAnimatedStyle = useAnimatedStyle(() => {
@@ -113,29 +122,44 @@ export default function HomeScreen() {
       scrollY.value,
       [0, HEADER_SCROLL_DISTANCE],
       [0, -HEADER_SCROLL_DISTANCE],
-      Extrapolate.CLAMP,
-    )
+      Extrapolate.CLAMP
+    );
 
-    const opacity = interpolate(scrollY.value, [0, HEADER_SCROLL_DISTANCE * 0.8], [1, 0], Extrapolate.CLAMP)
+    const opacity = interpolate(
+      scrollY.value,
+      [0, HEADER_SCROLL_DISTANCE * 0.8],
+      [1, 0],
+      Extrapolate.CLAMP
+    );
 
-    const scale = interpolate(scrollY.value, [0, HEADER_SCROLL_DISTANCE], [1, 0.9], Extrapolate.CLAMP)
+    const scale = interpolate(
+      scrollY.value,
+      [0, HEADER_SCROLL_DISTANCE],
+      [1, 0.9],
+      Extrapolate.CLAMP
+    );
 
     return {
       transform: [{ translateY }, { scale }],
       opacity,
-    }
-  })
+    };
+  });
 
   const searchBarAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: searchBarOpacity.value,
       transform: [
         {
-          translateY: interpolate(searchBarOpacity.value, [0, 1], [-20, 0], Extrapolate.CLAMP),
+          translateY: interpolate(
+            searchBarOpacity.value,
+            [0, 1],
+            [-20, 0],
+            Extrapolate.CLAMP
+          ),
         },
       ],
-    }
-  })
+    };
+  });
 
   const fabAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -143,278 +167,332 @@ export default function HomeScreen() {
         { scale: fabScale.value },
         { rotate: `${fabRotation.value * 45}deg` }, // Rotate from 0 to 45 degrees
       ],
-    }
-  })
+    };
+  });
 
   const titleAnimatedStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       scrollY.value,
       [HEADER_SCROLL_DISTANCE * 0.4, HEADER_SCROLL_DISTANCE * 0.9],
       [0, 1],
-      Extrapolate.CLAMP,
-    )
+      Extrapolate.CLAMP
+    );
 
     return {
       opacity,
-    }
-  })
+    };
+  });
 
   // Set greeting based on time of day
   useEffect(() => {
-    const hour = new Date().getHours()
+    const hour = new Date().getHours();
     if (hour < 12) {
-      setGreeting("Good morning")
+      setGreeting("Good morning");
     } else if (hour < 18) {
-      setGreeting("Good afternoon")
+      setGreeting("Good afternoon");
     } else {
-      setGreeting("Good evening")
+      setGreeting("Good evening");
     }
-  }, [])
+  }, []);
 
   // Load data
   useEffect(() => {
-    loadData()
-  }, [])
+    loadData();
+  }, []);
 
   // Filter tasks when search query changes
   useEffect(() => {
     if (searchQuery.trim() === "") {
-      setFilteredTasks([])
-      return
+      setFilteredTasks([]);
+      return;
     }
 
-    const query = searchQuery.toLowerCase()
-    const allTasks = [...tasks.todo, ...tasks.inProgress, ...tasks.done]
-    const filtered = allTasks.filter((task) => task.title.toLowerCase().includes(query))
-    setFilteredTasks(filtered)
-  }, [searchQuery, tasks])
+    const query = searchQuery.toLowerCase();
+    const allTasks = [...tasks.todo, ...tasks.inProgress, ...tasks.done];
+    const filtered = allTasks.filter((task) =>
+      task.title.toLowerCase().includes(query)
+    );
+    setFilteredTasks(filtered);
+  }, [searchQuery, tasks]);
 
   const loadData = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
 
       // Get all projects
-      const allProjects = await projectService.getProjects()
-      setProjects(allProjects || [])
+      const allProjects = await projectService.getProjects();
+      setProjects(allProjects || []);
 
       // Use the most recently updated project as the current project
       if (allProjects && allProjects.length > 0) {
         const sortedProjects = [...allProjects].sort(
-          (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-        )
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        );
 
-        const project = sortedProjects[0]
-        setCurrentProject(project)
+        const project = sortedProjects[0];
+        setCurrentProject(project);
 
         // Get tasks for this project
-        const projectTasks = await taskService.getTasksByProject(project.id)
+        const projectTasks = await taskService.getTasksByProject(project.id);
 
         // Organize tasks by status
-        const todoTasks = projectTasks.filter((task) => task.status === "todo")
-        const inProgressTasks = projectTasks.filter((task) => task.status === "inProgress")
-        const doneTasks = projectTasks.filter((task) => task.status === "done")
+        const todoTasks = projectTasks.filter((task) => task.status === "todo");
+        const inProgressTasks = projectTasks.filter(
+          (task) => task.status === "inProgress"
+        );
+        const doneTasks = projectTasks.filter((task) => task.status === "done");
 
         setTasks({
           todo: todoTasks,
           inProgress: inProgressTasks,
           done: doneTasks,
-        })
+        });
 
         // Calculate stats
-        const now = new Date()
-        const overdueTasks = projectTasks.filter((task) => task.status !== "done" && new Date(task.due_date) < now)
+        const now = new Date();
+        const overdueTasks = projectTasks.filter(
+          (task) => task.status !== "done" && new Date(task.due_date) < now
+        );
         const upcomingTasks = projectTasks.filter(
           (task) =>
             task.status !== "done" &&
             new Date(task.due_date) >= now &&
-            new Date(task.due_date) <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-        )
+            new Date(task.due_date) <=
+              new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+        );
 
         setStats({
           completed: doneTasks.length,
           total: projectTasks.length,
           overdue: overdueTasks.length,
           upcoming: upcomingTasks.length,
-        })
+        });
       }
     } catch (error) {
-      console.error("Error loading home data:", error)
-      showToast("Failed to load data", { type: "error" })
+      console.error("Error loading home data:", error);
+      showToast("Failed to load data", { type: "error" });
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setLoading(false);
+      setRefreshing(false);
     }
-  }
+  };
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true)
-    loadData()
-  }, [])
+    setRefreshing(true);
+    loadData();
+  }, []);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
-    const newValue = !expandedSections[section]
+    const newValue = !expandedSections[section];
     setExpandedSections({
       ...expandedSections,
       [section]: newValue,
-    })
+    });
 
     // Provide haptic feedback
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     // Animate the chevron rotation
     const rotationValue =
-      section === "todo" ? todoRotation : section === "inProgress" ? inProgressRotation : doneRotation
+      section === "todo"
+        ? todoRotation
+        : section === "inProgress"
+        ? inProgressRotation
+        : doneRotation;
 
     Animated.timing(rotationValue, {
       toValue: newValue ? 1 : 0,
       duration: 300,
       useNativeDriver: true,
-    }).start()
-  }
+    }).start();
+  };
 
   const handleTaskPress = (taskId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    router.push(`/task/${taskId}`)
-  }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(`/task/${taskId}`);
+  };
 
   const handleProjectPress = () => {
     if (currentProject) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-      router.push(`/project/${currentProject.id}`)
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      router.push(`/project/${currentProject.id}`);
     }
-  }
+  };
 
   const handleAddTask = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (currentProject) {
       router.push({
         pathname: "/add-task",
         params: { projectId: currentProject.id },
-      })
+      });
     } else {
-      router.push("/new-project")
+      router.push("/new-project");
     }
-  }
+  };
 
   const handleFabPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    fabRotation.value = withSpring(fabRotation.value === 0 ? 1 : 0, { damping: 10 })
-    bottomSheetModalRef.current?.present()
-  }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    fabRotation.value = withSpring(fabRotation.value === 0 ? 1 : 0, {
+      damping: 10,
+    });
+    bottomSheetModalRef.current?.present();
+  };
 
   const handleFabPressIn = () => {
-    fabScale.value = withSpring(0.9)
-  }
+    fabScale.value = withSpring(0.9);
+  };
 
   const handleFabPressOut = () => {
-    fabScale.value = withSpring(1)
-  }
+    fabScale.value = withSpring(1);
+  };
 
   const handleSearchPress = () => {
-    setIsSearching(true)
-    searchBarOpacity.value = withTiming(1, { duration: 300 })
-  }
+    setIsSearching(true);
+    searchBarOpacity.value = withTiming(1, { duration: 300 });
+  };
 
   const handleCloseSearch = () => {
     searchBarOpacity.value = withTiming(0, { duration: 300 }, () => {
-      runOnJS(setIsSearching)(false)
-      runOnJS(setSearchQuery)("")
-    })
-  }
+      runOnJS(setIsSearching)(false);
+      runOnJS(setSearchQuery)("");
+    });
+  };
 
   const handleChangeProject = (project: any) => {
-    setCurrentProject(project)
-    bottomSheetModalRef.current?.dismiss()
-    loadProjectTasks(project.id)
-  }
+    setCurrentProject(project);
+    bottomSheetModalRef.current?.dismiss();
+    loadProjectTasks(project.id);
+  };
 
   const loadProjectTasks = async (projectId: string) => {
     try {
-      setLoading(true)
-      const projectTasks = await taskService.getTasksByProject(projectId)
+      setLoading(true);
+      const projectTasks = await taskService.getTasksByProject(projectId);
 
       // Organize tasks by status
-      const todoTasks = projectTasks.filter((task) => task.status === "todo")
-      const inProgressTasks = projectTasks.filter((task) => task.status === "inProgress")
-      const doneTasks = projectTasks.filter((task) => task.status === "done")
+      const todoTasks = projectTasks.filter((task) => task.status === "todo");
+      const inProgressTasks = projectTasks.filter(
+        (task) => task.status === "inProgress"
+      );
+      const doneTasks = projectTasks.filter((task) => task.status === "done");
 
       setTasks({
         todo: todoTasks,
         inProgress: inProgressTasks,
         done: doneTasks,
-  })
+      });
 
       // Calculate stats
-      const now = new Date()
-      const overdueTasks = projectTasks.filter((task) => task.status !== "done" && new Date(task.due_date) < now)
+      const now = new Date();
+      const overdueTasks = projectTasks.filter(
+        (task) => task.status !== "done" && new Date(task.due_date) < now
+      );
       const upcomingTasks = projectTasks.filter(
         (task) =>
           task.status !== "done" &&
           new Date(task.due_date) >= now &&
-          new Date(task.due_date) <= new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-      )
+          new Date(task.due_date) <=
+            new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+      );
 
       setStats({
         completed: doneTasks.length,
         total: projectTasks.length,
         overdue: overdueTasks.length,
         upcoming: upcomingTasks.length,
-      })
+      });
     } catch (error) {
-      console.error("Error loading project tasks:", error)
-      showToast("Failed to load tasks", { type: "error" })
+      console.error("Error loading project tasks:", error);
+      showToast("Failed to load tasks", { type: "error" });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleFilterChange = (filter: string) => {
-    setSelectedFilter(filter)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-  }
+    setSelectedFilter(filter);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const renderSkeleton = () => (
     <View style={{ padding: 16 }}>
-      <Skeleton colorMode={colorScheme === "dark" ? "dark" : "light"} width={150} height={20} radius={4} />
+      <Skeleton
+        colorMode={colorScheme === "dark" ? "dark" : "light"}
+        width={150}
+        height={20}
+        radius={4}
+      />
       <View style={{ height: 12 }} />
-      <Skeleton colorMode={colorScheme === "dark" ? "dark" : "light"} width="100%" height={40} radius={4} />
+      <Skeleton
+        colorMode={colorScheme === "dark" ? "dark" : "light"}
+        width="100%"
+        height={40}
+        radius={4}
+      />
       <View style={{ height: 12 }} />
-      <Skeleton colorMode={colorScheme === "dark" ? "dark" : "light"} width="100%" height={40} radius={4} />
+      <Skeleton
+        colorMode={colorScheme === "dark" ? "dark" : "light"}
+        width="100%"
+        height={40}
+        radius={4}
+      />
     </View>
-  )
+  );
 
   const renderProjectItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[
         styles.projectItem,
         {
-          backgroundColor: item.id === currentProject?.id ? theme.tintLight : "transparent",
-          borderColor: item.id === currentProject?.id ? theme.tint : theme.border,
+          backgroundColor:
+            item.id === currentProject?.id ? theme.tintLight : "transparent",
+          borderColor:
+            item.id === currentProject?.id ? theme.tint : theme.border,
         },
       ]}
       onPress={() => handleChangeProject(item)}
     >
       <View style={styles.projectItemContent}>
-        <Text style={[styles.projectItemName, { color: theme.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.projectItemName, { color: theme.text }]}
+          numberOfLines={1}
+        >
           {item.name}
         </Text>
-        <Text style={[styles.projectItemDescription, { color: theme.textDim }]} numberOfLines={1}>
+        <Text
+          style={[styles.projectItemDescription, { color: theme.textDim }]}
+          numberOfLines={1}
+        >
           {item.description || "No description"}
         </Text>
       </View>
-      <View style={[styles.projectItemProgress, { backgroundColor: theme.background }]}>
-        <Text style={[styles.projectItemProgressText, { color: theme.tint }]}>{item.progress}%</Text>
+      <View
+        style={[
+          styles.projectItemProgress,
+          { backgroundColor: theme.background },
+        ]}
+      >
+        <Text style={[styles.projectItemProgressText, { color: theme.tint }]}>
+          {item.progress}%
+        </Text>
       </View>
     </TouchableOpacity>
-  )
+  );
 
   const renderSearchResults = () => {
     if (searchQuery.trim() === "") {
-      return null
+      return null;
     }
 
     return (
-      <View style={[styles.searchResults, { backgroundColor: theme.cardBackground }]}>
+      <View
+        style={[
+          styles.searchResults,
+          { backgroundColor: theme.cardBackground },
+        ]}
+      >
         <Text style={[styles.searchResultsTitle, { color: theme.text }]}>
           {filteredTasks.length} result{filteredTasks.length !== 1 ? "s" : ""}
         </Text>
@@ -435,24 +513,28 @@ export default function HomeScreen() {
         ) : (
           <View style={styles.emptySearchResults}>
             <Ionicons name="search-outline" size={40} color={theme.textDim} />
-            <Text style={[styles.emptySearchResultsText, { color: theme.textDim }]}>
+            <Text
+              style={[styles.emptySearchResultsText, { color: theme.textDim }]}
+            >
               No tasks found matching "{searchQuery}"
             </Text>
           </View>
         )}
       </View>
-    )
-  }
+    );
+  };
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.loadingContainer, { backgroundColor: theme.background }]}
+      >
         <MotiView
           from={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: "timing", duration: 500 }}
         >
-        <ActivityIndicator size="large" color={theme.tint} />
+          <ActivityIndicator size="large" color={theme.tint} />
         </MotiView>
         <MotiText
           from={{ opacity: 0, translateY: 10 }}
@@ -463,18 +545,24 @@ export default function HomeScreen() {
           Loading your workspace...
         </MotiText>
       </View>
-    )
+    );
   }
 
   if (!currentProject) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: theme.background }]}>
+      <View
+        style={[styles.emptyContainer, { backgroundColor: theme.background }]}
+      >
         <MotiView
           from={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: "spring", damping: 15 }}
         >
-        <Ionicons name="folder-open-outline" size={80} color={theme.textDim} />
+          <Ionicons
+            name="folder-open-outline"
+            size={80}
+            color={theme.textDim}
+          />
         </MotiView>
         <MotiText
           from={{ opacity: 0, translateY: 20 }}
@@ -497,20 +585,23 @@ export default function HomeScreen() {
           animate={{ opacity: 1, translateY: 0 }}
           transition={{ type: "timing", duration: 500, delay: 600 }}
         >
-        <TouchableOpacity
-          style={[styles.createProjectButton, { backgroundColor: theme.tint }]}
+          <TouchableOpacity
+            style={[
+              styles.createProjectButton,
+              { backgroundColor: theme.tint },
+            ]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-              router.push("/new-project")
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push("/new-project");
             }}
             activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.createProjectButtonText}>Create Project</Text>
-        </TouchableOpacity>
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.createProjectButtonText}>Create Project</Text>
+          </TouchableOpacity>
         </MotiView>
       </View>
-    )
+    );
   }
 
   return (
@@ -521,18 +612,27 @@ export default function HomeScreen() {
           <Animated.View
             style={[
               styles.collapsibleHeader,
-              { backgroundColor: theme.background, borderBottomColor: theme.border },
+              {
+                backgroundColor: theme.background,
+                borderBottomColor: theme.border,
+              },
               titleAnimatedStyle,
             ]}
           >
             <View style={styles.headerTitleContainer}>
-              <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+              <Text
+                style={[styles.headerTitle, { color: theme.text }]}
+                numberOfLines={1}
+              >
                 {currentProject.name}
               </Text>
-              <TouchableOpacity onPress={handleSearchPress} style={styles.searchButton}>
+              <TouchableOpacity
+                onPress={handleSearchPress}
+                style={styles.searchButton}
+              >
                 <Ionicons name="search-outline" size={22} color={theme.text} />
               </TouchableOpacity>
-        </View>
+            </View>
           </Animated.View>
 
           {/* Search Bar */}
@@ -540,11 +640,19 @@ export default function HomeScreen() {
             <Animated.View
               style={[
                 styles.searchBarContainer,
-                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                {
+                  backgroundColor: theme.cardBackground,
+                  borderColor: theme.border,
+                },
                 searchBarAnimatedStyle,
               ]}
             >
-              <Ionicons name="search-outline" size={20} color={theme.textDim} style={styles.searchIcon} />
+              <Ionicons
+                name="search-outline"
+                size={20}
+                color={theme.textDim}
+                style={styles.searchIcon}
+              />
               <TextInput
                 style={[styles.searchInput, { color: theme.text }]}
                 placeholder="Search tasks..."
@@ -553,7 +661,10 @@ export default function HomeScreen() {
                 onChangeText={setSearchQuery}
                 autoFocus
               />
-              <TouchableOpacity onPress={handleCloseSearch} style={styles.closeSearchButton}>
+              <TouchableOpacity
+                onPress={handleCloseSearch}
+                style={styles.closeSearchButton}
+              >
                 <Ionicons name="close-circle" size={20} color={theme.textDim} />
               </TouchableOpacity>
             </Animated.View>
@@ -577,12 +688,17 @@ export default function HomeScreen() {
               }
               scrollEventThrottle={16}
               onScroll={(event) => {
-                scrollY.value = event.nativeEvent.contentOffset.y
+                scrollY.value = event.nativeEvent.contentOffset.y;
               }}
             >
               {/* Header Card */}
-              <Animated.View style={[styles.headerContainer, headerAnimatedStyle]}>
-                <Pressable onPress={handleProjectPress} style={styles.headerPressable}>
+              <Animated.View
+                style={[styles.headerContainer, headerAnimatedStyle]}
+              >
+                <Pressable
+                  onPress={handleProjectPress}
+                  style={styles.headerPressable}
+                >
                   <LinearGradient
                     colors={[theme.tint, theme.tint]}
                     start={{ x: 0, y: 0 }}
@@ -594,16 +710,31 @@ export default function HomeScreen() {
                       animate={{ opacity: 1, translateY: 0 }}
                       transition={{ type: "timing", duration: 500 }}
                     >
-                      <Text style={[styles.greeting, { color: "rgba(255,255,255,0.9)" }]}>{greeting}</Text>
-                      <Text style={[styles.projectName, { color: "#fff" }]}>{currentProject.name}</Text>
+                      <Text
+                        style={[
+                          styles.greeting,
+                          { color: "rgba(255,255,255,0.9)" },
+                        ]}
+                      >
+                        {greeting}
+                      </Text>
+                      <Text style={[styles.projectName, { color: "#fff" }]}>
+                        {currentProject.name}
+                      </Text>
                     </MotiView>
                     <MotiView
                       from={{ opacity: 0, translateY: 10 }}
                       animate={{ opacity: 1, translateY: 0 }}
                       transition={{ type: "timing", duration: 500, delay: 100 }}
                     >
-                      <Text style={[styles.projectDescription, { color: "rgba(255,255,255,0.8)" }]}>
-                        {currentProject.description || "No description provided"}
+                      <Text
+                        style={[
+                          styles.projectDescription,
+                          { color: "rgba(255,255,255,0.8)" },
+                        ]}
+                      >
+                        {currentProject.description ||
+                          "No description provided"}
                       </Text>
                     </MotiView>
 
@@ -613,15 +744,27 @@ export default function HomeScreen() {
                       transition={{ type: "timing", duration: 500, delay: 200 }}
                       style={styles.progressContainer}
                     >
-          <View style={styles.progressHeader}>
-                        <Text style={[styles.progressTitle, { color: "#fff" }]}>Project Progress</Text>
+                      <View style={styles.progressHeader}>
+                        <Text style={[styles.progressTitle, { color: "#fff" }]}>
+                          Project Progress
+                        </Text>
                         <View
-                          style={[styles.progressPercentageContainer, { backgroundColor: "rgba(255,255,255,0.2)" }]}
+                          style={[
+                            styles.progressPercentageContainer,
+                            { backgroundColor: "rgba(255,255,255,0.2)" },
+                          ]}
                         >
-                          <Text style={[styles.progressPercentage, { color: "#fff" }]}>{currentProject.progress}%</Text>
-            </View>
-          </View>
-          <ProgressBar progress={currentProject.progress} />
+                          <Text
+                            style={[
+                              styles.progressPercentage,
+                              { color: "#fff" },
+                            ]}
+                          >
+                            {currentProject.progress}%
+                          </Text>
+                        </View>
+                      </View>
+                      <ProgressBar progress={currentProject.progress} />
                     </MotiView>
 
                     <MotiView
@@ -630,13 +773,22 @@ export default function HomeScreen() {
                       transition={{ type: "timing", duration: 500, delay: 300 }}
                       style={styles.dateContainer}
                     >
-                      <Ionicons name="calendar-outline" size={16} color="rgba(255,255,255,0.8)" />
-                      <Text style={[styles.dateText, { color: "rgba(255,255,255,0.8)" }]}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={16}
+                        color="rgba(255,255,255,0.8)"
+                      />
+                      <Text
+                        style={[
+                          styles.dateText,
+                          { color: "rgba(255,255,255,0.8)" },
+                        ]}
+                      >
                         {format(new Date(), "EEEE, MMMM d")}
                       </Text>
                     </MotiView>
                   </LinearGradient>
-      </Pressable>
+                </Pressable>
               </Animated.View>
 
               {/* Stats Cards */}
@@ -646,25 +798,61 @@ export default function HomeScreen() {
                 transition={{ type: "timing", duration: 500, delay: 300 }}
                 style={styles.statsContainer}
               >
-                <View style={[styles.statsCard, { backgroundColor: theme.cardBackground }]}>
+                <View
+                  style={[
+                    styles.statsCard,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
+                >
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>{stats.total}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textDim }]}>Total</Text>
+                    <Text style={[styles.statValue, { color: theme.text }]}>
+                      {stats.total}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.textDim }]}>
+                      Total
+                    </Text>
                   </View>
-                  <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: theme.border },
+                    ]}
+                  />
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.success }]}>{stats.completed}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textDim }]}>Done</Text>
+                    <Text style={[styles.statValue, { color: theme.success }]}>
+                      {stats.completed}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.textDim }]}>
+                      Done
+                    </Text>
                   </View>
-                  <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: theme.border },
+                    ]}
+                  />
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.error }]}>{stats.overdue}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textDim }]}>Overdue</Text>
+                    <Text style={[styles.statValue, { color: theme.error }]}>
+                      {stats.overdue}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.textDim }]}>
+                      Overdue
+                    </Text>
                   </View>
-                  <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+                  <View
+                    style={[
+                      styles.statDivider,
+                      { backgroundColor: theme.border },
+                    ]}
+                  />
                   <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: theme.warning }]}>{stats.upcoming}</Text>
-                    <Text style={[styles.statLabel, { color: theme.textDim }]}>Upcoming</Text>
+                    <Text style={[styles.statValue, { color: theme.warning }]}>
+                      {stats.upcoming}
+                    </Text>
+                    <Text style={[styles.statLabel, { color: theme.textDim }]}>
+                      Upcoming
+                    </Text>
                   </View>
                 </View>
               </MotiView>
@@ -676,27 +864,55 @@ export default function HomeScreen() {
                 transition={{ type: "timing", duration: 500, delay: 400 }}
                 style={styles.filterContainer}
               >
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.filterScroll}
+                >
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "all" && { backgroundColor: theme.tintLight, borderColor: theme.tint },
+                      selectedFilter === "all" && {
+                        backgroundColor: theme.tintLight,
+                        borderColor: theme.tint,
+                      },
                     ]}
                     onPress={() => handleFilterChange("all")}
                   >
-                    <Text style={[styles.filterText, { color: selectedFilter === "all" ? theme.tint : theme.textDim }]}>
+                    <Text
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "all"
+                              ? theme.tint
+                              : theme.textDim,
+                        },
+                      ]}
+                    >
                       All
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "today" && { backgroundColor: theme.tintLight, borderColor: theme.tint },
+                      selectedFilter === "today" && {
+                        backgroundColor: theme.tintLight,
+                        borderColor: theme.tint,
+                      },
                     ]}
                     onPress={() => handleFilterChange("today")}
                   >
                     <Text
-                      style={[styles.filterText, { color: selectedFilter === "today" ? theme.tint : theme.textDim }]}
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "today"
+                              ? theme.tint
+                              : theme.textDim,
+                        },
+                      ]}
                     >
                       Today
                     </Text>
@@ -704,12 +920,23 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "upcoming" && { backgroundColor: theme.tintLight, borderColor: theme.tint },
+                      selectedFilter === "upcoming" && {
+                        backgroundColor: theme.tintLight,
+                        borderColor: theme.tint,
+                      },
                     ]}
                     onPress={() => handleFilterChange("upcoming")}
                   >
                     <Text
-                      style={[styles.filterText, { color: selectedFilter === "upcoming" ? theme.tint : theme.textDim }]}
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "upcoming"
+                              ? theme.tint
+                              : theme.textDim,
+                        },
+                      ]}
                     >
                       Upcoming
                     </Text>
@@ -717,12 +944,23 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "overdue" && { backgroundColor: theme.tintLight, borderColor: theme.tint },
+                      selectedFilter === "overdue" && {
+                        backgroundColor: theme.tintLight,
+                        borderColor: theme.tint,
+                      },
                     ]}
                     onPress={() => handleFilterChange("overdue")}
                   >
                     <Text
-                      style={[styles.filterText, { color: selectedFilter === "overdue" ? theme.tint : theme.textDim }]}
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "overdue"
+                              ? theme.tint
+                              : theme.textDim,
+                        },
+                      ]}
                     >
                       Overdue
                     </Text>
@@ -730,12 +968,23 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "high" && { backgroundColor: theme.tintLight, borderColor: theme.tint },
+                      selectedFilter === "high" && {
+                        backgroundColor: theme.tintLight,
+                        borderColor: theme.tint,
+                      },
                     ]}
                     onPress={() => handleFilterChange("high")}
                   >
                     <Text
-                      style={[styles.filterText, { color: selectedFilter === "high" ? theme.tint : theme.textDim }]}
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "high"
+                              ? theme.tint
+                              : theme.textDim,
+                        },
+                      ]}
                     >
                       High Priority
                     </Text>
@@ -751,42 +1000,78 @@ export default function HomeScreen() {
                 style={styles.milestones}
               >
                 <View style={styles.sectionTitleContainer}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Tasks</Text>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Tasks
+                  </Text>
                   <TouchableOpacity
-                    style={[styles.addTaskButton, { backgroundColor: theme.tintLight }]}
+                    style={[
+                      styles.addTaskButton,
+                      { backgroundColor: theme.tintLight },
+                    ]}
                     onPress={handleAddTask}
                   >
                     <Ionicons name="add" size={16} color={theme.tint} />
-                    <Text style={[styles.addTaskText, { color: theme.tint }]}>Add Task</Text>
+                    <Text style={[styles.addTaskText, { color: theme.tint }]}>
+                      Add Task
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-        {/* To Do Section */}
+                {/* To Do Section */}
                 <MotiView
                   from={{ opacity: 0, translateY: 20, scale: 0.95 }}
                   animate={{ opacity: 1, translateY: 0, scale: 1 }}
                   transition={{ type: "timing", duration: 500, delay: 600 }}
-                  style={[styles.taskSection, { backgroundColor: theme.cardBackground }]}
+                  style={[
+                    styles.taskSection,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
                 >
-          <Pressable
-            style={styles.sectionHeader}
-            onPress={() => toggleSection("todo")}
-            android_ripple={{ color: theme.ripple }}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="ellipse-outline" size={20} color={theme.text} />
-              <Text style={[styles.sectionHeaderText, { color: theme.text }]}>To Do</Text>
-              <View style={[styles.taskCount, { backgroundColor: theme.tintLight }]}>
-                <Text style={[styles.taskCountText, { color: theme.tint }]}>{tasks.todo.length}</Text>
-              </View>
-            </View>
-            <Animated.View style={{ transform: [{ rotateZ: todoRotateZ }] }}>
-              <Ionicons name="chevron-down" size={20} color={theme.text} />
-            </Animated.View>
-          </Pressable>
+                  <Pressable
+                    style={styles.sectionHeader}
+                    onPress={() => toggleSection("todo")}
+                    android_ripple={{ color: theme.ripple }}
+                  >
+                    <View style={styles.sectionHeaderLeft}>
+                      <Ionicons
+                        name="ellipse-outline"
+                        size={20}
+                        color={theme.text}
+                      />
+                      <Text
+                        style={[
+                          styles.sectionHeaderText,
+                          { color: theme.text },
+                        ]}
+                      >
+                        To Do
+                      </Text>
+                      <View
+                        style={[
+                          styles.taskCount,
+                          { backgroundColor: theme.tintLight },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.taskCountText, { color: theme.tint }]}
+                        >
+                          {tasks.todo.length}
+                        </Text>
+                      </View>
+                    </View>
+                    <Animated.View
+                      style={{ transform: [{ rotateZ: todoRotateZ }] }}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={theme.text}
+                      />
+                    </Animated.View>
+                  </Pressable>
 
                   <AnimatePresence>
-          {expandedSections.todo && (
+                    {expandedSections.todo && (
                       <MotiView
                         from={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -799,59 +1084,96 @@ export default function HomeScreen() {
                         ) : tasks.todo.length > 0 ? (
                           tasks.todo.map((task: any, index: number) => (
                             <MotiView
-                    key={task.id}
+                              key={task.id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
-                              transition={{ type: "timing", duration: 300, delay: index * 100 }}
+                              transition={{
+                                type: "timing",
+                                duration: 300,
+                                delay: index * 100,
+                              }}
                             >
                               <TaskItem
-                    task={{
-                      id: task.id,
-                      title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
-                      priority: task.priority,
-                    }}
-                    status="todo"
+                                task={{
+                                  id: task.id,
+                                  title: task.title,
+                                  dueDate:
+                                    task.due_date || new Date().toISOString(),
+                                  priority: task.priority,
+                                }}
+                                status="todo"
                                 onPress={() => handleTaskPress(task.id)}
-                  />
+                              />
                             </MotiView>
-                ))
-              ) : (
-                <View style={styles.emptyTasksContainer}>
-                  <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>No tasks to do</Text>
-                </View>
-              )}
+                          ))
+                        ) : (
+                          <View style={styles.emptyTasksContainer}>
+                            <Text
+                              style={[
+                                styles.emptyTasksText,
+                                { color: theme.textDim },
+                              ]}
+                            >
+                              No tasks to do
+                            </Text>
+                          </View>
+                        )}
                       </MotiView>
-          )}
+                    )}
                   </AnimatePresence>
                 </MotiView>
 
-        {/* In Progress Section */}
+                {/* In Progress Section */}
                 <MotiView
                   from={{ opacity: 0, translateY: 20, scale: 0.95 }}
                   animate={{ opacity: 1, translateY: 0, scale: 1 }}
                   transition={{ type: "timing", duration: 500, delay: 700 }}
-                  style={[styles.taskSection, { backgroundColor: theme.cardBackground }]}
+                  style={[
+                    styles.taskSection,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
                 >
-          <Pressable
-            style={styles.sectionHeader}
-            onPress={() => toggleSection("inProgress")}
-            android_ripple={{ color: theme.ripple }}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="time-outline" size={20} color="#FF9800" />
-              <Text style={[styles.sectionHeaderText, { color: theme.text }]}>In Progress</Text>
-              <View style={[styles.taskCount, { backgroundColor: theme.tintLight }]}>
-                <Text style={[styles.taskCountText, { color: theme.tint }]}>{tasks.inProgress.length}</Text>
-              </View>
-            </View>
-            <Animated.View style={{ transform: [{ rotateZ: inProgressRotateZ }] }}>
-              <Ionicons name="chevron-down" size={20} color={theme.text} />
-            </Animated.View>
-          </Pressable>
+                  <Pressable
+                    style={styles.sectionHeader}
+                    onPress={() => toggleSection("inProgress")}
+                    android_ripple={{ color: theme.ripple }}
+                  >
+                    <View style={styles.sectionHeaderLeft}>
+                      <Ionicons name="time-outline" size={20} color="#FF9800" />
+                      <Text
+                        style={[
+                          styles.sectionHeaderText,
+                          { color: theme.text },
+                        ]}
+                      >
+                        In Progress
+                      </Text>
+                      <View
+                        style={[
+                          styles.taskCount,
+                          { backgroundColor: theme.tintLight },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.taskCountText, { color: theme.tint }]}
+                        >
+                          {tasks.inProgress.length}
+                        </Text>
+                      </View>
+                    </View>
+                    <Animated.View
+                      style={{ transform: [{ rotateZ: inProgressRotateZ }] }}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={theme.text}
+                      />
+                    </Animated.View>
+                  </Pressable>
 
                   <AnimatePresence>
-          {expandedSections.inProgress && (
+                    {expandedSections.inProgress && (
                       <MotiView
                         from={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -864,59 +1186,100 @@ export default function HomeScreen() {
                         ) : tasks.inProgress.length > 0 ? (
                           tasks.inProgress.map((task: any, index: number) => (
                             <MotiView
-                    key={task.id}
+                              key={task.id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
-                              transition={{ type: "timing", duration: 300, delay: index * 100 }}
+                              transition={{
+                                type: "timing",
+                                duration: 300,
+                                delay: index * 100,
+                              }}
                             >
                               <TaskItem
-                    task={{
-                      id: task.id,
-                      title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
-                      priority: task.priority,
-                    }}
-                    status="inProgress"
+                                task={{
+                                  id: task.id,
+                                  title: task.title,
+                                  dueDate:
+                                    task.due_date || new Date().toISOString(),
+                                  priority: task.priority,
+                                }}
+                                status="inProgress"
                                 onPress={() => handleTaskPress(task.id)}
-                  />
+                              />
                             </MotiView>
-                ))
-              ) : (
-                <View style={styles.emptyTasksContainer}>
-                  <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>No tasks in progress</Text>
-                </View>
-              )}
+                          ))
+                        ) : (
+                          <View style={styles.emptyTasksContainer}>
+                            <Text
+                              style={[
+                                styles.emptyTasksText,
+                                { color: theme.textDim },
+                              ]}
+                            >
+                              No tasks in progress
+                            </Text>
+                          </View>
+                        )}
                       </MotiView>
-          )}
+                    )}
                   </AnimatePresence>
                 </MotiView>
 
-        {/* Done Section */}
+                {/* Done Section */}
                 <MotiView
                   from={{ opacity: 0, translateY: 20, scale: 0.95 }}
                   animate={{ opacity: 1, translateY: 0, scale: 1 }}
                   transition={{ type: "timing", duration: 500, delay: 800 }}
-                  style={[styles.taskSection, { backgroundColor: theme.cardBackground }]}
+                  style={[
+                    styles.taskSection,
+                    { backgroundColor: theme.cardBackground },
+                  ]}
                 >
-          <Pressable
-            style={styles.sectionHeader}
-            onPress={() => toggleSection("done")}
-            android_ripple={{ color: theme.ripple }}
-          >
-            <View style={styles.sectionHeaderLeft}>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
-              <Text style={[styles.sectionHeaderText, { color: theme.text }]}>Done</Text>
-              <View style={[styles.taskCount, { backgroundColor: theme.tintLight }]}>
-                <Text style={[styles.taskCountText, { color: theme.tint }]}>{tasks.done.length}</Text>
-              </View>
-            </View>
-            <Animated.View style={{ transform: [{ rotateZ: doneRotateZ }] }}>
-              <Ionicons name="chevron-down" size={20} color={theme.text} />
-            </Animated.View>
-          </Pressable>
+                  <Pressable
+                    style={styles.sectionHeader}
+                    onPress={() => toggleSection("done")}
+                    android_ripple={{ color: theme.ripple }}
+                  >
+                    <View style={styles.sectionHeaderLeft}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#4CAF50"
+                      />
+                      <Text
+                        style={[
+                          styles.sectionHeaderText,
+                          { color: theme.text },
+                        ]}
+                      >
+                        Done
+                      </Text>
+                      <View
+                        style={[
+                          styles.taskCount,
+                          { backgroundColor: theme.tintLight },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.taskCountText, { color: theme.tint }]}
+                        >
+                          {tasks.done.length}
+                        </Text>
+                      </View>
+                    </View>
+                    <Animated.View
+                      style={{ transform: [{ rotateZ: doneRotateZ }] }}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={theme.text}
+                      />
+                    </Animated.View>
+                  </Pressable>
 
                   <AnimatePresence>
-          {expandedSections.done && (
+                    {expandedSections.done && (
                       <MotiView
                         from={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -929,30 +1292,42 @@ export default function HomeScreen() {
                         ) : tasks.done.length > 0 ? (
                           tasks.done.map((task: any, index: number) => (
                             <MotiView
-                    key={task.id}
+                              key={task.id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
-                              transition={{ type: "timing", duration: 300, delay: index * 100 }}
+                              transition={{
+                                type: "timing",
+                                duration: 300,
+                                delay: index * 100,
+                              }}
                             >
                               <TaskItem
-                    task={{
-                      id: task.id,
-                      title: task.title,
-                      dueDate: task.due_date || new Date().toISOString(),
-                      priority: task.priority,
-                    }}
-                    status="done"
+                                task={{
+                                  id: task.id,
+                                  title: task.title,
+                                  dueDate:
+                                    task.due_date || new Date().toISOString(),
+                                  priority: task.priority,
+                                }}
+                                status="done"
                                 onPress={() => handleTaskPress(task.id)}
-                  />
+                              />
                             </MotiView>
-                ))
-              ) : (
-                <View style={styles.emptyTasksContainer}>
-                  <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>No completed tasks</Text>
-                </View>
-              )}
+                          ))
+                        ) : (
+                          <View style={styles.emptyTasksContainer}>
+                            <Text
+                              style={[
+                                styles.emptyTasksText,
+                                { color: theme.textDim },
+                              ]}
+                            >
+                              No completed tasks
+                            </Text>
+                          </View>
+                        )}
                       </MotiView>
-          )}
+                    )}
                   </AnimatePresence>
                 </MotiView>
               </MotiView>
@@ -984,41 +1359,66 @@ export default function HomeScreen() {
             handleIndicatorStyle={{ backgroundColor: theme.textDim }}
           >
             <View style={styles.bottomSheetContent}>
-              <Text style={[styles.bottomSheetTitle, { color: theme.text }]}>Quick Actions</Text>
+              <Text style={[styles.bottomSheetTitle, { color: theme.text }]}>
+                Quick Actions
+              </Text>
 
               <View style={styles.actionButtonsContainer}>
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: theme.tintLight },
+                  ]}
                   onPress={handleAddTask}
                 >
                   <Ionicons name="add-circle" size={24} color={theme.tint} />
-                  <Text style={[styles.actionButtonText, { color: theme.text }]}>Add Task</Text>
+                  <Text
+                    style={[styles.actionButtonText, { color: theme.text }]}
+                  >
+                    Add Task
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: theme.tintLight },
+                  ]}
                   onPress={() => {
-                    bottomSheetModalRef.current?.dismiss()
-                    router.push("/new-project")
+                    bottomSheetModalRef.current?.dismiss();
+                    router.push("/new-project");
                   }}
                 >
                   <Ionicons name="folder-open" size={24} color={theme.tint} />
-                  <Text style={[styles.actionButtonText, { color: theme.text }]}>New Project</Text>
+                  <Text
+                    style={[styles.actionButtonText, { color: theme.text }]}
+                  >
+                    New Project
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
+                  style={[
+                    styles.actionButton,
+                    { backgroundColor: theme.tintLight },
+                  ]}
                   onPress={() => {
-                    bottomSheetModalRef.current?.dismiss()
-                    handleProjectPress()
+                    bottomSheetModalRef.current?.dismiss();
+                    handleProjectPress();
                   }}
                 >
                   <Ionicons name="stats-chart" size={24} color={theme.tint} />
-                  <Text style={[styles.actionButtonText, { color: theme.text }]}>Project Details</Text>
+                  <Text
+                    style={[styles.actionButtonText, { color: theme.text }]}
+                  >
+                    Project Details
+                  </Text>
                 </TouchableOpacity>
-        </View>
+              </View>
 
-              <Text style={[styles.bottomSheetSubtitle, { color: theme.text }]}>Switch Project</Text>
+              <Text style={[styles.bottomSheetSubtitle, { color: theme.text }]}>
+                Switch Project
+              </Text>
 
               <FlatList
                 data={projects}
@@ -1028,12 +1428,12 @@ export default function HomeScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 20 }}
               />
-      </View>
+            </View>
           </BottomSheetModal>
         </View>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1438,4 +1838,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-})
+});
