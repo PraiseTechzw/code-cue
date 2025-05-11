@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Linking,
   RefreshControl,
+  Modal,
+  TextInput,
 } from "react-native"
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
@@ -56,6 +58,11 @@ export default function GitHubScreen() {
   const [selectedRepo, setSelectedRepo] = useState<GithubRepository | null>(null)
   const [commits, setCommits] = useState<any[]>([])
   const [authInProgress, setAuthInProgress] = useState(false)
+  const hasFetchedFromGitHub = useRef(false)
+  const isLoadingRef = useRef(false)
+  const [showRepoModal, setShowRepoModal] = useState(false)
+  const [repoSearch, setRepoSearch] = useState('')
+  const modalAnim = useRef(new Animated.Value(0)).current
 
   // Animation for the connect button
   const pulseAnim = useRef(new Animated.Value(1)).current
@@ -63,10 +70,13 @@ export default function GitHubScreen() {
   const slideAnim = useRef(new Animated.Value(50)).current
   const buttonScale = useRef(new Animated.Value(1)).current
 
+  // Add new state for commit fetch error
+  const [commitFetchError, setCommitFetchError] = useState<string | null>(null)
+
   // Load GitHub data when the screen is focused
   useEffect(() => {
-    if (isFocused) {
-      loadGitHubData(true)
+    if (isFocused && !isLoadingRef.current) {
+      loadGitHubData(false)
     }
   }, [isFocused])
 
@@ -101,45 +111,44 @@ export default function GitHubScreen() {
   }
 
   const loadGitHubData = async (forceRefreshFromGitHub = false) => {
+    if (isLoadingRef.current) return
+    
     try {
+      isLoadingRef.current = true
       setLoading(true)
 
       // Check if user has GitHub connection
       const connectionData = await githubService.getConnection()
       setConnection(connectionData)
 
-      if (connectionData) {
-        let reposData = await githubService.getRepositories()
-        console.log('Fetched repositories:', reposData)
-        setRepositories(reposData)
-        console.log('Repositories state set:', reposData)
+      if (!connectionData) {
+        setLoading(false)
+        return
+      }
 
-        // If no repos or force refresh, fetch from GitHub and save
-        if (reposData.length === 0 || forceRefreshFromGitHub) {
-          await githubService.fetchAndCacheRepositories(connectionData.access_token, connectionData.user_id)
-          reposData = await githubService.getRepositories()
-          setRepositories(reposData)
-        }
+      // Get repositories
+      let reposData = await githubService.getRepositories()
+      
+      // If no repos or force refresh, fetch from GitHub
+      if (reposData.length === 0 || forceRefreshFromGitHub) {
+        await githubService.fetchAndCacheRepositories(connectionData.access_token, connectionData.user_id)
+        reposData = await githubService.getRepositories()
+      }
 
-        // Select first repo if available or previously selected repo
+      setRepositories(reposData)
+
+      if (reposData.length > 0) {
+        // Get last selected repo or default to first repo
         const lastSelectedRepoId = await SecureStore.getItemAsync("lastSelectedGitHubRepo")
+        const repoToSelect = lastSelectedRepoId 
+          ? reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId) || reposData[0]
+          : reposData[0]
 
-        if (reposData && reposData.length > 0) {
-          let repoToSelect = reposData[0]
+        setSelectedRepo(repoToSelect)
 
-          if (lastSelectedRepoId) {
-            const savedRepo = reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId)
-            if (savedRepo) {
-              repoToSelect = savedRepo
-            }
-          }
-
-          setSelectedRepo(repoToSelect)
-
-          // Get commits for selected repo
-          const commitsData = await githubService.getCommits(repoToSelect.id)
-          setCommits(commitsData)
-        }
+        // Get commits for selected repo
+        const commitsData = await githubService.getCommits(repoToSelect.id)
+        setCommits(commitsData)
       }
     } catch (error) {
       console.error("Error loading GitHub data:", error)
@@ -147,29 +156,53 @@ export default function GitHubScreen() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+      isLoadingRef.current = false
     }
   }
 
-  // Manual refresh from GitHub
+  const onRefresh = useCallback(() => {
+    if (!refreshing && !isLoadingRef.current) {
+      setRefreshing(true)
+      loadGitHubData(false)
+    }
+  }, [refreshing])
+
   const handleRefreshFromGitHub = useCallback(async () => {
-    if (connection) {
+    if (connection && !refreshing && !isLoadingRef.current) {
       setRefreshing(true)
       await loadGitHubData(true)
     }
-  }, [connection])
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true)
-    loadGitHubData()
-  }, [])
+  }, [connection, refreshing])
 
   const handleManualConnect = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     router.push("/github-connect")
   }
 
+  const handleOpenRepoModal = () => {
+    setShowRepoModal(true)
+    Animated.timing(modalAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start()
+  }
+
+  const handleCloseRepoModal = () => {
+    Animated.timing(modalAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowRepoModal(false)
+    })
+  }
+
   const handleSelectRepo = async (repo: GithubRepository) => {
+    if (isLoadingRef.current) return
+
     try {
+      isLoadingRef.current = true
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
       setSelectedRepo(repo)
       setLoading(true)
@@ -180,11 +213,14 @@ export default function GitHubScreen() {
       // Get commits for selected repo
       const commitsData = await githubService.getCommits(repo.id)
       setCommits(commitsData)
+      
+      handleCloseRepoModal()
     } catch (error) {
       console.error("Error loading commits:", error)
       showToast("Failed to load commits", { type: "error" })
     } finally {
       setLoading(false)
+      isLoadingRef.current = false
     }
   }
 
@@ -247,193 +283,268 @@ export default function GitHubScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {!connection ? (
-        <View style={styles.connectContainer}>
-          <Ionicons name="logo-github" size={80} color={theme.text} />
-          <Text style={[styles.connectTitle, { color: theme.text }]}>Connect to GitHub</Text>
-          <Text style={[styles.connectDescription, { color: theme.textDim }]}>
-            Link your GitHub account to track commits, pull requests, and issues directly in your projects.
-          </Text>
+   
 
-          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+      {/* Account Info */}
+      {connection && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: theme.border }}>
+          <Image
+            source={{ uri: connection.avatar_url || `https://github.com/identicons/${connection.username}.png` }}
+            style={{ width: 48, height: 48, borderRadius: 24, marginRight: 12 }}
+          />
+          <View style={{ flex: 1, justifyContent: 'center', flexShrink: 1, minWidth: 0 }}>
+            <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }} numberOfLines={1} ellipsizeMode="tail">{connection.username}</Text>
+            <Text style={{ color: theme.textDim, fontSize: 13 }}>GitHub Account</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
             <TouchableOpacity
-              style={[styles.connectButton, { backgroundColor: theme.tint }]}
-              onPress={handleConnect}
-              disabled={authInProgress || !isConnected}
-              activeOpacity={0.8}
-              accessibilityLabel="Connect GitHub Account"
-              accessibilityHint="Opens the GitHub connection screen"
+              style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 14, borderWidth: 1, borderColor: theme.border, flexDirection: 'row', alignItems: 'center', marginRight: 6 }}
+              onPress={() => setShowRepoModal(true)}
             >
-              {authInProgress ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="link-outline" size={20} color="#fff" style={styles.connectIcon} />
-                  <Text style={styles.connectButtonText}>Connect GitHub Account</Text>
-                </>
-              )}
+              <Ionicons name="git-branch-outline" size={16} color={theme.tint} />
+              <Text style={{ color: theme.tint, fontSize: 13, fontWeight: '500', marginLeft: 4 }}>Select</Text>
             </TouchableOpacity>
-          </Animated.View>
-
-          {!isConnected && (
-            <View style={[styles.offlineWarning, { backgroundColor: theme.warningBackground }]}>
-              <Ionicons name="cloud-offline-outline" size={18} color={theme.warningText} />
-              <Text style={[styles.offlineText, { color: theme.warningText }]}>
-                You're offline. Connect to the internet to link your GitHub account.
-              </Text>
-            </View>
-          )}
-        </View>
-      ) : (
-        <Animated.View
-          style={[styles.connectedContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-        >
-          <View style={[styles.header, { borderBottomColor: theme.border }]}>
-            <View style={styles.accountInfo}>
-              <Image
-                source={{
-                  uri: connection.avatar_url || `https://github.com/identicons/${connection.username}.png`,
-                }}
-                style={styles.avatar}
-              />
-              <View>
-                <Text style={[styles.username, { color: theme.text }]}>{connection.username}</Text>
-                <Text style={[styles.accountType, { color: theme.textDim }]}>GitHub Account</Text>
-              </View>
-            </View>
             <TouchableOpacity
-              style={[styles.disconnectButton, { borderColor: theme.border }]}
+              style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 14, borderWidth: 1, borderColor: theme.border, flexDirection: 'row', alignItems: 'center' }}
               onPress={handleDisconnect}
-              accessibilityLabel="Disconnect GitHub"
-              accessibilityHint="Disconnects your GitHub account from the app"
             >
-              <Ionicons name="log-out-outline" size={18} color={theme.error} />
-              <Text style={[styles.disconnectText, { color: theme.error }]}>Disconnect</Text>
+              <Ionicons name="log-out-outline" size={16} color={theme.error} />
+              <Text style={{ color: theme.error, fontSize: 12, fontWeight: '500', marginLeft: 3 }}>Logout</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      )}
 
-          {repositories.length > 0 ? (
-            <FlatList
-              data={commits}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <CommitItem
-                  commit={{
-                    id: item.id,
-                    message: item.message,
-                    author: item.author,
-                    timestamp: item.committed_at,
-                    hash: item.commit_id.substring(0, 7),
-                    repo: selectedRepo ? selectedRepo.name : "",
-                  }}
-                  onLinkPress={() => handleLinkCommit(item.id)}
-                  onPress={() => handleViewCommit(item)}
-                  linked={!!item.task_id}
-                />
-              )}
-              ListHeaderComponent={
-                <>
-                  <TouchableOpacity
-                    style={[styles.repoSelector, { backgroundColor: theme.cardBackground }]}
-                    onPress={handleViewAllRepositories}
-                    accessibilityLabel="Select Repository"
-                    accessibilityHint="Opens the repository selection screen"
-                  >
-                    <Ionicons name="git-branch-outline" size={18} color={theme.tint} style={styles.repoIcon} />
-                    <Text style={[styles.repoSelectorText, { color: theme.text }]}>
-                      {selectedRepo ? selectedRepo.name : "Select Repository"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={18} color={theme.textDim} />
-                  </TouchableOpacity>
+      {/* Selected Repo Info */}
+      {selectedRepo && (
+        <View style={{
+          margin: 16,
+          marginBottom: 0,
+          backgroundColor: theme.cardBackground,
+          borderRadius: 16,
+          padding: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
+          elevation: 4,
+          flexDirection: 'column',
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="git-branch-outline" size={22} color={theme.tint} style={{ marginRight: 8 }} />
+            <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 18, flex: 1 }} numberOfLines={1} ellipsizeMode="tail">{selectedRepo.name}</Text>
+            {selectedRepo.html_url && (
+              <TouchableOpacity onPress={() => handleViewRepository(selectedRepo)} style={{ marginLeft: 8 }} accessibilityLabel="View on GitHub">
+                <Ionicons name="open-outline" size={20} color={theme.tint} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {selectedRepo.full_name && (
+            <Text style={{ color: theme.textDim, fontSize: 14, marginBottom: 4 }}>{selectedRepo.full_name}</Text>
+          )}
+          {selectedRepo.description ? (
+            <Text style={{ color: theme.textDim, fontSize: 14, marginBottom: 8 }}>{selectedRepo.description}</Text>
+          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            {/* Owner */}
+            {selectedRepo.full_name && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+                <Ionicons name="person-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
+                <Text style={{ color: theme.textDim, fontSize: 13 }}>{selectedRepo.full_name.split('/')[0]}</Text>
+              </View>
+            )}
+            {/* Visibility */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+              <Ionicons name={'earth-outline'} size={15} color={theme.textDim} style={{ marginRight: 2 }} />
+              <Text style={{ color: theme.textDim, fontSize: 13 }}>Public</Text>
+            </View>
+            {/* Commit count */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+              <Ionicons name="git-commit-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
+              <Text style={{ color: theme.textDim, fontSize: 13 }}>{commits.length} Commits</Text>
+            </View>
+            {/* Last updated */}
+            {selectedRepo.updated_at && (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="time-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
+                <Text style={{ color: theme.textDim, fontSize: 13 }}>Updated {new Date(selectedRepo.updated_at).toLocaleDateString()}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
-                  <View style={styles.actionsContainer}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
-                      onPress={() => handleViewRepository(selectedRepo)}
-                      accessibilityLabel="Open Repository"
-                      accessibilityHint="Opens the repository in a web browser"
-                    >
-                      <Ionicons name="open-outline" size={16} color={theme.tint} />
-                      <Text style={[styles.actionButtonText, { color: theme.tint }]}>Open Repo</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
-                      onPress={handleAddRepository}
-                      accessibilityLabel="Add Repository"
-                      accessibilityHint="Opens the add repository screen"
-                    >
-                      <Ionicons name="add-outline" size={16} color={theme.tint} />
-                      <Text style={[styles.actionButtonText, { color: theme.tint }]}>Add Repo</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View style={styles.commitsHeader}>
-                    <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
-                    <TouchableOpacity
-                      style={styles.viewAllButton}
-                      onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.id}` as any)}
-                      accessibilityLabel="View All Commits"
-                      accessibilityHint="Shows all commits for this repository"
-                    >
-                      <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
-                      <Ionicons name="arrow-forward" size={16} color={theme.tint} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {commits.length === 0 && (
-                    <View style={styles.emptyCommitsContainer}>
-                      <Ionicons name="git-commit-outline" size={60} color={theme.textDim} />
-                      <Text style={[styles.emptyCommitsText, { color: theme.textDim }]}>
-                        No commits found for this repository
-                      </Text>
-                      <Text style={[styles.emptyCommitsSubtext, { color: theme.textDim }]}>
-                        Commits will appear here once they are pushed to this repository.
-                      </Text>
-                    </View>
-                  )}
-                </>
-              }
-              contentContainerStyle={styles.commitsList}
-              showsVerticalScrollIndicator={false}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={[theme.tint]}
-                  tintColor={theme.tint}
-                />
-              }
-              ListEmptyComponent={null}
-            />
-          ) : (
-            <View style={styles.emptyReposContainer}>
-              <Ionicons name="folder-open-outline" size={60} color={theme.textDim} />
-              <Text style={[styles.emptyReposText, { color: theme.textDim }]}>No repositories found</Text>
-              <Text style={[styles.emptyReposSubtext, { color: theme.textDim }]}>
-                Add your GitHub repositories to track commits and link them to tasks.
-              </Text>
-              <TouchableOpacity
-                style={[styles.addRepoButton, { backgroundColor: theme.tint }]}
-                onPress={handleAddRepository}
-                accessibilityLabel="Add Repository"
-                accessibilityHint="Opens the add repository screen"
-              >
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={styles.addRepoButtonText}>Add Repository</Text>
+      {/* Repo Selector Modal */}
+      <Modal
+        visible={showRepoModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRepoModal(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+          activeOpacity={1}
+          onPressOut={() => setShowRepoModal(false)}
+        >
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: theme.cardBackground, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderColor: theme.border }}>
+              <Ionicons name="search" size={18} color={theme.textDim} />
+              <TextInput
+                style={{ flex: 1, marginLeft: 8, color: theme.text, fontSize: 16 }}
+                placeholder="Search repositories..."
+                placeholderTextColor={theme.textDim}
+                value={repoSearch}
+                onChangeText={setRepoSearch}
+                autoFocus
+              />
+              <TouchableOpacity onPress={() => setShowRepoModal(false)}>
+                <Ionicons name="close" size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
-          )}
+            <FlatList
+              data={repositories.filter(r => r.name.toLowerCase().includes(repoSearch.toLowerCase()))}
+              keyExtractor={item => item.id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={{ padding: 16, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: selectedRepo?.id === item.id ? theme.tintLight : 'transparent', borderRadius: 10 }}
+                  activeOpacity={0.7}
+                  onPress={async () => {
+                    setShowRepoModal(false)
+                    setSelectedRepo(item)
+                    setLoading(true)
+                    setCommitFetchError(null)
+                    try {
+                      const commitsData = await githubService.getCommits(item.id)
+                      setCommits(commitsData)
+                    } catch (err: any) {
+                      setCommitFetchError(err?.message || 'Failed to fetch commits')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: 'bold' }}>{item.name}</Text>
+                  {item.description ? <Text style={{ color: theme.textDim, fontSize: 13 }}>{item.description}</Text> : null}
+                  {selectedRepo?.id === item.id && (
+                    <Ionicons name="checkmark-circle" size={18} color={theme.tint} style={{ position: 'absolute', right: 16, top: 20 }} />
+                  )}
+                </TouchableOpacity>
+              )}
+              style={{ maxHeight: 400 }}
+              ListEmptyComponent={<View style={{ alignItems: 'center', padding: 32 }}><Ionicons name="alert-circle-outline" size={40} color={theme.textDim} /><Text style={{ color: theme.textDim, marginTop: 12 }}>No repositories found</Text></View>}
+            />
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
-          {/* Manual refresh button */}
+      {/* Actions */}
+      <View style={styles.actionsContainer}>
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
+          onPress={() => handleAddRepository()}
+          accessibilityLabel="Add Repository"
+          accessibilityHint="Opens the add repository screen"
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-outline" size={16} color={theme.tint} />
+          <Text style={[styles.actionButtonText, { color: theme.tint }]}>Add Repo</Text>
+        </TouchableOpacity>
+        {/* Manual fetch commits button */}
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: theme.tintLight, flexDirection: 'row', alignItems: 'center' }]}
+          onPress={async () => {
+            if (!selectedRepo) return
+            setLoading(true)
+            setCommitFetchError(null)
+            try {
+              await githubService.fetchCommitsForRepository(selectedRepo.id)
+              const commitsData = await githubService.getCommits(selectedRepo.id)
+              setCommits(commitsData)
+              showToast('Commits fetched from GitHub', { type: 'success' })
+            } catch (err: any) {
+              setCommitFetchError(err?.message || 'Failed to fetch commits from GitHub')
+              showToast('Failed to fetch commits from GitHub', { type: 'error' })
+            } finally {
+              setLoading(false)
+            }
+          }}
+          accessibilityLabel="Fetch Commits"
+          accessibilityHint="Fetches latest commits from GitHub for the selected repository"
+          activeOpacity={0.7}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.tint} style={{ marginRight: 6 }} />
+          ) : (
+            <Ionicons name="cloud-download-outline" size={16} color={theme.tint} style={{ marginRight: 6 }} />
+          )}
+          <Text style={[styles.actionButtonText, { color: theme.tint }]}>Fetch Commits</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Commit List */}
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.tint} />
+          <Text style={[styles.loadingText, { color: theme.textDim }]}>Loading GitHub data...</Text>
+        </View>
+      ) : repositories.length > 0 && selectedRepo ? (
+        <FlatList
+          data={commits}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={{ padding: 12, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.cardBackground, borderRadius: 10, marginVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1 }}>
+              <Text style={{ color: theme.text, fontWeight: '500' }}>{item.message}</Text>
+              <Text style={{ color: theme.textDim, fontSize: 12, marginTop: 2 }}>{item.author} - {item.committed_at ? new Date(item.committed_at).toLocaleString() : ''}</Text>
+            </View>
+          )}
+          ListHeaderComponent={
+            <View style={styles.commitsHeader}>
+              <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
+              <TouchableOpacity
+                style={styles.viewAllButton}
+                onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.id}` as any)}
+                accessibilityLabel="View All Commits"
+                accessibilityHint="Shows all commits for this repository"
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
+                <Ionicons name="arrow-forward" size={16} color={theme.tint} />
+              </TouchableOpacity>
+            </View>
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.tint]}
+              tintColor={theme.tint}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyCommitsContainer}>
+              <Ionicons name="git-commit-outline" size={60} color={theme.textDim} />
+              <Text style={[styles.emptyCommitsText, { color: theme.textDim, marginTop: 12 }]}>No commits found for this repository</Text>
+              <Text style={[styles.emptyCommitsSubtext, { color: theme.textDim }]}>Commits will appear here once they are pushed to this repository.</Text>
+            </View>
+          }
+          contentContainerStyle={{ padding: 8, paddingBottom: 24 }}
+        />
+      ) : (
+        <View style={styles.emptyReposContainer}>
+          <Ionicons name="folder-open-outline" size={60} color={theme.textDim} />
+          <Text style={[styles.emptyReposText, { color: theme.textDim, marginTop: 12 }]}>No repositories found</Text>
+          <Text style={[styles.emptyReposSubtext, { color: theme.textDim }]}>Add your GitHub repositories to track commits and link them to tasks.</Text>
           <TouchableOpacity
-            style={{ alignSelf: 'flex-end', margin: 16, padding: 8, backgroundColor: theme.tintLight, borderRadius: 8 }}
-            onPress={handleRefreshFromGitHub}
+            style={[styles.addRepoButton, { backgroundColor: theme.tint }]}
+            onPress={handleAddRepository}
+            accessibilityLabel="Add Repository"
+            accessibilityHint="Opens the add repository screen"
+            activeOpacity={0.7}
           >
-            <Ionicons name="refresh" size={18} color={theme.tint} />
-            <Text style={{ color: theme.tint, fontWeight: 'bold', marginLeft: 6 }}>Refresh from GitHub</Text>
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.addRepoButtonText}>Add Repository</Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       )}
     </View>
   )
@@ -663,5 +774,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  repoList: {
+    padding: 16,
+  },
+  repoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  repoItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  repoItemInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  repoItemName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  repoItemDescription: {
+    fontSize: 14,
+    marginTop: 2,
   },
 })
