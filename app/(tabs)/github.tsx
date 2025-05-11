@@ -140,12 +140,14 @@ export default function GitHubScreen() {
       if (reposData.length > 0) {
         // Get last selected repo or default to first repo
         const lastSelectedRepoId = await SecureStore.getItemAsync("lastSelectedGitHubRepo")
-        const repoToSelect = lastSelectedRepoId 
-          ? reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId) || reposData[0]
-          : reposData[0]
-
+        let repoToSelect = reposData[0]
+        if (lastSelectedRepoId) {
+          const savedRepo = reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId)
+          if (savedRepo) {
+            repoToSelect = savedRepo
+          }
+        }
         setSelectedRepo(repoToSelect)
-
         // Get commits for selected repo
         const commitsData = await githubService.getCommits(repoToSelect.id)
         setCommits(commitsData)
@@ -411,6 +413,7 @@ export default function GitHubScreen() {
                   onPress={async () => {
                     setShowRepoModal(false)
                     setSelectedRepo(item)
+                    await SecureStore.setItemAsync("lastSelectedGitHubRepo", item.id)
                     setLoading(true)
                     setCommitFetchError(null)
                     try {
