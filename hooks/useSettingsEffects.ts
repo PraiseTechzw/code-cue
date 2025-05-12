@@ -12,7 +12,7 @@ import Colors from "@/constants/Colors"
 
 export function useSettingsEffects() {
   const { settings } = useSettings()
-  const { setThemePreference } = useTheme()
+  const { setThemePreference, colors } = useTheme()
   const { showToast } = useToast()
 
   // Handle theme changes
@@ -23,9 +23,8 @@ export function useSettingsEffects() {
         await setThemePreference(settings.theme)
         
         // Update status bar
-        const themeColors = Colors[settings.theme === "dark" ? "dark" : "light"]
         if (Platform.OS === "android") {
-          StatusBar.setBackgroundColor(themeColors.background)
+          StatusBar.setBackgroundColor(colors.background)
         }
         StatusBar.setBarStyle(settings.theme === "dark" ? "light-content" : "dark-content")
       } catch (error) {
@@ -35,7 +34,7 @@ export function useSettingsEffects() {
     }
 
     applyTheme()
-  }, [settings.theme, setThemePreference])
+  }, [settings.theme, setThemePreference, colors.background])
 
   // Handle push notification changes
   useEffect(() => {
