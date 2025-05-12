@@ -226,8 +226,7 @@ export const aiService = {
             title: "Task Overdue",
             description: `"${task.title}" is past its due date.`,
             type: "alert",
-            related_id: task.id,
-            related_type: "task",
+            related_id: task.id
           })
         })
       }

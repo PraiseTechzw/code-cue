@@ -341,8 +341,7 @@ export const githubService = {
             title: "Repository Updated",
             description: `You updated the repository: ${repository.name}`,
             type: "repository_updated",
-            related_id: data.id,
-            related_type: "repository"
+            related_id: data.id
           })
         }
       } else {
@@ -365,8 +364,7 @@ export const githubService = {
             title: "Repository Added",
             description: `You added the repository: ${repository.name}`,
             type: "repository_added",
-            related_id: data.id,
-            related_type: "repository"
+            related_id: data.id
           })
         }
       }
@@ -412,8 +410,7 @@ export const githubService = {
           title: "Repository Linked",
           description: `You linked repository ${data.name} to a project`,
           type: "repository_linked",
-          related_id: data.id,
-          related_type: "repository"
+          related_id: data.id
         })
       }
 
@@ -531,8 +528,7 @@ export const githubService = {
           title: "Commit Linked",
           description: `You linked a commit to a task`,
           type: "commit_linked",
-          related_id: data.id,
-          related_type: "commit"
+          related_id: data.id
         })
       }
 

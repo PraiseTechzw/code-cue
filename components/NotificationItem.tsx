@@ -13,7 +13,7 @@ interface NotificationItemProps {
     type: string
     title: string
     description: string
-    timestamp: string
+    created_at: string
     icon: ReactNode
     read: boolean
   }
@@ -70,7 +70,7 @@ export function NotificationItem({ notification, onMarkAsRead }: NotificationIte
       <View style={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>{notification.title}</Text>
         <Text style={[styles.description, { color: theme.textDim }]}>{notification.description}</Text>
-        <Text style={[styles.timestamp, { color: theme.textDim }]}>{formatDate(notification.timestamp)}</Text>
+        <Text style={[styles.timestamp, { color: theme.textDim }]}>{formatDate(notification.created_at)}</Text>
       </View>
       {!notification.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.tint }]} />}
     </TouchableOpacity>
