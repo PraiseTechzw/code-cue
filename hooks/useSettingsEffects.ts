@@ -12,18 +12,30 @@ import Colors from "@/constants/Colors"
 
 export function useSettingsEffects() {
   const { settings } = useSettings()
-  const { theme } = useTheme()
+  const { setThemePreference } = useTheme()
   const { showToast } = useToast()
-  const themeColors = Colors[theme === "dark" ? "dark" : "light"]
 
   // Handle theme changes
   useEffect(() => {
-    // Update status bar color
-    if (Platform.OS === "android") {
-      StatusBar.setBackgroundColor(themeColors.background)
+    const applyTheme = async () => {
+      try {
+        // Update theme preference in ThemeContext
+        await setThemePreference(settings.theme)
+        
+        // Update status bar
+        const themeColors = Colors[settings.theme === "dark" ? "dark" : "light"]
+        if (Platform.OS === "android") {
+          StatusBar.setBackgroundColor(themeColors.background)
+        }
+        StatusBar.setBarStyle(settings.theme === "dark" ? "light-content" : "dark-content")
+      } catch (error) {
+        console.error("Error applying theme:", error)
+        showToast("Failed to apply theme changes")
+      }
     }
-    StatusBar.setBarStyle(settings.theme === "dark" ? "light-content" : "dark-content")
-  }, [settings.theme, themeColors.background])
+
+    applyTheme()
+  }, [settings.theme, setThemePreference])
 
   // Handle push notification changes
   useEffect(() => {
@@ -32,7 +44,6 @@ export function useSettingsEffects() {
         if (settings.pushNotifications) {
           await notificationService.registerForPushNotifications()
         } else {
-          // Unregister by removing the token
           await AsyncStorage.removeItem("pushToken")
         }
       } catch (error) {
@@ -66,6 +77,7 @@ export function useSettingsEffects() {
       try {
         if (settings.autoSync) {
           await offlineStore.syncOfflineChanges()
+          await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
         }
       } catch (error) {
         console.error("Error updating auto-sync:", error)
@@ -75,51 +87,23 @@ export function useSettingsEffects() {
     updateAutoSync()
   }, [settings.autoSync])
 
-  // Handle data usage changes
+  // Handle haptic feedback changes
   useEffect(() => {
-    async function updateDataUsage() {
-      try {
-        await AsyncStorage.setItem("dataUsage", settings.dataUsage)
-      } catch (error) {
-        console.error("Error updating data usage:", error)
-        showToast("Failed to update data usage")
-      }
+    if (settings.hapticFeedback) {
+      // Enable haptic feedback by triggering a light impact
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     }
-    updateDataUsage()
-  }, [settings.dataUsage])
-
-  // Handle haptic feedback
-  useEffect(() => {
-    async function updateHapticFeedback() {
-      try {
-        if (settings.hapticFeedback) {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-        }
-      } catch (error) {
-        console.error("Error updating haptic feedback:", error)
-        showToast("Failed to update haptic feedback")
-      }
-    }
-    updateHapticFeedback()
   }, [settings.hapticFeedback])
 
-  // Handle sound effects
+  // Handle sound effects changes
   useEffect(() => {
-    async function updateSoundEffects() {
-      try {
-        if (settings.soundEffects) {
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: true,
-            shouldDuckAndroid: true,
-          })
-        }
-      } catch (error) {
-        console.error("Error updating sound effects:", error)
-        showToast("Failed to update sound effects")
-      }
+    if (settings.soundEffects) {
+      Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+      })
     }
-    updateSoundEffects()
   }, [settings.soundEffects])
 
   // Handle font size changes

@@ -25,80 +25,83 @@ SplashScreen.preventAutoHideAsync()
 
 function AppContent() {
   const [isReady, setIsReady] = useState(false)
-  const [lastSyncTime, setLastSyncTime] = useState<string>("Never")
+  const [isConnected, setIsConnected] = useState(true)
+  const [lastSynced, setLastSynced] = useState<string>("Never")
 
   // Apply settings effects
   useSettingsEffects()
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        // Pre-load fonts, make API calls, etc.
-        await Promise.all([
-          // Add any async initialization here
-        ])
-      } catch (e) {
-        console.warn(e)
-      } finally {
-        setIsReady(true)
-        await SplashScreen.hideAsync()
-      }
-    }
-
-    prepare()
+    prepareApp()
   }, [])
 
-  useEffect(() => {
-    // Load last sync time
-    async function loadLastSyncTime() {
-      const time = await AsyncStorage.getItem("lastSyncedTime")
-      if (time) {
-        setLastSyncTime(new Date(Number(time)).toLocaleString())
+  const prepareApp = async () => {
+    try {
+      // Load last sync time
+      const lastSyncedTime = await AsyncStorage.getItem("lastSyncedTime")
+      if (lastSyncedTime) {
+        setLastSynced(new Date(Number.parseInt(lastSyncedTime)).toLocaleString())
       }
+
+      // Set up network listener
+      const unsubscribe = NetInfo.addEventListener(state => {
+        setIsConnected(state.isConnected ?? false)
+      })
+
+      // Set up app state listener
+      const appStateSubscription = AppState.addEventListener("change", nextAppState => {
+        if (nextAppState === "active") {
+          offlineStore.syncOfflineChanges()
+        }
+      })
+
+      return () => {
+        unsubscribe()
+        appStateSubscription.remove()
+      }
+    } catch (error) {
+      console.error("Error preparing app:", error)
+    } finally {
+      setIsReady(true)
+      await SplashScreen.hideAsync()
     }
-    loadLastSyncTime()
-  }, [])
+  }
 
   if (!isReady) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={Colors.light.tint} />
       </View>
     )
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <Stack
         screenOptions={{
           headerShown: false,
           animation: "slide_from_right",
         }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
-      <ConnectionStatus lastSyncTime={lastSyncTime} />
-    </>
+      />
+      <ConnectionStatus lastSyncTime={lastSynced} />
+    </GestureHandlerRootView>
   )
 }
 
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <AuthProvider>
-            <SettingsProvider>
-              <ThemeProvider>
-                <ToastProvider>
-                  <AppContent />
-                </ToastProvider>
-              </ThemeProvider>
-            </SettingsProvider>
-          </AuthProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <AppContent />
+              </ToastProvider>
+            </ThemeProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   )
 }

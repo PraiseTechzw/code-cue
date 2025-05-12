@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { useColorScheme } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import Colors from "@/constants/Colors"
 
 type ThemeType = "light" | "dark" | "system"
 
@@ -12,6 +13,7 @@ interface ThemeContextType {
   themePreference: ThemeType
   setThemePreference: (theme: ThemeType) => void
   isDark: boolean
+  colors: typeof Colors.light
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -19,6 +21,7 @@ const ThemeContext = createContext<ThemeContextType>({
   themePreference: "system",
   setThemePreference: () => {},
   isDark: false,
+  colors: Colors.light,
 })
 
 export const useTheme = () => useContext(ThemeContext)
@@ -60,8 +63,8 @@ export const ThemeProvider: React.FC<{
 
   // Determine actual theme based on preference
   const actualTheme = themePreference === "system" ? systemColorScheme : themePreference
-
   const isDark = actualTheme === "dark"
+  const colors = Colors[actualTheme]
 
   // Don't render until we've loaded the saved theme preference
   if (isLoading) {
@@ -75,6 +78,7 @@ export const ThemeProvider: React.FC<{
         themePreference,
         setThemePreference,
         isDark,
+        colors,
       }}
     >
       {typeof children === "function" ? children({ theme: actualTheme }) : children}
