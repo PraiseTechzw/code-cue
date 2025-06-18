@@ -22,7 +22,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
 import { profileService } from "@/services/profileService"
 import Colors from "@/constants/Colors"
-import { supabase } from "@/lib/supabase"
+import { storage, account, ID } from "@/lib/appwrite"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 
 export default function EditProfileScreen() {
@@ -117,7 +117,7 @@ export default function EditProfileScreen() {
           return
         }
 
-        // Upload to Supabase Storage
+        // Upload to Appwrite Storage
         await uploadAvatar(selectedImage.uri)
       }
     } catch (error) {
@@ -139,22 +139,17 @@ export default function EditProfileScreen() {
 
       // Generate a unique file name
       const fileExt = uri.split(".").pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `avatars/${fileName}`
+      const fileName = `${user.$id}-${Date.now()}.${fileExt}`
 
-      // Upload to Supabase Storage
-      const { error: uploadError, data } = await supabase.storage.from("profiles").upload(filePath, blob, {
-        upsert: true,
-        contentType: `image/${fileExt}`,
-        cacheControl: "3600",
-      })
-
-      if (uploadError) throw uploadError
+      // Upload to Appwrite Storage
+      const uploadedFile = await storage.createFile(
+        'profile-images',
+        ID.unique(),
+        blob
+      )
 
       // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("profiles").getPublicUrl(filePath)
+      const publicUrl = storage.getFileView('profile-images', uploadedFile.$id)
 
       // Update avatar URL
       setAvatarUrl(publicUrl)
@@ -195,7 +190,7 @@ export default function EditProfileScreen() {
           return
         }
 
-        // Upload to Supabase Storage
+        // Upload to Appwrite Storage
         await uploadAvatar(selectedImage.uri)
       }
     } catch (error) {
@@ -204,10 +199,15 @@ export default function EditProfileScreen() {
     }
   }
 
+  const handleRemoveAvatar = () => {
+    setAvatarUrl(null)
+    showToast("Avatar removed", "success")
+  }
+
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.tint} />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     )
   }
@@ -215,90 +215,97 @@ export default function EditProfileScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ConnectionStatus />
-
+      
+      {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.text }]}>Edit Profile</Text>
-        <TouchableOpacity onPress={handleSave} disabled={saving}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Profile</Text>
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={saving}
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+        >
           {saving ? (
-            <ActivityIndicator size="small" color={theme.tint} />
+            <ActivityIndicator size="small" color={theme.background} />
           ) : (
-            <Text style={[styles.saveButton, { color: theme.tint }]}>Save</Text>
+            <Text style={[styles.saveButtonText, { color: theme.background }]}>Save</Text>
           )}
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarWrapper}>
-            <Image
-              source={avatarUrl ? { uri: avatarUrl } : require("@/assets/images/default-avatar.png")}
-              style={styles.avatar}
-            />
-
-            {uploadProgress > 0 && uploadProgress < 100 && (
-              <View style={styles.progressOverlay}>
-                <Text style={styles.progressText}>{uploadProgress}%</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Avatar Section */}
+        <View style={styles.avatarSection}>
+          <View style={[styles.avatarContainer, { borderColor: theme.border }]}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.secondary }]}>
+                <Ionicons name="person" size={40} color={theme.text} />
               </View>
             )}
+            
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <View style={styles.uploadProgress}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={[styles.uploadProgressText, { color: theme.text }]}>
+                  Uploading... {uploadProgress}%
+                </Text>
+              </View>
+            )}
+          </View>
 
-            <View style={styles.avatarActions}>
-              <TouchableOpacity
-                onPress={handlePickImage}
-                style={[styles.avatarButton, { backgroundColor: theme.tintLight }]}
-              >
-                <Ionicons name="image-outline" size={20} color={theme.tint} />
-              </TouchableOpacity>
+          <View style={styles.avatarActions}>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              style={[styles.avatarButton, { backgroundColor: theme.primary }]}
+            >
+              <Ionicons name="images" size={20} color={theme.background} />
+              <Text style={[styles.avatarButtonText, { color: theme.background }]}>Gallery</Text>
+            </TouchableOpacity>
 
+            <TouchableOpacity
+              onPress={handleTakePhoto}
+              style={[styles.avatarButton, { backgroundColor: theme.primary }]}
+            >
+              <Ionicons name="camera" size={20} color={theme.background} />
+              <Text style={[styles.avatarButtonText, { color: theme.background }]}>Camera</Text>
+            </TouchableOpacity>
+
+            {avatarUrl && (
               <TouchableOpacity
-                onPress={handleTakePhoto}
-                style={[styles.avatarButton, { backgroundColor: theme.tintLight }]}
+                onPress={handleRemoveAvatar}
+                style={[styles.avatarButton, { backgroundColor: theme.error }]}
               >
-                <Ionicons name="camera-outline" size={20} color={theme.tint} />
+                <Ionicons name="trash" size={20} color={theme.background} />
+                <Text style={[styles.avatarButtonText, { color: theme.background }]}>Remove</Text>
               </TouchableOpacity>
-            </View>
+            )}
           </View>
         </View>
 
+        {/* Form Section */}
         <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Full Name</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text }]}>Full Name</Text>
+            <TextInput
+              style={[styles.input, { 
+                backgroundColor: theme.card,
                 color: theme.text,
-                backgroundColor: theme.cardBackground,
-                borderColor: theme.border,
-              },
-            ]}
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Enter your full name"
-            placeholderTextColor={theme.textDim}
-          />
-        </View>
-
-        <View style={styles.formSection}>
-          <Text style={[styles.label, { color: theme.text }]}>Email</Text>
-          <View
-            style={[
-              styles.input,
-              styles.disabledInput,
-              {
-                backgroundColor: theme.cardBackground,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <Text style={[styles.disabledText, { color: theme.textDim }]}>{user?.email}</Text>
+                borderColor: theme.border
+              }]}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Enter your full name"
+              placeholderTextColor={theme.textSecondary}
+              autoCapitalize="words"
+            />
           </View>
-          <Text style={[styles.helperText, { color: theme.textDim }]}>Email cannot be changed</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -309,26 +316,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
   },
   backButton: {
-    padding: 4,
+    padding: 8,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
   },
   saveButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#007AFF",
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
     fontSize: 16,
     fontWeight: "600",
   },
@@ -336,71 +348,75 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  avatarContainer: {
+  avatarSection: {
     alignItems: "center",
-    marginVertical: 24,
+    marginBottom: 32,
   },
-  avatarWrapper: {
-    position: "relative",
-  },
-  avatar: {
+  avatarContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
+    borderWidth: 3,
+    overflow: "hidden",
+    marginBottom: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  progressOverlay: {
+  avatar: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarPlaceholder: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  uploadProgress: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 60,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
   },
-  progressText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
+  uploadProgressText: {
+    fontSize: 12,
+    marginTop: 4,
   },
   avatarActions: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 16,
+    gap: 12,
   },
   avatarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  avatarButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   formSection: {
-    marginBottom: 20,
+    gap: 20,
+  },
+  inputGroup: {
+    gap: 8,
   },
   label: {
     fontSize: 16,
     fontWeight: "500",
-    marginBottom: 8,
   },
   input: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 8,
+    fontSize: 16,
     paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  disabledInput: {
-    justifyContent: "center",
-  },
-  disabledText: {
-    fontSize: 16,
-  },
-  helperText: {
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
   },
 })
