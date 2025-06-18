@@ -2,14 +2,15 @@
 
 import type React from "react"
 import { createContext, useState, useEffect, useContext } from "react"
-import type { Session, User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase"
+import { account, client } from "@/lib/appwrite"
+import type { AppwriteUser, AppwriteSession } from "@/types/appwrite"
 import { Alert } from "react-native"
 import NetInfo from "@react-native-community/netinfo"
+import { ID } from 'appwrite'
 
 type AuthContextType = {
-  user: User | null
-  session: Session | null
+  user: AppwriteUser | null
+  session: AppwriteSession | null
   loading: boolean
   isConnected: boolean
   signUp: (email: string, password: string, fullName: string) => Promise<boolean>
@@ -21,8 +22,8 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<AppwriteUser | null>(null)
+  const [session, setSession] = useState<AppwriteSession | null>(null)
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
 
@@ -33,40 +34,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Check current auth state
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      setLoading(false)
-    })
+    const checkAuthState = async () => {
+      try {
+        const currentUser = await account.get()
+        setUser(currentUser)
+        
+        // Get current session
+        const sessions = await account.listSessions()
+        const currentSession = sessions.sessions.find(s => s.current)
+        setSession(currentSession || null)
+      } catch (error) {
+        // User not authenticated
+        setUser(null)
+        setSession(null)
+      } finally {
+        setLoading(false)
+      }
+    }
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-    })
+    checkAuthState()
 
     return () => {
-      subscription.unsubscribe()
       unsubscribe()
     }
   }, [])
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const { error, data } = await supabase.auth.signUp({
+      await account.create(
+        ID.unique(),
         email,
         password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
-      })
+        fullName
+      )
 
-      if (error) throw error
-
+      // Sign in after successful registration
+      await signIn(email, password)
       return true
     } catch (error: any) {
       Alert.alert("Error", error.message)
@@ -76,13 +79,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) throw error
-
+      const session = await account.createEmailSession(email, password)
+      const currentUser = await account.get()
+      
+      setUser(currentUser)
+      setSession(session)
       return true
     } catch (error: any) {
       Alert.alert("Error", error.message)
@@ -92,8 +93,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      await account.deleteSessions()
+      setUser(null)
+      setSession(null)
       return true
     } catch (error: any) {
       Alert.alert("Error", error.message)
@@ -103,11 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "codeCue://reset-password",
-      })
-
-      if (error) throw error
+      await account.createRecovery(
+        email,
+        "codeCue://reset-password"
+      )
       return true
     } catch (error: any) {
       Alert.alert("Error", error.message)
@@ -133,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")

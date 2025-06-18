@@ -1,37 +1,44 @@
-import { supabase } from "@/lib/supabase"
+import { databases, account, storage, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
 import * as ImagePicker from "expo-image-picker"
+import { ID, Query } from 'appwrite'
 
 class UserService {
   async uploadProfileImage(uri: string): Promise<string | null> {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) throw new Error("User not authenticated")
+      const userData = await account.get()
+      if (!userData) throw new Error("User not authenticated")
 
       // Convert image to blob
       const response = await fetch(uri)
       const blob = await response.blob()
 
-      // Upload to Supabase Storage
+      // Upload to Appwrite Storage
       const fileExt = uri.split(".").pop()
-      const fileName = `${userData.user.id}-${Date.now()}.${fileExt}`
-      const { data, error } = await supabase.storage
-        .from("profile-images")
-        .upload(fileName, blob)
-
-      if (error) throw error
+      const fileName = `${userData.$id}-${Date.now()}.${fileExt}`
+      const uploadedFile = await storage.createFile(
+        'profile-images',
+        ID.unique(),
+        blob
+      )
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("profile-images")
-        .getPublicUrl(fileName)
+      const publicUrl = storage.getFileView('profile-images', uploadedFile.$id)
 
       // Update user profile
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", userData.user.id)
+      const { documents: profiles } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        [Query.equal('user_id', userData.$id)]
+      )
 
-      if (updateError) throw updateError
+      if (profiles.length > 0) {
+        await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.PROFILES,
+          profiles[0].$id,
+          { avatar_url: publicUrl }
+        )
+      }
 
       return publicUrl
     } catch (error) {
@@ -49,9 +56,10 @@ class UserService {
         quality: 0.8,
       })
 
-      if (!result.canceled) {
+      if (!result.canceled && result.assets[0]) {
         return result.assets[0].uri
       }
+
       return null
     } catch (error) {
       console.error("Error picking image:", error)
@@ -59,37 +67,41 @@ class UserService {
     }
   }
 
-  async updateProfile(data: { username?: string; full_name?: string; bio?: string }): Promise<boolean> {
+  async takePhoto(): Promise<string | null> {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) throw new Error("User not authenticated")
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      })
 
-      const { error } = await supabase
-        .from("profiles")
-        .update(data)
-        .eq("id", userData.user.id)
+      if (!result.canceled && result.assets[0]) {
+        return result.assets[0].uri
+      }
 
-      if (error) throw error
-      return true
+      return null
     } catch (error) {
-      console.error("Error updating profile:", error)
-      return false
+      console.error("Error taking photo:", error)
+      return null
     }
   }
 
   async getProfile(): Promise<any> {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) throw new Error("User not authenticated")
+      const userData = await account.get()
+      if (!userData) throw new Error("User not authenticated")
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userData.user.id)
-        .single()
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        [Query.equal('user_id', userData.$id)]
+      )
 
-      if (error) throw error
-      return data
+      if (documents.length > 0) {
+        return documents[0]
+      }
+
+      return null
     } catch (error) {
       console.error("Error getting profile:", error)
       return null

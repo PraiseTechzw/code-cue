@@ -1,26 +1,15 @@
-import { supabase } from "@/lib/supabase"
+import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
 import { offlineStore } from "./offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import type { Database } from "@/types/supabase"
+import type { Task, Subtask, Comment } from "@/types/appwrite"
+import { ID, Query } from 'appwrite'
 
-// UUID v4 generator that doesn't rely on crypto
-const generateUUID = () => {
-  const pattern = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
-  return pattern.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0
-    const v = c === 'x' ? r : (r & 0x3 | 0x8)
-    return v.toString(16)
-  })
-}
-
-export type Task = Database["public"]["Tables"]["tasks"]["Row"]
-export type NewTask = Database["public"]["Tables"]["tasks"]["Insert"]
-export type UpdateTask = Database["public"]["Tables"]["tasks"]["Update"]
-export type Subtask = Database["public"]["Tables"]["subtasks"]["Row"]
-export type NewSubtask = Database["public"]["Tables"]["subtasks"]["Insert"]
-export type Comment = Database["public"]["Tables"]["comments"]["Row"]
-export type NewComment = Database["public"]["Tables"]["comments"]["Insert"]
+export type { Task, Subtask, Comment }
+export type NewTask = Omit<Task, '$id' | '$createdAt' | '$updatedAt'>
+export type UpdateTask = Partial<NewTask>
+export type NewSubtask = Omit<Subtask, '$id' | '$createdAt' | '$updatedAt'>
+export type NewComment = Omit<Comment, '$id' | '$createdAt'>
 
 // Cache keys
 const TASKS_CACHE_KEY = "tasks_cache"
@@ -34,7 +23,7 @@ export const isOnline = async (): Promise<boolean> => {
 }
 
 // Get all tasks with optional filters
-export const getTasks = async (filters?: { status?: string[]; projectId?: string }): Promise<any[]> => {
+export const getTasks = async (filters?: { status?: string[]; projectId?: string }): Promise<Task[]> => {
   try {
     const online = await isOnline()
 
@@ -57,41 +46,44 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
       return []
     }
 
-    // Build query
-    let query = supabase.from("tasks").select(`
-      *,
-      user:profiles!user_id(*),
-      project:projects(*),
-      subtasks:subtasks(*),
-      comments:comments(*)
-    `)
+    // Get current user
+    const user = await account.get()
 
-    // Apply filters
+    // Build query filters
+    const queryFilters = [Query.equal('user_id', user.$id)]
+    
     if (filters) {
       if (filters.status && filters.status.length > 0) {
-        query = query.in("status", filters.status)
+        queryFilters.push(Query.equal('status', filters.status[0])) // Appwrite doesn't support 'in' with arrays easily
       }
 
       if (filters.projectId) {
-        query = query.eq("project_id", filters.projectId)
+        queryFilters.push(Query.equal('project_id', filters.projectId))
       }
     }
 
     // Execute query
-    const { data, error } = await query.order("created_at", { ascending: false })
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      [
+        ...queryFilters,
+        Query.orderDesc('$createdAt')
+      ]
+    )
 
-    if (error) throw error
+    const tasks = documents as Task[]
 
     // Cache the result
     await AsyncStorage.setItem(
       cacheKey,
       JSON.stringify({
-        data,
+        data: tasks,
         timestamp: Date.now(),
       }),
     )
 
-    return data || []
+    return tasks || []
   } catch (error) {
     console.error("Error getting tasks:", error)
 
@@ -113,7 +105,7 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
 }
 
 // Get tasks by project
-export const getTasksByProject = async (projectId: string): Promise<any[]> => {
+export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
   try {
     const online = await isOnline()
 
@@ -137,28 +129,27 @@ export const getTasksByProject = async (projectId: string): Promise<any[]> => {
     }
 
     // Get tasks for project
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        subtasks:subtasks(*),
-        comments:comments(*)
-      `)
-      .eq("project_id", projectId)
-      .order("created_at", { ascending: false })
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      [
+        Query.equal('project_id', projectId),
+        Query.orderDesc('$createdAt')
+      ]
+    )
 
-    if (error) throw error
+    const tasks = documents as Task[]
 
     // Cache the result
     await AsyncStorage.setItem(
       cacheKey,
       JSON.stringify({
-        data,
+        data: tasks,
         timestamp: Date.now(),
       }),
     )
 
-    return data || []
+    return tasks || []
   } catch (error) {
     console.error("Error getting tasks by project:", error)
 
@@ -180,7 +171,7 @@ export const getTasksByProject = async (projectId: string): Promise<any[]> => {
 }
 
 // Get task by ID
-export const getTaskById = async (taskId: string): Promise<any> => {
+export const getTaskById = async (taskId: string): Promise<Task | null> => {
   try {
     const online = await isOnline()
 
@@ -199,34 +190,27 @@ export const getTaskById = async (taskId: string): Promise<any> => {
     }
 
     if (!online) {
-      // If offline, return null
+      // If offline and no cache, return null
       return null
     }
 
     // Get task details
-    const { data, error } = await supabase
-      .from("tasks")
-      .select(`
-        *,
-        project:projects(*),
-        subtasks:subtasks(*),
-        comments:comments(*)
-      `)
-      .eq("id", taskId)
-      .single()
-
-    if (error) throw error
+    const task = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      taskId
+    ) as Task
 
     // Cache the result
     await AsyncStorage.setItem(
       cacheKey,
       JSON.stringify({
-        data,
+        data: task,
         timestamp: Date.now(),
       }),
     )
 
-    return data
+    return task
   } catch (error) {
     console.error("Error getting task by ID:", error)
 
@@ -248,48 +232,49 @@ export const getTaskById = async (taskId: string): Promise<any> => {
 }
 
 // Create a new task
-export const createTask = async (taskData: any): Promise<any> => {
+export const createTask = async (taskData: NewTask): Promise<Task> => {
   try {
     const online = await isOnline()
-    const taskId = generateUUID()
-    const now = new Date().toISOString()
 
-    // Prepare task data
+    // Get current user
+    const user = await account.get()
+
     const newTask = {
-      id: taskId,
       ...taskData,
-      created_at: now,
-      updated_at: now,
+      user_id: user.$id
     }
 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "tasks",
-        record_id: taskId,
+        id: ID.unique(),
+        table_name: COLLECTIONS.TASKS,
+        record_id: ID.unique(),
         operation: "INSERT",
         data: newTask,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache
       await updateTasksCache(newTask)
 
-      return newTask
+      return newTask as Task
     }
 
     // If online, create task
-    const { data, error } = await supabase.from("tasks").insert(newTask).select().single()
-
-    if (error) throw error
+    const createdTask = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      ID.unique(),
+      newTask
+    ) as Task
 
     // Update cache
-    await updateTasksCache(data)
+    await updateTasksCache(createdTask)
 
-    return data
+    return createdTask
   } catch (error) {
     console.error("Error creating task:", error)
     throw error
@@ -297,45 +282,41 @@ export const createTask = async (taskData: any): Promise<any> => {
 }
 
 // Update a task
-export const updateTask = async (taskId: string, updates: any): Promise<any> => {
+export const updateTask = async (taskId: string, updates: UpdateTask): Promise<Task> => {
   try {
     const online = await isOnline()
-    const now = new Date().toISOString()
-
-    // Prepare update data
-    const updateData = {
-      ...updates,
-      updated_at: now,
-    }
 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "tasks",
+        id: ID.unique(),
+        table_name: COLLECTIONS.TASKS,
         record_id: taskId,
         operation: "UPDATE",
-        data: updateData,
+        data: updates,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache
-      await updateTaskCache(taskId, updateData)
+      await updateTaskCache(taskId, updates)
 
-      return { id: taskId, ...updateData }
+      return { $id: taskId, ...updates } as Task
     }
 
     // If online, update task
-    const { data, error } = await supabase.from("tasks").update(updateData).eq("id", taskId).select().single()
-
-    if (error) throw error
+    const updatedTask = await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      taskId,
+      updates
+    ) as Task
 
     // Update cache
-    await updateTaskCache(taskId, data)
+    await updateTaskCache(taskId, updatedTask)
 
-    return data
+    return updatedTask
   } catch (error) {
     console.error("Error updating task:", error)
     throw error
@@ -350,14 +331,14 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "tasks",
+        id: ID.unique(),
+        table_name: COLLECTIONS.TASKS,
         record_id: taskId,
         operation: "DELETE",
         data: null,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
       // Update local cache
@@ -367,9 +348,11 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
     }
 
     // If online, delete task
-    const { error } = await supabase.from("tasks").delete().eq("id", taskId)
-
-    if (error) throw error
+    await databases.deleteDocument(
+      DATABASE_ID,
+      COLLECTIONS.TASKS,
+      taskId
+    )
 
     // Update cache
     await removeTaskFromCache(taskId)
@@ -382,48 +365,40 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
 }
 
 // Create a subtask
-export const createSubtask = async (subtaskData: any): Promise<any> => {
+export const createSubtask = async (subtaskData: NewSubtask): Promise<Subtask> => {
   try {
     const online = await isOnline()
-    const subtaskId = generateUUID()
-    const now = new Date().toISOString()
 
-    // Prepare subtask data
     const newSubtask = {
-      id: subtaskId,
       ...subtaskData,
-      created_at: now,
-      updated_at: now,
+      completed: subtaskData.completed || false
     }
 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "subtasks",
-        record_id: subtaskId,
+        id: ID.unique(),
+        table_name: COLLECTIONS.SUBTASKS,
+        record_id: ID.unique(),
         operation: "INSERT",
         data: newSubtask,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
-      // Update local cache
-      await updateSubtaskInTaskCache(subtaskData.task_id, newSubtask)
-
-      return newSubtask
+      return newSubtask as Subtask
     }
 
     // If online, create subtask
-    const { data, error } = await supabase.from("subtasks").insert(newSubtask).select().single()
+    const createdSubtask = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBTASKS,
+      ID.unique(),
+      newSubtask
+    ) as Subtask
 
-    if (error) throw error
-
-    // Update cache
-    await updateSubtaskInTaskCache(subtaskData.task_id, data)
-
-    return data
+    return createdSubtask
   } catch (error) {
     console.error("Error creating subtask:", error)
     throw error
@@ -431,52 +406,37 @@ export const createSubtask = async (subtaskData: any): Promise<any> => {
 }
 
 // Update a subtask
-export const updateSubtask = async (subtaskId: string, completed: boolean): Promise<any> => {
+export const updateSubtask = async (subtaskId: string, completed: boolean): Promise<Subtask> => {
   try {
     const online = await isOnline()
-    const now = new Date().toISOString()
 
-    // Get subtask to get task_id
-    const subtask = await getSubtaskById(subtaskId)
-
-    if (!subtask) {
-      throw new Error("Subtask not found")
-    }
-
-    // Prepare update data
-    const updateData = {
-      completed,
-      updated_at: now,
-    }
+    const updateData = { completed }
 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "subtasks",
+        id: ID.unique(),
+        table_name: COLLECTIONS.SUBTASKS,
         record_id: subtaskId,
         operation: "UPDATE",
         data: updateData,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
-      // Update local cache
-      await updateSubtaskInTaskCache(subtask.task_id, { ...subtask, ...updateData })
-
-      return { ...subtask, ...updateData }
+      return { $id: subtaskId, completed } as Subtask
     }
 
     // If online, update subtask
-    const { data, error } = await supabase.from("subtasks").update(updateData).eq("id", subtaskId).select().single()
+    const updatedSubtask = await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBTASKS,
+      subtaskId,
+      updateData
+    ) as Subtask
 
-    if (error) throw error
-
-    // Update cache
-    await updateSubtaskInTaskCache(subtask.task_id, data)
-
-    return data
+    return updatedSubtask
   } catch (error) {
     console.error("Error updating subtask:", error)
     throw error
@@ -484,32 +444,15 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
 }
 
 // Get subtask by ID
-export const getSubtaskById = async (subtaskId: string): Promise<any> => {
+export const getSubtaskById = async (subtaskId: string): Promise<Subtask | null> => {
   try {
-    const online = await isOnline()
+    const subtask = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBTASKS,
+      subtaskId
+    ) as Subtask
 
-    if (!online) {
-      // If offline, try to find in task cache
-      const tasks = await getAllTasksFromCache()
-
-      for (const task of tasks) {
-        if (task.subtasks) {
-          const subtask = task.subtasks.find((s: any) => s.id === subtaskId)
-          if (subtask) {
-            return subtask
-          }
-        }
-      }
-
-      return null
-    }
-
-    // If online, get subtask
-    const { data, error } = await supabase.from("subtasks").select("*").eq("id", subtaskId).single()
-
-    if (error) throw error
-
-    return data
+    return subtask
   } catch (error) {
     console.error("Error getting subtask by ID:", error)
     return null
@@ -517,345 +460,109 @@ export const getSubtaskById = async (subtaskId: string): Promise<any> => {
 }
 
 // Create a comment
-export const createComment = async (commentData: any): Promise<any> => {
+export const createComment = async (commentData: NewComment): Promise<Comment> => {
   try {
     const online = await isOnline()
-    const commentId = generateUUID()
-    const now = new Date().toISOString()
 
-    // Prepare comment data
+    // Get current user
+    const user = await account.get()
+
     const newComment = {
-      id: commentId,
       ...commentData,
-      created_at: now,
-      updated_at: now,
+      user_id: user.$id
     }
 
     if (!online) {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
-        id: generateUUID(),
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0,
-        table_name: "comments",
-        record_id: commentId,
+        id: ID.unique(),
+        table_name: COLLECTIONS.COMMENTS,
+        record_id: ID.unique(),
         operation: "INSERT",
         data: newComment,
+        created_at: new Date().toISOString(),
+        synced: false,
+        retry_count: 0
       })
 
-      // Update local cache
-      await updateCommentInTaskCache(commentData.task_id, newComment)
-
-      return newComment
+      return newComment as Comment
     }
 
     // If online, create comment
-    const { data, error } = await supabase.from("comments").insert(newComment).select().single()
+    const createdComment = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTIONS.COMMENTS,
+      ID.unique(),
+      newComment
+    ) as Comment
 
-    if (error) throw error
-
-    // Update cache
-    await updateCommentInTaskCache(commentData.task_id, data)
-
-    return data
+    return createdComment
   } catch (error) {
     console.error("Error creating comment:", error)
     throw error
   }
 }
 
-// Helper: Update tasks cache with a new task
-const updateTasksCache = async (newTask: any) => {
+// Helper functions for cache management
+const updateTasksCache = async (newTask: Task) => {
   try {
-    // Update all tasks cache
     const cachedData = await AsyncStorage.getItem(TASKS_CACHE_KEY)
-
     if (cachedData) {
       const { data, timestamp } = JSON.parse(cachedData)
-      const updatedData = [newTask, ...data]
-
+      const updatedData = [newTask, ...data.filter((t: Task) => t.$id !== newTask.$id)]
       await AsyncStorage.setItem(
         TASKS_CACHE_KEY,
         JSON.stringify({
           data: updatedData,
-          timestamp,
-        }),
+          timestamp: Date.now(),
+        })
       )
-    }
-
-    // Update project tasks cache
-    if (newTask.project_id) {
-      const projectCacheKey = PROJECT_TASKS_CACHE_KEY + newTask.project_id
-      const projectCachedData = await AsyncStorage.getItem(projectCacheKey)
-
-      if (projectCachedData) {
-        const { data, timestamp } = JSON.parse(projectCachedData)
-        const updatedData = [newTask, ...data]
-
-        await AsyncStorage.setItem(
-          projectCacheKey,
-          JSON.stringify({
-            data: updatedData,
-            timestamp,
-          }),
-        )
-      }
     }
   } catch (error) {
     console.error("Error updating tasks cache:", error)
   }
 }
 
-// Helper: Update task cache with updates
 const updateTaskCache = async (taskId: string, updates: any) => {
   try {
-    // Update task details cache
-    const taskCacheKey = TASK_DETAILS_CACHE_KEY + taskId
-    const taskCachedData = await AsyncStorage.getItem(taskCacheKey)
-
-    if (taskCachedData) {
-      const { data, timestamp } = JSON.parse(taskCachedData)
+    const cacheKey = TASK_DETAILS_CACHE_KEY + taskId
+    const cachedData = await AsyncStorage.getItem(cacheKey)
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData)
       const updatedData = { ...data, ...updates }
-
       await AsyncStorage.setItem(
-        taskCacheKey,
+        cacheKey,
         JSON.stringify({
           data: updatedData,
-          timestamp,
-        }),
+          timestamp: Date.now(),
+        })
       )
-    }
-
-    // Update all tasks cache
-    const allTasksCachedData = await AsyncStorage.getItem(TASKS_CACHE_KEY)
-
-    if (allTasksCachedData) {
-      const { data, timestamp } = JSON.parse(allTasksCachedData)
-      const updatedData = data.map((task: any) => (task.id === taskId ? { ...task, ...updates } : task))
-
-      await AsyncStorage.setItem(
-        TASKS_CACHE_KEY,
-        JSON.stringify({
-          data: updatedData,
-          timestamp,
-        }),
-      )
-    }
-
-    // Update project tasks cache
-    const task = await getTaskById(taskId)
-
-    if (task && task.project_id) {
-      const projectCacheKey = PROJECT_TASKS_CACHE_KEY + task.project_id
-      const projectCachedData = await AsyncStorage.getItem(projectCacheKey)
-
-      if (projectCachedData) {
-        const { data, timestamp } = JSON.parse(projectCachedData)
-        const updatedData = data.map((t: any) => (t.id === taskId ? { ...t, ...updates } : t))
-
-        await AsyncStorage.setItem(
-          projectCacheKey,
-          JSON.stringify({
-            data: updatedData,
-            timestamp,
-          }),
-        )
-      }
     }
   } catch (error) {
     console.error("Error updating task cache:", error)
   }
 }
 
-// Helper: Remove task from cache
 const removeTaskFromCache = async (taskId: string) => {
   try {
-    // Get task to get project_id
-    const task = await getTaskById(taskId)
-
-    // Remove task details cache
-    await AsyncStorage.removeItem(TASK_DETAILS_CACHE_KEY + taskId)
-
-    // Update all tasks cache
-    const allTasksCachedData = await AsyncStorage.getItem(TASKS_CACHE_KEY)
-
-    if (allTasksCachedData) {
-      const { data, timestamp } = JSON.parse(allTasksCachedData)
-      const updatedData = data.filter((t: any) => t.id !== taskId)
-
+    // Remove from tasks list cache
+    const cachedData = await AsyncStorage.getItem(TASKS_CACHE_KEY)
+    if (cachedData) {
+      const { data, timestamp } = JSON.parse(cachedData)
+      const updatedData = data.filter((t: Task) => t.$id !== taskId)
       await AsyncStorage.setItem(
         TASKS_CACHE_KEY,
         JSON.stringify({
           data: updatedData,
-          timestamp,
-        }),
+          timestamp: Date.now(),
+        })
       )
     }
 
-    // Update project tasks cache
-    if (task && task.project_id) {
-      const projectCacheKey = PROJECT_TASKS_CACHE_KEY + task.project_id
-      const projectCachedData = await AsyncStorage.getItem(projectCacheKey)
-
-      if (projectCachedData) {
-        const { data, timestamp } = JSON.parse(projectCachedData)
-        const updatedData = data.filter((t: any) => t.id !== taskId)
-
-        await AsyncStorage.setItem(
-          projectCacheKey,
-          JSON.stringify({
-            data: updatedData,
-            timestamp,
-          }),
-        )
-      }
-    }
+    // Remove task details cache
+    const cacheKey = TASK_DETAILS_CACHE_KEY + taskId
+    await AsyncStorage.removeItem(cacheKey)
   } catch (error) {
     console.error("Error removing task from cache:", error)
   }
-}
-
-// Helper: Update subtask in task cache
-const updateSubtaskInTaskCache = async (taskId: string, subtask: any) => {
-  try {
-    // Update task details cache
-    const taskCacheKey = TASK_DETAILS_CACHE_KEY + taskId
-    const taskCachedData = await AsyncStorage.getItem(taskCacheKey)
-
-    if (taskCachedData) {
-      const { data, timestamp } = JSON.parse(taskCachedData)
-
-      let updatedSubtasks = []
-
-      if (data.subtasks) {
-        // Check if subtask already exists
-        const existingIndex = data.subtasks.findIndex((s: any) => s.id === subtask.id)
-
-        if (existingIndex >= 0) {
-          // Update existing subtask
-          updatedSubtasks = data.subtasks.map((s: any) => (s.id === subtask.id ? subtask : s))
-        } else {
-          // Add new subtask
-          updatedSubtasks = [...data.subtasks, subtask]
-        }
-      } else {
-        // No subtasks yet
-        updatedSubtasks = [subtask]
-      }
-
-      const updatedData = {
-        ...data,
-        subtasks: updatedSubtasks,
-      }
-
-      await AsyncStorage.setItem(
-        taskCacheKey,
-        JSON.stringify({
-          data: updatedData,
-          timestamp,
-        }),
-      )
-    }
-  } catch (error) {
-    console.error("Error updating subtask in task cache:", error)
-  }
-}
-
-// Helper: Update comment in task cache
-const updateCommentInTaskCache = async (taskId: string, comment: any) => {
-  try {
-    // Update task details cache
-    const taskCacheKey = TASK_DETAILS_CACHE_KEY + taskId
-    const taskCachedData = await AsyncStorage.getItem(taskCacheKey)
-
-    if (taskCachedData) {
-      const { data, timestamp } = JSON.parse(taskCachedData)
-
-      let updatedComments = []
-
-      if (data.comments) {
-        // Check if comment already exists
-        const existingIndex = data.comments.findIndex((c: any) => c.id === comment.id)
-
-        if (existingIndex >= 0) {
-          // Update existing comment
-          updatedComments = data.comments.map((c: any) => (c.id === comment.id ? comment : c))
-        } else {
-          // Add new comment
-          updatedComments = [...data.comments, comment]
-        }
-      } else {
-        // No comments yet
-        updatedComments = [comment]
-      }
-
-      const updatedData = {
-        ...data,
-        comments: updatedComments,
-      }
-
-      await AsyncStorage.setItem(
-        taskCacheKey,
-        JSON.stringify({
-          data: updatedData,
-          timestamp,
-        }),
-      )
-    }
-  } catch (error) {
-    console.error("Error updating comment in task cache:", error)
-  }
-}
-
-// Helper: Get all tasks from cache
-const getAllTasksFromCache = async (): Promise<any[]> => {
-  try {
-    const cachedData = await AsyncStorage.getItem(TASKS_CACHE_KEY)
-
-    if (cachedData) {
-      const { data } = JSON.parse(cachedData)
-      return data
-    }
-
-    return []
-  } catch (error) {
-    console.error("Error getting all tasks from cache:", error)
-    return []
-  }
-}
-
-// Export the taskService object
-export const taskService = {
-  isOnline,
-  getTasks,
-  getTasksByProject,
-  getTaskById,
-  createTask,
-  updateTask,
-  deleteTask,
-  createSubtask,
-  updateSubtask,
-  getSubtaskById,
-  createComment,
-  deleteComment: async (id: string) => {
-    try {
-      const { error } = await supabase.from("comments").delete().eq("id", id)
-
-      if (error) throw error
-
-      return true
-    } catch (error) {
-      console.error("Error deleting comment:", error)
-      throw error
-    }
-  },
-  isOnlineOld: async () => {
-    try {
-      const { data } = await supabase.from("tasks").select("id").limit(1)
-      return !!data
-    } catch (error) {
-      return false
-    }
-  },
-}
+} 

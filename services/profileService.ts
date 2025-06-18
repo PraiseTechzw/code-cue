@@ -1,116 +1,117 @@
-import { supabase } from "@/lib/supabase"
-import type { Database } from "@/types/supabase"
+import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import type { Profile } from "@/types/appwrite"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { ID, Query } from 'appwrite'
 
-export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
-export type UpdateProfile = Database["public"]["Tables"]["profiles"]["Update"]
+export type { Profile }
 
-export const profileService = {
-  async getProfile() {
-    try {
-      const user = (await supabase.auth.getUser()).data.user
-      if (!user) throw new Error("User not authenticated")
+// Cache keys
+const CACHE_KEYS = {
+  PROFILE: 'profile_cache'
+}
 
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+// Get current user profile
+export const getProfile = async (): Promise<Profile | null> => {
+  try {
+    const user = await account.get()
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.PROFILES,
+      [Query.equal('user_id', user.$id)]
+    )
 
-      if (error && error.code !== "PGRST116") throw error // PGRST116 is "no rows returned"
-
-      // If no profile exists, create one
-      if (!data) {
-        return this.createProfile(user.id)
-      }
-
-      // Cache profile locally
-      await AsyncStorage.setItem("profile", JSON.stringify(data))
-
-      return data
-    } catch (error) {
-      console.error("Error fetching profile:", error)
-
-      // Try to get from local storage if offline
-      try {
-        const profileJson = await AsyncStorage.getItem("profile")
-        return profileJson ? JSON.parse(profileJson) : null
-      } catch (storageError) {
-        console.error("Error getting profile from AsyncStorage:", storageError)
-        return null
-      }
+    if (documents.length > 0) {
+      const profile = documents[0] as Profile
+      await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile))
+      return profile
     }
-  },
 
-  async createProfile(userId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .insert({
-          id: userId,
-          full_name: "",
-          theme: "light",
-        })
-        .select()
-        .single()
+    return null
+  } catch (error) {
+    console.error("Error getting profile:", error)
+    return null
+  }
+}
 
-      if (error) throw error
+// Create or update profile
+export const upsertProfile = async (profileData: Partial<Profile>): Promise<Profile | null> => {
+  try {
+    const user = await account.get()
+    const now = new Date().toISOString()
 
-      // Cache profile locally
-      await AsyncStorage.setItem("profile", JSON.stringify(data))
+    // Check if profile exists
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.PROFILES,
+      [Query.equal('user_id', user.$id)]
+    )
 
-      return data
-    } catch (error) {
-      console.error("Error creating profile:", error)
-      throw error
-    }
-  },
+    let profile: Profile
 
-  async updateProfile(updates: UpdateProfile) {
-    try {
-      const user = (await supabase.auth.getUser()).data.user
-      if (!user) throw new Error("User not authenticated")
-
-      const { data, error } = await supabase.from("profiles").update(updates).eq("id", user.id).select().single()
-
-      if (error) throw error
-
-      // Update local cache
-      const currentProfile = await this.getProfile()
-      const updatedProfile = { ...currentProfile, ...updates }
-      await AsyncStorage.setItem("profile", JSON.stringify(updatedProfile))
-
-      return data
-    } catch (error) {
-      console.error("Error updating profile:", error)
-
-      // If offline, store locally and sync later
-      try {
-        const profileJson = await AsyncStorage.getItem("profile")
-        if (profileJson) {
-          const profile = JSON.parse(profileJson)
-          const updatedProfile = { ...profile, ...updates }
-          await AsyncStorage.setItem("profile", JSON.stringify(updatedProfile))
-
-          // Add to offline changes
-          const offlineChange = {
-            table_name: "profiles",
-            record_id: profile.id,
-            operation: "UPDATE",
-            data: updates,
-          }
-
-          const changesJson = await AsyncStorage.getItem("offlineChanges")
-          const changes = changesJson ? JSON.parse(changesJson) : []
-          await AsyncStorage.setItem("offlineChanges", JSON.stringify([...changes, offlineChange]))
-
-          return updatedProfile
+    if (documents.length > 0) {
+      // Update existing profile
+      const existingProfile = documents[0] as Profile
+      const updatedProfile = await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        existingProfile.$id,
+        {
+          ...profileData,
+          user_id: user.$id
         }
-      } catch (storageError) {
-        console.error("Error updating profile in AsyncStorage:", storageError)
-      }
-
-      throw error
+      ) as Profile
+      profile = updatedProfile
+    } else {
+      // Create new profile
+      const newProfile = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        ID.unique(),
+        {
+          ...profileData,
+          user_id: user.$id,
+          role: profileData.role || 'user'
+        }
+      ) as Profile
+      profile = newProfile
     }
-  },
 
-  async updateTheme(theme: "light" | "dark") {
-    return this.updateProfile({ theme })
-  },
+    // Update cache
+    await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile))
+    return profile
+  } catch (error) {
+    console.error("Error upserting profile:", error)
+    return null
+  }
+}
+
+// Update profile
+export const updateProfile = async (updates: Partial<Profile>): Promise<Profile | null> => {
+  try {
+    const user = await account.get()
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTIONS.PROFILES,
+      [Query.equal('user_id', user.$id)]
+    )
+
+    if (documents.length === 0) {
+      throw new Error("Profile not found")
+    }
+
+    const existingProfile = documents[0] as Profile
+    const updatedProfile = await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.PROFILES,
+      existingProfile.$id,
+      updates
+    ) as Profile
+
+    // Update cache
+    await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(updatedProfile))
+    return updatedProfile
+  } catch (error) {
+    console.error("Error updating profile:", error)
+    return null
+  }
 }
