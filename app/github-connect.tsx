@@ -128,6 +128,13 @@ export default function GitHubConnectScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         setLoading(true)
 
+        // Debug logging
+        console.log("Connecting GitHub with:", {
+          username: username,
+          hasAccessToken: !!accessToken,
+          accessTokenLength: accessToken?.length
+        })
+
         // Button press animation
         Animated.sequence([
           Animated.timing(buttonScale, {
@@ -143,10 +150,16 @@ export default function GitHubConnectScreen() {
         ]).start()
 
         // Connect to GitHub
-        await githubService.connectGitHub({
+        const connectionParams = {
           username,
           accessToken,
+        }
+        console.log("Connection params:", {
+          username: connectionParams.username,
+          hasAccessToken: !!connectionParams.accessToken
         })
+
+        await githubService.connectGitHub(connectionParams)
 
         // Success animation
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
@@ -158,6 +171,11 @@ export default function GitHubConnectScreen() {
         }, 500)
       } catch (error) {
         console.error("Error connecting GitHub:", error)
+        console.error("Error in handleConnect:", {
+          name: error instanceof Error ? error.name : 'Unknown',
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        })
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
         showToast("Failed to connect GitHub account", { type: "error" })
 

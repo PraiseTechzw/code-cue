@@ -152,7 +152,15 @@ export default function TabLayout() {
   };
 
   // Custom tab bar component
-  const renderTabBar = ({ state, descriptors, navigation }) => {
+  const renderTabBar = ({ 
+    state, 
+    descriptors, 
+    navigation 
+  }: {
+    state: any;
+    descriptors: any;
+    navigation: any;
+  }) => {
     return (
       <View
         style={[
@@ -164,7 +172,7 @@ export default function TabLayout() {
           },
         ]}
       >
-        {state.routes.map((route, index) => {
+        {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
           const label = options.title || route.name;
 
@@ -253,7 +261,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: "Home",
+            title: "",
           }}
         />
         <Tabs.Screen

@@ -37,7 +37,7 @@ import {
   BottomSheetModal,
   BottomSheetModalProvider,
 } from "@gorhom/bottom-sheet";
-import { format } from "date-fns";
+import { format, isToday, isTomorrow, isYesterday, addDays } from "date-fns";
 
 import { ProgressBar } from "@/components/ProgressBar";
 import { TaskItem } from "@/components/TaskItem";
@@ -47,8 +47,8 @@ import { useToast } from "@/contexts/ToastContext";
 import Colors from "@/constants/Colors";
 
 const { width, height } = Dimensions.get("window");
-const HEADER_MAX_HEIGHT = 280;
-const HEADER_MIN_HEIGHT = Platform.OS === "ios" ? 120 : 100;
+const HEADER_MAX_HEIGHT = 120;
+const HEADER_MIN_HEIGHT = 60;
 const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
 export default function HomeScreen() {
@@ -78,18 +78,22 @@ export default function HomeScreen() {
     total: 0,
     overdue: 0,
     upcoming: 0,
+    today: 0,
+    thisWeek: 0,
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [filteredTasks, setFilteredTasks] = useState<any[]>([]);
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [greeting, setGreeting] = useState("");
+  const [showQuickStats, setShowQuickStats] = useState(true);
 
   // Animation values
   const scrollY = useSharedValue(0);
   const searchBarOpacity = useSharedValue(0);
   const fabScale = useSharedValue(1);
   const fabRotation = useSharedValue(0);
+  const headerHeight = useSharedValue(HEADER_MIN_HEIGHT);
   const todoRotation = useRef(
     new Animated.Value(expandedSections.todo ? 1 : 0)
   ).current;
@@ -142,6 +146,7 @@ export default function HomeScreen() {
     return {
       transform: [{ translateY }, { scale }],
       opacity,
+      height: headerHeight.value,
     };
   });
 
@@ -158,6 +163,12 @@ export default function HomeScreen() {
           ),
         },
       ],
+      top: interpolate(
+        headerHeight.value,
+        [HEADER_MIN_HEIGHT, HEADER_MAX_HEIGHT],
+        [HEADER_MIN_HEIGHT - 10, 10],
+        Extrapolate.CLAMP
+      ),
     };
   });
 
@@ -180,6 +191,12 @@ export default function HomeScreen() {
 
     return {
       opacity,
+    };
+  });
+
+  const collapsibleHeaderAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      height: headerHeight.value,
     };
   });
 
@@ -268,6 +285,8 @@ export default function HomeScreen() {
           total: projectTasks.length,
           overdue: overdueTasks.length,
           upcoming: upcomingTasks.length,
+          today: 0,
+          thisWeek: 0,
         });
       }
     } catch (error) {
@@ -352,6 +371,7 @@ export default function HomeScreen() {
   const handleSearchPress = () => {
     setIsSearching(true);
     searchBarOpacity.value = withTiming(1, { duration: 300 });
+    headerHeight.value = withTiming(HEADER_MAX_HEIGHT, { duration: 300 });
   };
 
   const handleCloseSearch = () => {
@@ -359,6 +379,7 @@ export default function HomeScreen() {
       runOnJS(setIsSearching)(false);
       runOnJS(setSearchQuery)("");
     });
+    headerHeight.value = withTiming(HEADER_MIN_HEIGHT, { duration: 300 });
   };
 
   const handleChangeProject = (project: any) => {
@@ -404,6 +425,8 @@ export default function HomeScreen() {
         total: projectTasks.length,
         overdue: overdueTasks.length,
         upcoming: upcomingTasks.length,
+        today: 0,
+        thisWeek: 0,
       });
     } catch (error) {
       console.error("Error loading project tasks:", error);
@@ -416,6 +439,50 @@ export default function HomeScreen() {
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    let filteredTasks: any[] = [];
+    const allTasks = [...tasks.todo, ...tasks.inProgress, ...tasks.done];
+    
+    switch (filter) {
+      case "today":
+        filteredTasks = allTasks.filter(task => {
+          if (!task.due_date) return false;
+          const dueDate = new Date(task.due_date);
+          return isToday(dueDate);
+        });
+        break;
+      case "overdue":
+        filteredTasks = allTasks.filter(task => {
+          if (!task.due_date || task.status === 'done') return false;
+          const dueDate = new Date(task.due_date);
+          return dueDate < new Date();
+        });
+        break;
+      case "upcoming":
+        filteredTasks = allTasks.filter(task => {
+          if (!task.due_date || task.status === 'done') return false;
+          const dueDate = new Date(task.due_date);
+          const threeDaysFromNow = addDays(new Date(), 3);
+          return dueDate > new Date() && dueDate <= threeDaysFromNow;
+        });
+        break;
+      case "completed":
+        filteredTasks = tasks.done;
+        break;
+      case "high":
+        filteredTasks = allTasks.filter(task => task.priority === "high");
+        break;
+      case "medium":
+        filteredTasks = allTasks.filter(task => task.priority === "medium");
+        break;
+      case "low":
+        filteredTasks = allTasks.filter(task => task.priority === "low");
+        break;
+      default:
+        filteredTasks = allTasks;
+    }
+    
+    setFilteredTasks(filteredTasks);
   };
 
   const renderSkeleton = () => (
@@ -525,6 +592,298 @@ export default function HomeScreen() {
     );
   };
 
+  // Calculate enhanced stats
+  const calculateEnhancedStats = useCallback(() => {
+    const allTasks = [...tasks.todo, ...tasks.inProgress, ...tasks.done];
+    const today = new Date();
+    const thisWeek = addDays(today, 7);
+
+    const todayTasks = allTasks.filter(task => {
+      if (!task.due_date) return false;
+      const dueDate = new Date(task.due_date);
+      return isToday(dueDate);
+    });
+
+    const thisWeekTasks = allTasks.filter(task => {
+      if (!task.due_date) return false;
+      const dueDate = new Date(task.due_date);
+      return dueDate <= thisWeek && dueDate >= today;
+    });
+
+    const overdueTasks = allTasks.filter(task => {
+      if (!task.due_date || task.status === 'done') return false;
+      const dueDate = new Date(task.due_date);
+      return dueDate < today;
+    });
+
+    const upcomingTasks = allTasks.filter(task => {
+      if (!task.due_date || task.status === 'done') return false;
+      const dueDate = new Date(task.due_date);
+      return dueDate > today && dueDate <= addDays(today, 3);
+    });
+
+    setStats({
+      completed: tasks.done.length,
+      total: allTasks.length,
+      overdue: overdueTasks.length,
+      upcoming: upcomingTasks.length,
+      today: todayTasks.length,
+      thisWeek: thisWeekTasks.length,
+    });
+  }, [tasks]);
+
+  useEffect(() => {
+    calculateEnhancedStats();
+  }, [calculateEnhancedStats]);
+
+  const renderQuickStats = () => (
+    <MotiView
+      from={{ opacity: 0, translateY: 20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: "timing", duration: 500, delay: 300 }}
+      style={styles.quickStatsContainer}
+    >
+      <View style={styles.quickStatsHeader}>
+        <Text style={[styles.quickStatsTitle, { color: theme.text }]}>
+          Quick Overview
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowQuickStats(!showQuickStats)}
+          style={styles.toggleStatsButton}
+        >
+          <Ionicons 
+            name={showQuickStats ? "chevron-up" : "chevron-down"} 
+            size={20} 
+            color={theme.textDim} 
+          />
+        </TouchableOpacity>
+      </View>
+      
+      {showQuickStats && (
+        <MotiView
+          from={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ type: "timing", duration: 300 }}
+          style={{ overflow: "hidden" }}
+        >
+          <View style={[styles.quickStatsGrid, { backgroundColor: theme.cardBackground }]}>
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: theme.tintLight }]}
+              onPress={() => setSelectedFilter("today")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="today-outline" size={24} color={theme.tint} />
+              <Text style={[styles.statValue, { color: theme.tint }]}>{stats.today}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>Today</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: stats.overdue > 0 ? "#FFE5E5" : theme.tintLight }]}
+              onPress={() => setSelectedFilter("overdue")}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name="warning-outline" 
+                size={24} 
+                color={stats.overdue > 0 ? "#FF4444" : theme.tint} 
+              />
+              <Text style={[styles.statValue, { color: stats.overdue > 0 ? "#FF4444" : theme.tint }]}>
+                {stats.overdue}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>Overdue</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: theme.tintLight }]}
+              onPress={() => setSelectedFilter("upcoming")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="calendar-outline" size={24} color={theme.tint} />
+              <Text style={[styles.statValue, { color: theme.tint }]}>{stats.upcoming}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>Upcoming</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statCard, { backgroundColor: "#E8F5E8" }]}
+              onPress={() => setSelectedFilter("completed")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="checkmark-circle-outline" size={24} color="#4CAF50" />
+              <Text style={[styles.statValue, { color: "#4CAF50" }]}>{stats.completed}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>Completed</Text>
+            </TouchableOpacity>
+          </View>
+        </MotiView>
+      )}
+    </MotiView>
+  );
+
+  const formatTaskDate = (dateString: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const today = new Date();
+    
+    if (isToday(date)) {
+      return "Today";
+    } else if (isTomorrow(date)) {
+      return "Tomorrow";
+    } else if (isYesterday(date)) {
+      return "Yesterday";
+    } else if (date < today) {
+      return `Overdue - ${format(date, 'MMM d')}`;
+    } else {
+      return format(date, 'MMM d');
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return '#FF4444';
+      case 'medium':
+        return '#FF9800';
+      case 'low':
+        return '#4CAF50';
+      default:
+        return theme.textDim;
+    }
+  };
+
+  const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'flag';
+      case 'medium':
+        return 'flag-outline';
+      case 'low':
+        return 'flag-outline';
+      default:
+        return 'flag-outline';
+    }
+  };
+
+  const handleTaskComplete = async (taskId: string, currentStatus: string) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Animate the task completion
+      const newStatus = currentStatus === 'done' ? 'todo' : 'done';
+      await taskService.updateTaskStatus(taskId, newStatus);
+      
+      // Refresh data
+      await loadData();
+      
+      showToast(
+        newStatus === 'done' ? 'Task completed!' : 'Task marked as incomplete',
+        'success'
+      );
+    } catch (error) {
+      showToast('Failed to update task status', 'error');
+    }
+  };
+
+  const renderEnhancedTaskItem = (task: any, status: string, index: number) => (
+    <MotiView
+      key={task.$id}
+      from={{ opacity: 0, translateX: -20 }}
+      animate={{ opacity: 1, translateX: 0 }}
+      transition={{
+        type: "timing",
+        duration: 300,
+        delay: index * 50,
+      }}
+      style={styles.enhancedTaskItem}
+    >
+      <TouchableOpacity
+        style={[
+          styles.taskItemContainer,
+          { backgroundColor: theme.cardBackground },
+          status === 'done' && { opacity: 0.7 },
+        ]}
+        onPress={() => handleTaskPress(task.$id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.taskItemHeader}>
+          <View style={styles.taskItemLeft}>
+            <TouchableOpacity
+              style={[
+                styles.taskCheckbox,
+                {
+                  backgroundColor: status === 'done' ? theme.tint : 'transparent',
+                  borderColor: status === 'done' ? theme.tint : theme.border,
+                },
+              ]}
+              onPress={() => handleTaskComplete(task.$id, status)}
+            >
+              {status === 'done' && (
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              )}
+            </TouchableOpacity>
+            
+            <View style={styles.taskItemContent}>
+              <Text
+                style={[
+                  styles.taskItemTitle,
+                  { color: theme.text },
+                  status === 'done' && { textDecorationLine: 'line-through' },
+                ]}
+                numberOfLines={2}
+              >
+                {task.title}
+              </Text>
+              
+              {task.due_date && (
+                <View style={styles.taskItemDate}>
+                  <Ionicons name="calendar-outline" size={12} color={theme.textDim} />
+                  <Text style={[styles.taskItemDateText, { color: theme.textDim }]}>
+                    {formatTaskDate(task.due_date)}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.taskItemRight}>
+            {task.priority && (
+              <View style={styles.priorityIndicator}>
+                <Ionicons
+                  name={getPriorityIcon(task.priority)}
+                  size={16}
+                  color={getPriorityColor(task.priority)}
+                />
+              </View>
+            )}
+            
+            <View style={[
+              styles.statusIndicator,
+              {
+                backgroundColor: 
+                  status === 'todo' ? '#FFE5E5' :
+                  status === 'inProgress' ? '#FFF3E0' :
+                  '#E8F5E8'
+              }
+            ]}>
+              <Text style={[
+                styles.statusText,
+                {
+                  color:
+                    status === 'todo' ? '#FF4444' :
+                    status === 'inProgress' ? '#FF9800' :
+                    '#4CAF50'
+                }
+              ]}>
+                {status === 'todo' ? 'To Do' :
+                 status === 'inProgress' ? 'In Progress' :
+                 'Done'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </MotiView>
+  );
+
   if (loading && !refreshing) {
     return (
       <View
@@ -617,6 +976,7 @@ export default function HomeScreen() {
                 backgroundColor: theme.background,
                 borderBottomColor: theme.border,
               },
+              collapsibleHeaderAnimatedStyle,
               titleAnimatedStyle,
             ]}
           >
@@ -792,6 +1152,9 @@ export default function HomeScreen() {
                 </Pressable>
               </Animated.View>
 
+              {/* Quick Stats */}
+              {renderQuickStats()}
+
               {/* Stats Cards */}
               <MotiView
                 from={{ opacity: 0, translateY: 20 }}
@@ -858,7 +1221,7 @@ export default function HomeScreen() {
                 </View>
               </MotiView>
 
-              {/* Filter Tabs */}
+              {/* Filter Buttons */}
               <MotiView
                 from={{ opacity: 0, translateY: 20 }}
                 animate={{ opacity: 1, translateY: 0 }}
@@ -868,122 +1231,171 @@ export default function HomeScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  style={styles.filterScroll}
+                  contentContainerStyle={styles.filterScroll}
                 >
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "all" && {
-                        backgroundColor: theme.tintLight,
-                        borderColor: theme.tint,
+                      {
+                        backgroundColor:
+                          selectedFilter === "all"
+                            ? theme.tint
+                            : theme.cardBackground,
+                        borderColor: theme.border,
                       },
                     ]}
                     onPress={() => handleFilterChange("all")}
                   >
+                    <Ionicons
+                      name="apps-outline"
+                      size={16}
+                      color={
+                        selectedFilter === "all" ? "#fff" : theme.textDim
+                      }
+                      style={{ marginRight: 4 }}
+                    />
                     <Text
                       style={[
                         styles.filterText,
                         {
                           color:
-                            selectedFilter === "all"
-                              ? theme.tint
-                              : theme.textDim,
+                            selectedFilter === "all" ? "#fff" : theme.textDim,
                         },
                       ]}
                     >
                       All
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "today" && {
-                        backgroundColor: theme.tintLight,
-                        borderColor: theme.tint,
+                      {
+                        backgroundColor:
+                          selectedFilter === "today"
+                            ? theme.tint
+                            : theme.cardBackground,
+                        borderColor: theme.border,
                       },
                     ]}
                     onPress={() => handleFilterChange("today")}
                   >
+                    <Ionicons
+                      name="today-outline"
+                      size={16}
+                      color={
+                        selectedFilter === "today" ? "#fff" : theme.textDim
+                      }
+                      style={{ marginRight: 4 }}
+                    />
                     <Text
                       style={[
                         styles.filterText,
                         {
                           color:
-                            selectedFilter === "today"
-                              ? theme.tint
-                              : theme.textDim,
+                            selectedFilter === "today" ? "#fff" : theme.textDim,
                         },
                       ]}
                     >
                       Today
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "upcoming" && {
-                        backgroundColor: theme.tintLight,
-                        borderColor: theme.tint,
-                      },
-                    ]}
-                    onPress={() => handleFilterChange("upcoming")}
-                  >
-                    <Text
-                      style={[
-                        styles.filterText,
-                        {
-                          color:
-                            selectedFilter === "upcoming"
-                              ? theme.tint
-                              : theme.textDim,
-                        },
-                      ]}
-                    >
-                      Upcoming
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.filterButton,
-                      selectedFilter === "overdue" && {
-                        backgroundColor: theme.tintLight,
-                        borderColor: theme.tint,
+                      {
+                        backgroundColor:
+                          selectedFilter === "overdue"
+                            ? "#FF4444"
+                            : theme.cardBackground,
+                        borderColor: theme.border,
                       },
                     ]}
                     onPress={() => handleFilterChange("overdue")}
                   >
+                    <Ionicons
+                      name="warning-outline"
+                      size={16}
+                      color={
+                        selectedFilter === "overdue" ? "#fff" : "#FF4444"
+                      }
+                      style={{ marginRight: 4 }}
+                    />
                     <Text
                       style={[
                         styles.filterText,
                         {
                           color:
-                            selectedFilter === "overdue"
-                              ? theme.tint
-                              : theme.textDim,
+                            selectedFilter === "overdue" ? "#fff" : "#FF4444",
                         },
                       ]}
                     >
                       Overdue
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[
                       styles.filterButton,
-                      selectedFilter === "high" && {
-                        backgroundColor: theme.tintLight,
-                        borderColor: theme.tint,
+                      {
+                        backgroundColor:
+                          selectedFilter === "upcoming"
+                            ? theme.tint
+                            : theme.cardBackground,
+                        borderColor: theme.border,
                       },
                     ]}
-                    onPress={() => handleFilterChange("high")}
+                    onPress={() => handleFilterChange("upcoming")}
                   >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={16}
+                      color={
+                        selectedFilter === "upcoming" ? "#fff" : theme.textDim
+                      }
+                      style={{ marginRight: 4 }}
+                    />
                     <Text
                       style={[
                         styles.filterText,
                         {
                           color:
-                            selectedFilter === "high"
-                              ? theme.tint
-                              : theme.textDim,
+                            selectedFilter === "upcoming" ? "#fff" : theme.textDim,
+                        },
+                      ]}
+                    >
+                      Upcoming
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.filterButton,
+                      {
+                        backgroundColor:
+                          selectedFilter === "high"
+                            ? theme.tint
+                            : theme.cardBackground,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    onPress={() => handleFilterChange("high")}
+                  >
+                    <Ionicons
+                      name="flag-outline"
+                      size={16}
+                      color={
+                        selectedFilter === "high" ? "#fff" : theme.textDim
+                      }
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[
+                        styles.filterText,
+                        {
+                          color:
+                            selectedFilter === "high" ? "#fff" : theme.textDim,
                         },
                       ]}
                     >
@@ -1084,27 +1496,7 @@ export default function HomeScreen() {
                           renderSkeleton()
                         ) : tasks.todo.length > 0 ? (
                           tasks.todo.map((task: any, index: number) => (
-                            <MotiView
-                              key={task.$id}
-                              from={{ opacity: 0, translateX: -20 }}
-                              animate={{ opacity: 1, translateX: 0 }}
-                              transition={{
-                                type: "timing",
-                                duration: 300,
-                                delay: index * 100,
-                              }}
-                            >
-                              <TaskItem
-                                task={{
-                                  id: task.$id,
-                                  title: task.title,
-                                  due_date:
-                                    task.due_date || new Date().toISOString(),
-                                  priority: task.priority,
-                                }}
-                                status="todo"
-                              />
-                            </MotiView>
+                            renderEnhancedTaskItem(task, 'todo', index))
                           ))
                         ) : (
                           <View style={styles.emptyTasksContainer}>
@@ -1185,27 +1577,7 @@ export default function HomeScreen() {
                           renderSkeleton()
                         ) : tasks.inProgress.length > 0 ? (
                           tasks.inProgress.map((task: any, index: number) => (
-                            <MotiView
-                              key={task.$id}
-                              from={{ opacity: 0, translateX: -20 }}
-                              animate={{ opacity: 1, translateX: 0 }}
-                              transition={{
-                                type: "timing",
-                                duration: 300,
-                                delay: index * 100,
-                              }}
-                            >
-                              <TaskItem
-                                task={{
-                                  id: task.$id,
-                                  title: task.title,
-                                  due_date:
-                                    task.due_date || new Date().toISOString(),
-                                  priority: task.priority,
-                                }}
-                                status="inProgress"
-                              />
-                            </MotiView>
+                            renderEnhancedTaskItem(task, 'inProgress', index))
                           ))
                         ) : (
                           <View style={styles.emptyTasksContainer}>
@@ -1290,27 +1662,7 @@ export default function HomeScreen() {
                           renderSkeleton()
                         ) : tasks.done.length > 0 ? (
                           tasks.done.map((task: any, index: number) => (
-                            <MotiView
-                              key={task.$id}
-                              from={{ opacity: 0, translateX: -20 }}
-                              animate={{ opacity: 1, translateX: 0 }}
-                              transition={{
-                                type: "timing",
-                                duration: 300,
-                                delay: index * 100,
-                              }}
-                            >
-                              <TaskItem
-                                task={{
-                                  id: task.$id,
-                                  title: task.title,
-                                  due_date:
-                                    task.due_date || new Date().toISOString(),
-                                  priority: task.priority,
-                                }}
-                                status="done"
-                              />
-                            </MotiView>
+                            renderEnhancedTaskItem(task, 'done', index))
                           ))
                         ) : (
                           <View style={styles.emptyTasksContainer}>
@@ -1516,7 +1868,6 @@ const styles = StyleSheet.create({
   },
   searchBarContainer: {
     position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 10,
     left: 16,
     right: 16,
     height: 50,
@@ -1545,7 +1896,7 @@ const styles = StyleSheet.create({
   },
   searchResults: {
     flex: 1,
-    marginTop: HEADER_MIN_HEIGHT + 60,
+    marginTop: HEADER_MAX_HEIGHT + 20,
     marginHorizontal: 16,
     borderRadius: 16,
     overflow: "hidden",
@@ -1574,7 +1925,7 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     marginHorizontal: 16,
-    marginTop: HEADER_MIN_HEIGHT + 16,
+    marginTop: HEADER_MIN_HEIGHT + 20,
     borderRadius: 24,
     overflow: "hidden",
     shadowColor: "#000",
@@ -1834,6 +2185,103 @@ const styles = StyleSheet.create({
   },
   projectItemProgressText: {
     fontSize: 12,
+    fontWeight: "bold",
+  },
+  quickStatsContainer: {
+    marginTop: 16,
+    marginHorizontal: 16,
+  },
+  quickStatsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  quickStatsTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  toggleStatsButton: {
+    padding: 8,
+  },
+  quickStatsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 12,
+  },
+  enhancedTaskItem: {
+    marginBottom: 16,
+  },
+  taskItemContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+  },
+  taskItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  taskItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  taskCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  taskItemContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  taskItemTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  taskItemDate: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  taskItemDateText: {
+    marginLeft: 4,
+    fontSize: 12,
+  },
+  taskItemRight: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priorityIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
+  statusIndicator: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 10,
     fontWeight: "bold",
   },
 });

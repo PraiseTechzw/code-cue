@@ -2,22 +2,19 @@
 
 import { useEffect, useState } from "react"
 import { Stack } from "expo-router"
-import { StatusBar } from "expo-status-bar"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
-import { useColorScheme, AppState, View, ActivityIndicator } from "react-native"
+import { AppState } from "react-native"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { ToastProvider } from "@/contexts/ToastContext"
 import { ThemeProvider } from "@/contexts/ThemeContext"
 import { SettingsProvider } from "@/contexts/SettingsContext"
-import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as SplashScreen from "expo-splash-screen"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import CustomSplashScreen from "@/components/SplashScreen"
-import Colors from "@/constants/Colors"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import { useSettingsEffects } from "@/hooks/useSettingsEffects"
 
@@ -88,7 +85,32 @@ function AppContent() {
           headerShown: false,
           animation: "slide_from_right",
         }}
-      />
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="github-connect" />
+        <Stack.Screen name="add-repository" />
+        <Stack.Screen name="add-task" />
+        <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="edit-project" />
+        <Stack.Screen name="link-commit" />
+        <Stack.Screen name="modal" />
+        <Stack.Screen name="new-project" />
+        <Stack.Screen name="privacy-policy" />
+        <Stack.Screen name="project" />
+        <Stack.Screen name="repositories" />
+        <Stack.Screen name="repository" />
+        <Stack.Screen name="select-project" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="task" />
+        <Stack.Screen name="terms-of-service" />
+        <Stack.Screen name="toast-demo" />
+        <Stack.Screen name="+html" />
+        <Stack.Screen name="+not-found" />
+      </Stack>
+     
       <ConnectionStatus />
     </GestureHandlerRootView>
   )

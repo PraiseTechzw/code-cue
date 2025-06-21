@@ -34,14 +34,43 @@ export const githubService = {
 
       // Validate inputs
       if (!accessToken || !usernameValue) {
+        console.error("Invalid inputs:", { accessToken: !!accessToken, usernameValue: !!usernameValue })
         throw new Error("Access token and username are required")
       }
 
+      // Ensure values are strings and trim whitespace
+      accessToken = String(accessToken).trim()
+      usernameValue = String(usernameValue).trim()
+
+      if (!accessToken || !usernameValue) {
+        console.error("Empty values after trimming:", { accessToken: !!accessToken, usernameValue: !!usernameValue })
+        throw new Error("Access token and username cannot be empty")
+      }
+
+      console.log("Getting user account...")
       const user = await account.get()
       if (!user || !user.$id) {
+        console.error("User authentication failed:", { user: !!user, userId: user?.$id })
         throw new Error("User not authenticated")
       }
-      
+
+      console.log("User authenticated:", { userId: user.$id })
+
+      // Test database connection
+      console.log("Testing database connection...")
+      try {
+        const testQuery = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_CONNECTIONS,
+          [Query.equal('user_id', user.$id)]
+        )
+        console.log("Database connection test successful")
+      } catch (dbError) {
+        console.error("Database connection test failed:", dbError)
+        throw new Error("Database connection failed")
+      }
+
+      console.log("Checking existing connections...")
       // Check if connection already exists
       const { documents: existingConnections } = await databases.listDocuments(
         DATABASE_ID,
@@ -49,17 +78,32 @@ export const githubService = {
         [Query.equal('user_id', user.$id)]
       )
 
-      if (existingConnections.length > 0) {
+      console.log("Existing connections found:", existingConnections.length)
+
+      if (existingConnections && existingConnections.length > 0) {
+        console.log("Updating existing connection...")
         // Update existing connection
+        const existingConnection = existingConnections[0]
+        if (!existingConnection || !existingConnection.$id) {
+          console.error("Invalid existing connection:", existingConnection)
+          throw new Error("Invalid existing connection data")
+        }
+
+        const updateData = {
+          username: usernameValue,
+          access_token: accessToken
+        }
+        console.log("Update data:", { username: updateData.username, hasToken: !!updateData.access_token })
+
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
           COLLECTIONS.GITHUB_CONNECTIONS,
-          existingConnections[0].$id,
-          {
-            username: usernameValue,
-            access_token: accessToken
-          }
+          existingConnection.$id,
+          updateData
         )
+        
+        console.log("Connection updated successfully")
+        console.log("Updated data result:", { hasUpdatedData: !!updatedData, updatedDataLength: updatedData?.length })
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
@@ -70,19 +114,34 @@ export const githubService = {
           await offlineStore.setItem(CACHE_KEYS.CONNECTION, updatedData[0])
         }
         
+        if (!updatedData || !updatedData[0]) {
+          console.error("No data returned from updateDocument")
+          throw new Error("Failed to update GitHub connection")
+        }
+        
         return updatedData[0]
       } else {
+        console.log("Creating new connection...")
         // Create new connection
+        const createData = {
+          user_id: user.$id,
+          username: usernameValue,
+          access_token: accessToken
+        }
+        console.log("Create data:", { userId: createData.user_id, username: createData.username, hasToken: !!createData.access_token })
+
+        const documentId = ID.unique()
+        console.log("Generated document ID:", documentId)
+
         const { documents: newData } = await databases.createDocument(
           DATABASE_ID,
           COLLECTIONS.GITHUB_CONNECTIONS,
-          ID.unique(),
-          {
-            user_id: user.$id,
-            username: usernameValue,
-            access_token: accessToken
-          }
+          documentId,
+          createData
         )
+        
+        console.log("Connection created successfully")
+        console.log("New data result:", { hasNewData: !!newData, newDataLength: newData?.length })
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
@@ -93,10 +152,20 @@ export const githubService = {
           await offlineStore.setItem(CACHE_KEYS.CONNECTION, newData[0])
         }
         
+        if (!newData || !newData[0]) {
+          console.error("No data returned from createDocument")
+          throw new Error("Failed to create GitHub connection")
+        }
+        
         return newData[0]
       }
     } catch (error) {
       console.error("Error connecting GitHub:", error)
+      console.error("Error details:", {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      })
       throw error
     }
   },
@@ -141,6 +210,10 @@ export const githubService = {
   async getGitHubConnection() {
     try {
       const user = await account.get()
+      if (!user || !user.$id) {
+        console.warn("User not authenticated in getGitHubConnection")
+        return null
+      }
       
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
@@ -148,8 +221,15 @@ export const githubService = {
         [Query.equal('user_id', user.$id)]
       )
 
-      if (documents.length > 0) {
-        return documents[0] as unknown as GithubConnection
+      if (documents && documents.length > 0) {
+        const connection = documents[0]
+        // Validate connection data
+        if (connection.user_id && connection.username && connection.access_token) {
+          return connection as unknown as GithubConnection
+        } else {
+          console.warn("Invalid connection data found:", connection)
+          return null
+        }
       }
       
       return null
@@ -167,6 +247,12 @@ export const githubService = {
   // Fetch and cache repositories
   async fetchAndCacheRepositories(accessToken: string, userId: string) {
     try {
+      // Validate inputs
+      if (!accessToken || !userId) {
+        console.error("Invalid inputs for fetchAndCacheRepositories:", { accessToken: !!accessToken, userId: !!userId })
+        throw new Error("Access token and user ID are required")
+      }
+
       // Fetch repositories from GitHub API
       const response = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {
         headers: {
@@ -175,26 +261,43 @@ export const githubService = {
       })
 
       if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`)
+        throw new Error(`GitHub API error: ${response.status} - ${response.statusText}`)
       }
 
       const repos = await response.json()
 
+      // Validate repos array
+      if (!Array.isArray(repos)) {
+        console.error("Invalid response from GitHub API:", repos)
+        throw new Error("Invalid response format from GitHub API")
+      }
+
+      console.log(`Fetched ${repos.length} repositories from GitHub`)
+
       // Save repositories to database
+      let savedCount = 0
       for (const repo of repos) {
-        // Validate and sanitize repository data before saving
-        if (repo && repo.id && repo.name && repo.full_name && repo.html_url) {
-          await this.saveRepository({
-            repo_id: repo.id.toString(),
-            name: repo.name,
-            full_name: repo.full_name,
-            description: repo.description || null,
-            html_url: repo.html_url
-          })
-        } else {
-          console.warn("Skipping invalid repository data:", repo)
+        try {
+          // Validate and sanitize repository data before saving
+          if (repo && repo.id && repo.name && repo.full_name && repo.html_url) {
+            await this.saveRepository({
+              repo_id: repo.id.toString(),
+              name: repo.name,
+              full_name: repo.full_name,
+              description: repo.description || null,
+              html_url: repo.html_url
+            })
+            savedCount++
+          } else {
+            console.warn("Skipping invalid repository data:", repo)
+          }
+        } catch (repoError) {
+          console.error("Error saving individual repository:", repoError, repo)
+          // Continue with other repositories
         }
       }
+
+      console.log(`Successfully saved ${savedCount} repositories to database`)
 
       // Fetch and cache the updated repositories
       const { documents } = await databases.listDocuments(
@@ -208,9 +311,11 @@ export const githubService = {
 
       if (documents) {
         await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, documents)
+        console.log(`Cached ${documents.length} repositories`)
       }
     } catch (error) {
       console.error("Error fetching and caching repositories:", error)
+      throw error // Re-throw to allow calling code to handle
     }
   },
 
@@ -347,7 +452,10 @@ export const githubService = {
       }
 
       const user = await account.get()
-      if (!user) throw new Error("User not authenticated")
+      if (!user || !user.$id) {
+        console.warn("User not authenticated in getRepositories")
+        throw new Error("User not authenticated")
+      }
 
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
@@ -359,7 +467,7 @@ export const githubService = {
       )
 
       // Cache the repositories data
-      if (documents) {
+      if (documents && Array.isArray(documents)) {
         await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, documents)
       }
 
@@ -368,8 +476,13 @@ export const githubService = {
       console.error("Error fetching GitHub repositories:", error)
 
       // Try to get from cache if there's an error
-      const cachedRepos = await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)
-      return cachedRepos || []
+      try {
+        const cachedRepos = await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)
+        return cachedRepos || []
+      } catch (cacheError) {
+        console.error("Error getting cached repositories:", cacheError)
+        return []
+      }
     }
   },
 
@@ -439,10 +552,8 @@ export const githubService = {
   },
 
   // Save commit
-  async saveCommit(commitData: Omit<GithubCommit, '$id' | '$createdAt' | 'user_id'>) {
+  async saveCommit(commitData: Omit<GithubCommit, '$id' | '$createdAt'>) {
     try {
-      const user = await account.get()
-      
       // Validate required fields
       if (!commitData.commit_id || !commitData.repository_id || !commitData.message || !commitData.author || !commitData.committed_at || !commitData.html_url) {
         console.warn("Invalid commit data:", commitData)
@@ -475,8 +586,7 @@ export const githubService = {
           author: commitData.author,
           committed_at: commitData.committed_at,
           html_url: commitData.html_url,
-          task_id: commitData.task_id || null,
-          user_id: user.$id
+          task_id: commitData.task_id || null
         }
       )
 

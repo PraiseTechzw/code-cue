@@ -27,6 +27,24 @@ import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 import type { GithubRepository } from "@/services/githubService"
 
+// Helper function to format commit date
+const formatCommitDate = (dateString: string) => {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+  
+  if (diffInHours < 1) {
+    return 'Just now'
+  } else if (diffInHours < 24) {
+    return `${diffInHours}h ago`
+  } else if (diffInHours < 168) { // 7 days
+    const days = Math.floor(diffInHours / 24)
+    return `${days}d ago`
+  } else {
+    return date.toLocaleDateString()
+  }
+}
+
 export default function GitHubScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
@@ -109,8 +127,14 @@ export default function GitHubScreen() {
       
       // If no repos or force refresh, fetch from GitHub
       if (reposData.length === 0 || forceRefreshFromGitHub) {
-        await githubService.fetchAndCacheRepositories(connectionData.access_token, connectionData.user_id)
-        reposData = await githubService.getRepositories()
+        try {
+          await githubService.fetchAndCacheRepositories(connectionData.access_token, connectionData.user_id)
+          reposData = await githubService.getRepositories()
+        } catch (fetchError) {
+          console.error("Error fetching repositories from GitHub:", fetchError)
+          showToast("Failed to fetch repositories from GitHub", { type: "error" })
+          // Continue with existing repositories if any
+        }
       }
 
       setRepositories(reposData)
@@ -430,24 +454,81 @@ export default function GitHubScreen() {
           data={commits}
           keyExtractor={(item) => item.$id}
           renderItem={({ item }) => (
-            <View style={{ padding: 12, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.cardBackground, borderRadius: 10, marginVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1 }}>
-              <Text style={{ color: theme.text, fontWeight: '500' }}>{item.message}</Text>
-              <Text style={{ color: theme.textDim, fontSize: 12, marginTop: 2 }}>{item.author} - {item.committed_at ? new Date(item.committed_at).toLocaleString() : ''}</Text>
-            </View>
+            <TouchableOpacity
+              style={[styles.commitItem, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                if (item.html_url) {
+                  Linking.openURL(item.html_url)
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.commitHeader}>
+                <View style={styles.commitIcon}>
+                  <Ionicons name="git-commit" size={16} color={theme.tint} />
+                </View>
+                <View style={styles.commitInfo}>
+                  <Text style={[styles.commitMessage, { color: theme.text }]} numberOfLines={2}>
+                    {item.message}
+                  </Text>
+                  <View style={styles.commitMeta}>
+                    <View style={styles.commitAuthor}>
+                      <Ionicons name="person-outline" size={12} color={theme.textDim} />
+                      <Text style={[styles.commitAuthorText, { color: theme.textDim }]}>
+                        {item.author}
+                      </Text>
+                    </View>
+                    <View style={styles.commitDate}>
+                      <Ionicons name="time-outline" size={12} color={theme.textDim} />
+                      <Text style={[styles.commitDateText, { color: theme.textDim }]}>
+                        {item.committed_at ? formatCommitDate(item.committed_at) : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.commitActions}>
+                  <TouchableOpacity
+                    style={[styles.commitActionButton, { backgroundColor: theme.tintLight }]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+                      if (item.html_url) {
+                        Linking.openURL(item.html_url)
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="open-outline" size={14} color={theme.tint} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.commitSha}>
+                <Text style={[styles.commitShaText, { color: theme.textDim }]}>
+                  {item.commit_id?.substring(0, 8)}
+                </Text>
+              </View>
+            </TouchableOpacity>
           )}
           ListHeaderComponent={
             <View style={styles.commitsHeader}>
-              <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
-              <TouchableOpacity
-                style={styles.viewAllButton}
-                onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.$id}` as any)}
-                accessibilityLabel="View All Commits"
-                accessibilityHint="Shows all commits for this repository"
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
-                <Ionicons name="arrow-forward" size={16} color={theme.tint} />
-              </TouchableOpacity>
+              <View style={styles.commitsHeaderLeft}>
+                <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
+                <Text style={[styles.commitsCount, { color: theme.textDim }]}>
+                  {commits.length} commit{commits.length !== 1 ? 's' : ''}
+                </Text>
+              </View>
+              <View style={styles.commitsHeaderRight}>
+                <TouchableOpacity
+                  style={[styles.viewAllButton, { backgroundColor: theme.tintLight }]}
+                  onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.$id}` as any)}
+                  accessibilityLabel="View All Commits"
+                  accessibilityHint="Shows all commits for this repository"
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.viewAllText, { color: theme.tint }]}>View All</Text>
+                  <Ionicons name="arrow-forward" size={16} color={theme.tint} />
+                </TouchableOpacity>
+              </View>
             </View>
           }
           refreshControl={
@@ -460,12 +541,39 @@ export default function GitHubScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyCommitsContainer}>
-              <Ionicons name="git-commit-outline" size={60} color={theme.textDim} />
-              <Text style={[styles.emptyCommitsText, { color: theme.textDim, marginTop: 12 }]}>No commits found for this repository</Text>
-              <Text style={[styles.emptyCommitsSubtext, { color: theme.textDim }]}>Commits will appear here once they are pushed to this repository.</Text>
+              <View style={[styles.emptyCommitsIcon, { backgroundColor: theme.tintLight }]}>
+                <Ionicons name="git-commit-outline" size={40} color={theme.tint} />
+              </View>
+              <Text style={[styles.emptyCommitsText, { color: theme.text }]}>No commits found</Text>
+              <Text style={[styles.emptyCommitsSubtext, { color: theme.textDim }]}>
+                Commits will appear here once they are pushed to this repository.
+              </Text>
+              <TouchableOpacity
+                style={[styles.fetchCommitsButton, { backgroundColor: theme.tint }]}
+                onPress={async () => {
+                  if (!selectedRepo) return
+                  setLoading(true)
+                  setCommitFetchError(null)
+                  try {
+                    await githubService.fetchCommitsForRepository(selectedRepo.$id)
+                    const commitsData = await githubService.getCommits(selectedRepo.$id)
+                    setCommits(commitsData)
+                    showToast('Commits fetched from GitHub', { type: 'success' })
+                  } catch (err: any) {
+                    setCommitFetchError(err?.message || 'Failed to fetch commits from GitHub')
+                    showToast('Failed to fetch commits from GitHub', { type: 'error' })
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="cloud-download-outline" size={20} color="#fff" />
+                <Text style={styles.fetchCommitsButtonText}>Fetch Commits</Text>
+              </TouchableOpacity>
             </View>
           }
-          contentContainerStyle={{ padding: 8, paddingBottom: 24 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         />
       ) : (
         <View style={styles.emptyReposContainer}>
@@ -640,48 +748,151 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginLeft: 6,
   },
+  commitItem: {
+    padding: 16,
+    borderRadius: 12,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  commitHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  commitIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  commitInfo: {
+    flex: 1,
+  },
+  commitMessage: {
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  commitMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  commitAuthor: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commitAuthorText: {
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  commitDate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commitDateText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  commitActions: {
+    marginLeft: 8,
+  },
+  commitActionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commitSha: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  commitShaText: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+  },
   commitsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  commitsHeaderLeft: {
+    flex: 1,
+  },
+  commitsHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   commitsTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  commitsCount: {
+    fontSize: 14,
+    opacity: 0.7,
   },
   viewAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
   },
   viewAllText: {
     fontSize: 14,
+    fontWeight: '500',
     marginRight: 4,
-    fontWeight: "500",
-  },
-  commitsList: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    flexGrow: 1,
   },
   emptyCommitsContainer: {
-    alignItems: "center",
+    alignItems: 'center',
     padding: 40,
     marginTop: 20,
   },
+  emptyCommitsIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   emptyCommitsText: {
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 16,
-    fontWeight: "500",
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyCommitsSubtext: {
     fontSize: 14,
-    textAlign: "center",
-    marginTop: 8,
+    textAlign: 'center',
+    marginBottom: 24,
+    opacity: 0.7,
+    lineHeight: 20,
+  },
+  fetchCommitsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  fetchCommitsButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   emptyReposContainer: {
     flex: 1,
