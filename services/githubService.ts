@@ -32,7 +32,15 @@ export const githubService = {
         usernameValue = accessTokenOrParams.username
       }
 
+      // Validate inputs
+      if (!accessToken || !usernameValue) {
+        throw new Error("Access token and username are required")
+      }
+
       const user = await account.get()
+      if (!user || !user.$id) {
+        throw new Error("User not authenticated")
+      }
       
       // Check if connection already exists
       const { documents: existingConnections } = await databases.listDocuments(
@@ -58,7 +66,9 @@ export const githubService = {
         await SecureStore.setItemAsync('github_username', usernameValue)
         
         // Cache connection
-        await offlineStore.setItem(CACHE_KEYS.CONNECTION, updatedData[0])
+        if (updatedData && updatedData[0]) {
+          await offlineStore.setItem(CACHE_KEYS.CONNECTION, updatedData[0])
+        }
         
         return updatedData[0]
       } else {
@@ -79,7 +89,9 @@ export const githubService = {
         await SecureStore.setItemAsync('github_username', usernameValue)
         
         // Cache connection
-        await offlineStore.setItem(CACHE_KEYS.CONNECTION, newData[0])
+        if (newData && newData[0]) {
+          await offlineStore.setItem(CACHE_KEYS.CONNECTION, newData[0])
+        }
         
         return newData[0]
       }
