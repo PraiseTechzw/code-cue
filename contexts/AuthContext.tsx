@@ -1,3 +1,5 @@
+"use client"
+
 import type React from "react"
 import { createContext, useState, useEffect, useContext } from "react"
 import { account, client } from "@/lib/appwrite"

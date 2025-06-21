@@ -1,5 +1,6 @@
+"use client"
+
 import { useState, useRef, useEffect } from "react"
-import React from "react"
 import {
   StyleSheet,
   View,
@@ -22,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 import * as Haptics from "expo-haptics"
+import React from "react"
 
 const { width, height } = Dimensions.get("window")
 
