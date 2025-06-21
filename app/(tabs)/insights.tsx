@@ -29,9 +29,24 @@ export default function InsightsScreen() {
   const [productivityTips, setProductivityTips] = useState<any[]>([])
   const [drawerVisible, setDrawerVisible] = useState(false)
   const { showToast } = useToast()
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     loadInsights()
+  }, [])
+
+  // Check network status
+  useEffect(() => {
+    const checkNetworkStatus = async () => {
+      let online = true
+      if ('isOnline' in (projectService as any) && typeof (projectService as any).isOnline === 'function') {
+        online = await (projectService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadInsights = async () => {
@@ -175,6 +190,14 @@ export default function InsightsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      
+      {/* Offline Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: theme.tintLight, flexDirection: 'row', alignItems: 'center', padding: 8 }}>
+          <Ionicons name="cloud-offline-outline" size={16} color={theme.tint} />
+          <Text style={{ color: theme.tint, marginLeft: 8 }}>You're offline. Some features may be limited.</Text>
+        </View>
+      )}
       
       {/* Header with Drawer Button */}
       <View style={styles.header}>

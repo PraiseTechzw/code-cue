@@ -24,6 +24,7 @@ import { projectService } from '@/services/projectService'
 import { useToast } from '@/contexts/ToastContext'
 import Colors from '@/constants/Colors'
 import { WorkflowAutomation, ProjectTemplate } from '@/types/appwrite'
+import { account } from '@/lib/appwrite'
 
 interface WorkflowAutomationScreenProps {
   projectId?: string
@@ -49,6 +50,7 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
     trigger: 'task_created' as any,
     is_active: true
   })
+  const [isOffline, setIsOffline] = useState(false)
 
   const triggers = [
     { key: 'task_created', label: 'Task Created', description: 'When a new task is created' },
@@ -70,6 +72,19 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
   useEffect(() => {
     loadData()
   }, [projectId])
+
+  useEffect(() => {
+    const checkNetworkStatus = async () => {
+      let online = true
+      if ('isOnline' in (projectService as any) && typeof (projectService as any).isOnline === 'function') {
+        online = await (projectService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -102,6 +117,10 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
     }
 
     try {
+      let createdBy = 'system';
+      try {
+        createdBy = (await account.get()).$id;
+      } catch {}
       const automationData = {
         name: newAutomation.name,
         description: newAutomation.description,
@@ -109,7 +128,8 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
         conditions: [],
         actions: [],
         is_active: newAutomation.is_active,
-        project_id: projectId
+        project_id: projectId,
+        created_by: createdBy,
       }
 
       await workflowService.createWorkflowAutomation(automationData)
@@ -189,6 +209,12 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Offline/Sync Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: '#FDECEA', padding: 10, borderRadius: 8, margin: 10 }}>
+          <Text style={{ color: '#B00020', textAlign: 'center' }}>You are offline. Some features may be limited.</Text>
+        </View>
+      )}
       {/* Header */}
       <MotiView
         from={{ opacity: 0, translateY: -20 }}
@@ -292,7 +318,7 @@ export default function WorkflowAutomationScreen({ projectId }: WorkflowAutomati
                       thumbColor={automation.is_active ? theme.tint : theme.textDim}
                     />
                     <TouchableOpacity
-                      style={[styles.actionButton, { backgroundColor: theme.errorLight }]}
+                      style={[styles.actionButton, { backgroundColor: theme.tintLight }]}
                       onPress={() => handleDeleteAutomation(automation)}
                     >
                       <Ionicons name="trash-outline" size={16} color={theme.error} />

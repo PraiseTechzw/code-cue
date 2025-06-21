@@ -1,7 +1,7 @@
 import { databases, account, ID, Query } from "@/lib/appwrite"
-import { DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { DATABASE_ID, COLLECTIONS, COLLECTION_IDS } from "@/lib/appwrite"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import NetInfo from "@react-native-async-storage/async-storage"
+import NetInfo from '@react-native-community/netinfo'
 import { Phase } from "@/types/appwrite"
 
 // Cache keys
@@ -11,8 +11,8 @@ const PHASE_DETAILS_CACHE_KEY = "phase_details_cache_"
 
 // Check if device is online
 export const isOnline = async (): Promise<boolean> => {
-  const netInfo = await NetInfo.fetch()
-  return netInfo.isConnected === true
+  const state = await NetInfo.fetch()
+  return state.isConnected === true
 }
 
 // Get phases by project
@@ -48,7 +48,7 @@ export const getPhasesByProject = async (projectId: string): Promise<Phase[]> =>
     // Get phases for project
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PHASES,
+      COLLECTION_IDS.PHASES,
       [
         Query.equal('project_id', projectId),
         Query.orderAsc('order')
@@ -120,7 +120,7 @@ export const getPhaseById = async (phaseId: string): Promise<Phase | null> => {
     // Get phase details
     const phase = await databases.getDocument(
       DATABASE_ID,
-      COLLECTIONS.PHASES,
+      COLLECTION_IDS.PHASES,
       phaseId
     ) as unknown as Phase
 
@@ -195,7 +195,7 @@ export const createPhase = async (phaseData: Omit<Phase, '$id' | '$createdAt' | 
     // If online, create phase
     const createdPhase = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.PHASES,
+      COLLECTION_IDS.PHASES,
       ID.unique(),
       newPhase
     ) as unknown as Phase
@@ -240,7 +240,7 @@ export const updatePhase = async (phaseId: string, updates: Partial<Phase>): Pro
     // If online, update phase
     const updatedPhase = await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.PHASES,
+      COLLECTION_IDS.PHASES,
       phaseId,
       updates
     ) as unknown as Phase
@@ -279,7 +279,7 @@ export const deletePhase = async (phaseId: string): Promise<void> => {
     // If online, delete phase
     await databases.deleteDocument(
       DATABASE_ID,
-      COLLECTIONS.PHASES,
+      COLLECTION_IDS.PHASES,
       phaseId
     )
 

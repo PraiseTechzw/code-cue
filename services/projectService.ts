@@ -1,4 +1,4 @@
-import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { databases, account, DATABASE_ID, COLLECTION_IDS } from "@/lib/appwrite"
 import { offlineStore } from "./offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -57,7 +57,7 @@ export const getProjects = async (): Promise<Project[]> => {
     // Get projects
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PROJECTS,
+      COLLECTION_IDS.PROJECTS,
       [
         Query.equal('owner_id', user.$id),
         Query.orderDesc('$updatedAt')
@@ -128,7 +128,7 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
     // Get project details
     const project = await databases.getDocument(
       DATABASE_ID,
-      COLLECTIONS.PROJECTS,
+      COLLECTION_IDS.PROJECTS,
       projectId
     ) as unknown as Project
 
@@ -174,7 +174,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
     // Ensure user has a profile
     const { documents: profiles } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PROFILES,
+      COLLECTION_IDS.PROFILES,
       [Query.equal('user_id', user.$id)]
     )
 
@@ -184,7 +184,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
       // Create profile if it doesn't exist
       profile = await databases.createDocument(
         DATABASE_ID,
-        COLLECTIONS.PROFILES,
+        COLLECTION_IDS.PROFILES,
         ID.unique(),
         {
           user_id: user.$id,
@@ -207,7 +207,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.PROJECTS,
+        table_name: COLLECTION_IDS.PROJECTS,
         record_id: ID.unique(),
         operation: "INSERT",
         data: newProject,
@@ -225,7 +225,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
     // If online, create project
     const createdProject = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.PROJECTS,
+      COLLECTION_IDS.PROJECTS,
       ID.unique(),
       newProject
     ) as unknown as Project
@@ -249,7 +249,7 @@ export const updateProject = async (projectId: string, updates: UpdateProject): 
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.PROJECTS,
+        table_name: COLLECTION_IDS.PROJECTS,
         record_id: projectId,
         operation: "UPDATE",
         data: updates,
@@ -267,7 +267,7 @@ export const updateProject = async (projectId: string, updates: UpdateProject): 
     // If online, update project
     const updatedProject = await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.PROJECTS,
+      COLLECTION_IDS.PROJECTS,
       projectId,
       updates
     ) as unknown as Project
@@ -291,7 +291,7 @@ export const deleteProject = async (projectId: string): Promise<boolean> => {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.PROJECTS,
+        table_name: COLLECTION_IDS.PROJECTS,
         record_id: projectId,
         operation: "DELETE",
         data: null,
@@ -309,7 +309,7 @@ export const deleteProject = async (projectId: string): Promise<boolean> => {
     // If online, delete project
     await databases.deleteDocument(
       DATABASE_ID,
-      COLLECTIONS.PROJECTS,
+      COLLECTION_IDS.PROJECTS,
       projectId
     )
 

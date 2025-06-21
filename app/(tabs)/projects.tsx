@@ -26,6 +26,7 @@ import { phaseService } from "@/services/phaseService"
 import { taskService } from "@/services/taskService"
 import { teamService } from "@/services/teamService"
 import { notificationService } from "@/services/notificationService"
+import { getProjectSettings } from '@/services/projectSettingsService'
 
 export default function ProjectsScreen() {
   const colorScheme = useColorScheme()
@@ -40,6 +41,7 @@ export default function ProjectsScreen() {
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [projectDetails, setProjectDetails] = useState<any>({})
+  const [projectSettings, setProjectSettings] = useState<any>({})
 
   // Animation for the add button
   const scaleAnim = useRef(new Animated.Value(1)).current
@@ -190,10 +192,21 @@ export default function ProjectsScreen() {
     }))
   }
 
-  // Fetch details for all projects when loaded
+  // Fetch project settings for each project
+  const fetchProjectSettings = async (projectId: string) => {
+    try {
+      const settings = await getProjectSettings(projectId)
+      setProjectSettings((prev: any) => ({ ...prev, [projectId]: settings }))
+    } catch (e) {
+      // fallback: do nothing
+    }
+  }
+
+  // Fetch details and settings for all projects when loaded
   useEffect(() => {
     filteredProjects.forEach((project) => {
       if (!projectDetails[project.$id]) fetchProjectDetails(project.$id)
+      if (!projectSettings[project.$id]) fetchProjectSettings(project.$id)
     })
   }, [filteredProjects])
 
@@ -202,13 +215,21 @@ export default function ProjectsScreen() {
     const projectId = item.$id
     if (!projectId) return null
     const details = projectDetails[projectId] || {}
+    const settings = projectSettings[projectId] || {}
     const progress = details.progress || 0
     const members = details.members || []
     const phases = details.phases || []
     const tasks = details.tasks || []
     const notifications = details.notifications || []
     const unreadNotifications = notifications.filter((n: any) => !n.read).length
-
+    // Advanced fields
+    const priority = item.priority || 'Normal'
+    const budget = item.budget ? `$${item.budget}` : 'N/A'
+    const teamSize = members.length
+    // Advanced settings
+    const autoAssign = settings.auto_assign_tasks
+    const requireTime = settings.require_time_tracking
+    const enableBudget = settings.enable_budget_tracking
     return (
       <Pressable
         onPress={() => handleProjectPress(item)}
@@ -216,10 +237,54 @@ export default function ProjectsScreen() {
           { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }
         ]}
       >
-        <View style={[styles.projectCardContainer, { backgroundColor: theme.cardBackground }]}>
-          <ProjectCard project={item} cardBackground={theme.cardBackground} />
-        <View style={styles.projectCardContainer}>
-          <ProjectCard project={item} />
+        <View style={[styles.projectCardContainer, { backgroundColor: theme.cardBackground }]}> 
+          {/* Top Row: Name, Settings Icon */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Text style={{ flex: 1, fontWeight: 'bold', fontSize: 18, color: theme.text }}>{item.name}</Text>
+            <TouchableOpacity onPress={() => router.push(`/project/${projectId}`)} style={{ marginLeft: 8 }}>
+              <Ionicons name="settings-outline" size={20} color={theme.tint} />
+            </TouchableOpacity>
+          </View>
+          {/* Description */}
+          {item.description ? (
+            <Text style={{ color: theme.textDim, marginBottom: 4 }}>{item.description}</Text>
+          ) : null}
+          {/* Advanced Fields Row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="flag-outline" size={14} color={theme.warning} style={{ marginRight: 2 }} />
+              <Text style={{ color: theme.text, fontSize: 12 }}>{priority}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="cash-outline" size={14} color={theme.success} style={{ marginRight: 2 }} />
+              <Text style={{ color: theme.text, fontSize: 12 }}>{budget}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+              <Ionicons name="people-outline" size={14} color={theme.tint} style={{ marginRight: 2 }} />
+              <Text style={{ color: theme.text, fontSize: 12 }}>{teamSize} members</Text>
+            </View>
+          </View>
+          {/* Advanced Settings Badges */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            {autoAssign && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, backgroundColor: theme.success, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Ionicons name="person-add-outline" size={12} color="#fff" style={{ marginRight: 2 }} />
+                <Text style={{ color: '#fff', fontSize: 11 }}>Auto-Assign</Text>
+              </View>
+            )}
+            {requireTime && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, backgroundColor: theme.warning, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Ionicons name="time-outline" size={12} color="#fff" style={{ marginRight: 2 }} />
+                <Text style={{ color: '#fff', fontSize: 11 }}>Time Tracking</Text>
+              </View>
+            )}
+            {enableBudget && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8, backgroundColor: theme.error, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Ionicons name="wallet-outline" size={12} color="#fff" style={{ marginRight: 2 }} />
+                <Text style={{ color: '#fff', fontSize: 11 }}>Budget</Text>
+              </View>
+            )}
+          </View>
           {/* Progress Bar */}
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarBg} />
@@ -229,12 +294,12 @@ export default function ProjectsScreen() {
           {/* Members Avatars */}
           <View style={styles.membersRow}>
             {members.slice(0, 5).map((member: any, idx: number) => (
-              <View key={member.id || idx} style={[styles.memberAvatar, { left: idx * -10 }]}> 
+              <View key={member.id || idx} style={[styles.memberAvatar, { left: idx * -10, backgroundColor: theme.background }]}> 
                 <Text style={styles.memberInitial}>{member.name?.[0] || '?'}</Text>
               </View>
             ))}
             {members.length > 5 && (
-              <View style={[styles.memberAvatar, styles.memberAvatarMore, { left: 5 * -10 }]}>
+              <View style={[styles.memberAvatar, styles.memberAvatarMore, { left: 5 * -10, backgroundColor: theme.background }]}> 
                 <Text style={styles.memberInitial}>+{members.length - 5}</Text>
               </View>
             )}
@@ -273,7 +338,7 @@ export default function ProjectsScreen() {
         </View>
       </Pressable>
     )
-  }, [handleProjectPress, projectDetails, theme.tint, theme.error])
+  }, [projectDetails, projectSettings, theme, router])
 
   const renderEmptyState = () => {
     if (loading) return null
@@ -341,19 +406,19 @@ export default function ProjectsScreen() {
           >
             <Ionicons name="people-outline" size={20} color={theme.text} />
           </TouchableOpacity>
-          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-            <TouchableOpacity
-              style={[styles.newButton, { backgroundColor: theme.tint }]}
-              onPress={handleNewProject}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.newButtonText}>New Project</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity
+            style={[styles.newButton, { backgroundColor: theme.tint }]}
+            onPress={handleNewProject}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.newButtonText}>New Project</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
       </Animated.View>
 
       <Animated.View 
@@ -407,8 +472,8 @@ export default function ProjectsScreen() {
               <View style={styles.listHeader}>
                 <Text style={[styles.listHeaderText, { color: theme.textDim }]}>
                   {filteredProjects.length} {filteredProjects.length === 1 ? 'project' : 'projects'}
-                </Text>
-              </View>
+              </Text>
+            </View>
             ) : null
           }
         />

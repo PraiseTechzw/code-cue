@@ -11,6 +11,12 @@ import {
   RefreshControl,
   Alert,
   SafeAreaView,
+  Modal,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
+  FlatList,
+  Switch,
 } from "react-native"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useLocalSearchParams, router } from "expo-router"
@@ -28,6 +34,10 @@ import { ConnectionStatus } from "@/components/ConnectionStatus"
 import { VerifyAction } from "@/components/VerifyAction"
 import { PhaseCard } from "@/components/PhaseCard"
 import Colors from "@/constants/Colors"
+import { getProjectSettings, updateProjectSettings, createProjectSettings, ProjectSettings } from '@/services/projectSettingsService'
+
+const allowedStatuses = ["active", "completed", "planning", "on-hold", "cancelled"] as const;
+type StatusType = typeof allowedStatuses[number];
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams()
@@ -49,7 +59,8 @@ export default function ProjectDetailScreen() {
     done: 0,
     total: 0,
   })
-
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
   // Animation for the add button
   const buttonScale = useRef(new Animated.Value(1)).current
   const headerAnim = useRef(new Animated.Value(1)).current
@@ -128,6 +139,18 @@ export default function ProjectDetailScreen() {
         done,
         total: tasksData.length,
       })
+
+      setSettingsName(typeof projectData?.name === 'string' ? projectData.name : "")
+      setSettingsDescription(typeof projectData?.description === 'string' ? projectData.description : "")
+      setSettingsStartDate(projectData?.start_date ? new Date(projectData.start_date) : null)
+      setSettingsEndDate(projectData?.end_date ? new Date(projectData.end_date) : null)
+      setSettingsPrivacy((projectData && 'privacy' in projectData && typeof projectData.privacy === 'string') ? projectData.privacy : "public")
+      let statusVal = (projectData && 'status' in projectData && typeof projectData.status === 'string' && allowedStatuses.includes(projectData.status as StatusType)) ? projectData.status as StatusType : undefined
+      setSettingsStatus(statusVal)
+      setSettingsMembers(Array.isArray((projectData as any)?.members) ? (projectData as any).members : [])
+
+      // Load advanced project settings
+      await loadProjectSettings(projectId)
     } catch (error) {
       console.error("Error loading project data:", error)
       showToast("Failed to load project data",  { type: "error" })
@@ -199,24 +222,6 @@ export default function ProjectDetailScreen() {
     }
   }
 
-  const handleShowOptions = () => {
-    Alert.alert("Project Options", "What would you like to do?", [
-      {
-        text: "Edit Project",
-        onPress: handleEditProject,
-      },
-      {
-        text: "Delete Project",
-        onPress: () => setShowDeleteConfirm(true),
-        style: "destructive",
-      },
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-    ])
-  }
-
   const handlePhasePress = (phase: any) => {
     // Navigate to phase detail screen
     router.push({
@@ -233,6 +238,93 @@ export default function ProjectDetailScreen() {
 
   // Tasks without phase
   const unassignedTasks = tasks.filter(task => !task.phase_id)
+
+  const [showSettings, setShowSettings] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState("")
+  const [settingsName, setSettingsName] = useState("")
+  const [settingsDescription, setSettingsDescription] = useState("")
+  const [settingsStartDate, setSettingsStartDate] = useState<Date | null>(null)
+  const [settingsEndDate, setSettingsEndDate] = useState<Date | null>(null)
+  const [settingsPrivacy, setSettingsPrivacy] = useState("public")
+  const [settingsStatus, setSettingsStatus] = useState<StatusType | undefined>(undefined)
+  const [settingsMembers, setSettingsMembers] = useState<any[]>([])
+  const [settingsAutoAssign, setSettingsAutoAssign] = useState(false)
+  const [settingsRequireTimeTracking, setSettingsRequireTimeTracking] = useState(false)
+  const [settingsEnableBudgetTracking, setSettingsEnableBudgetTracking] = useState(false)
+  const [settingsNotificationPrefs, setSettingsNotificationPrefs] = useState('')
+  const [settingsWorkflow, setSettingsWorkflow] = useState('')
+  const [settingsAccessControl, setSettingsAccessControl] = useState('')
+  const [settingsId, setSettingsId] = useState<string | null>(null)
+
+  // Load advanced project settings
+  const loadProjectSettings = async (projectId: string) => {
+    try {
+      const settings = await getProjectSettings(projectId)
+      if (settings) {
+        setSettingsId(settings.$id)
+        setSettingsAutoAssign(!!settings.auto_assign_tasks)
+        setSettingsRequireTimeTracking(!!settings.require_time_tracking)
+        setSettingsEnableBudgetTracking(!!settings.enable_budget_tracking)
+        setSettingsNotificationPrefs(settings.notification_preferences || '')
+        setSettingsWorkflow(settings.workflow_settings || '')
+        setSettingsAccessControl(settings.access_control || '')
+      }
+    } catch (err) {
+      // If not found, create default settings
+      const defaults = {
+        auto_assign_tasks: false,
+        require_time_tracking: false,
+        enable_budget_tracking: false,
+        notification_preferences: '',
+        workflow_settings: '',
+        access_control: '',
+      }
+      const created = await createProjectSettings(projectId, defaults)
+      if (created && created.$id) {
+        setSettingsId(created.$id)
+      }
+      setSettingsAutoAssign(false)
+      setSettingsRequireTimeTracking(false)
+      setSettingsEnableBudgetTracking(false)
+      setSettingsNotificationPrefs('')
+      setSettingsWorkflow('')
+      setSettingsAccessControl('')
+    }
+  }
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true)
+    setSettingsError("")
+    try {
+      // Update main project fields
+      await projectService.updateProject(project.$id, {
+        name: settingsName,
+        description: settingsDescription,
+        start_date: settingsStartDate ? settingsStartDate.toISOString() : null,
+        end_date: settingsEndDate ? settingsEndDate.toISOString() : null,
+        status: settingsStatus,
+      })
+      // Update advanced settings
+      if (settingsId) {
+        await updateProjectSettings(settingsId, {
+          auto_assign_tasks: settingsAutoAssign,
+          require_time_tracking: settingsRequireTimeTracking,
+          enable_budget_tracking: settingsEnableBudgetTracking,
+          notification_preferences: settingsNotificationPrefs,
+          workflow_settings: settingsWorkflow,
+          access_control: settingsAccessControl,
+        })
+      }
+      setShowSettings(false)
+      showToast('Project settings updated', { type: 'success' })
+      loadProjectData()
+    } catch (err) {
+      setSettingsError('Failed to save settings. Please try again.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
 
   if (loading && !refreshing) {
     return (
@@ -317,12 +409,12 @@ export default function ProjectDetailScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={handleShowOptions}
-          style={styles.optionsButton}
+          onPress={() => setShowSettings(true)}
+          style={styles.settingsButton}
           accessibilityRole="button"
-          accessibilityLabel="Project options"
+          accessibilityLabel="Project settings"
         >
-          <Ionicons name="ellipsis-vertical" size={24} color={theme.text} />
+          <Ionicons name="settings-outline" size={24} color={theme.tint} />
         </TouchableOpacity>
       </Animated.View>
 
@@ -330,6 +422,60 @@ export default function ProjectDetailScreen() {
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[theme.tint]} />}
       >
+        {/* Project Info Card */}
+        <View style={[styles.projectCardContainer, { backgroundColor: theme.cardBackground, borderRadius: 20, margin: 16, padding: 20, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 }]}> 
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.projectName, { color: theme.text, fontSize: 22 }]} numberOfLines={1} ellipsizeMode="tail">{project.name}</Text>
+              <Text style={[styles.projectDescription, { color: theme.textDim, fontSize: 14 }]} numberOfLines={2} ellipsizeMode="tail">{project.description || 'No description provided'}</Text>
+            </View>
+            <TouchableOpacity onPress={handleEditProject} style={{ marginLeft: 10, padding: 6, borderRadius: 16, backgroundColor: theme.background }}>
+              <Ionicons name="settings-outline" size={22} color={theme.tint} />
+            </TouchableOpacity>
+          </View>
+          {/* Members Avatars */}
+          {project.members && project.members.length > 0 && (
+            <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+              {project.members.slice(0, 5).map((member: any, idx: number) => (
+                <View key={member.id || idx} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', marginLeft: idx === 0 ? 0 : -10, borderWidth: 1, borderColor: theme.border }}>
+                  <Text style={{ color: theme.text, fontWeight: 'bold' }}>{member.name?.[0] || '?'}</Text>
+                </View>
+              ))}
+              {project.members.length > 5 && (
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', marginLeft: -10, borderWidth: 1, borderColor: theme.border }}>
+                  <Text style={{ color: theme.text, fontWeight: 'bold' }}>+{project.members.length - 5}</Text>
+                </View>
+              )}
+            </View>
+          )}
+          {/* Quick Actions Row */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/analytics-dashboard?projectId=${project.$id}`)}>
+              <Ionicons name="analytics-outline" size={22} color="#2196F3" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/workflow-automation?projectId=${project.$id}`)}>
+              <Ionicons name="git-branch-outline" size={22} color="#9C27B0" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/time-tracking?projectId=${project.$id}`)}>
+              <Ionicons name="time-outline" size={22} color="#4CAF50" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/github-connect?projectId=${project.$id}`)}>
+              <Ionicons name="logo-github" size={22} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/insights?projectId=${project.$id}`)}>
+              <Ionicons name="bulb-outline" size={22} color={theme.tint} />
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', flex: 1 }} onPress={() => router.push(`/project/${project.$id}/notifications`)}>
+              <Ionicons name="notifications-outline" size={22} color={theme.error} />
+              {project.notifications && project.notifications.filter((n: any) => !n.read).length > 0 && (
+                <View style={{ position: 'absolute', top: -2, right: 10, backgroundColor: theme.error, borderRadius: 8, paddingHorizontal: 4, minWidth: 16, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>{project.notifications.filter((n: any) => !n.read).length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+        {/* End Project Info Card */}
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
             <Text style={[styles.progressTitle, { color: theme.text }]}>Project Progress</Text>
@@ -483,6 +629,160 @@ export default function ProjectDetailScreen() {
       />
 
       <ConnectionStatus />
+
+      <Modal
+        visible={showSettings}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={{ backgroundColor: theme.cardBackground, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, minHeight: 480 }}>
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: theme.border, marginBottom: 8 }} />
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.text }}>Project Settings</Text>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Project Name</Text>
+              <TextInput
+                style={{ backgroundColor: theme.background, color: theme.text, borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: theme.border }}
+                value={settingsName}
+                onChangeText={setSettingsName}
+              />
+              <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Description</Text>
+              <TextInput
+                style={{ backgroundColor: theme.background, color: theme.text, borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: theme.border, minHeight: 60, textAlignVertical: 'top' }}
+                value={settingsDescription}
+                onChangeText={setSettingsDescription}
+                multiline
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Start Date</Text>
+                  <TouchableOpacity style={{ backgroundColor: theme.background, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.border }} onPress={() => setShowStartDatePicker(true)}>
+                    <Text style={{ color: settingsStartDate ? theme.text : theme.textDim }}>{settingsStartDate ? settingsStartDate.toLocaleDateString() : 'Select date'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>End Date</Text>
+                  <TouchableOpacity style={{ backgroundColor: theme.background, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.border }} onPress={() => setShowEndDatePicker(true)}>
+                    <Text style={{ color: settingsEndDate ? theme.text : theme.textDim }}>{settingsEndDate ? settingsEndDate.toLocaleDateString() : 'Select date'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {/* Privacy and Status */}
+              <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Privacy</Text>
+                  <TouchableOpacity style={{ backgroundColor: theme.background, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.border }} onPress={() => setSettingsPrivacy(settingsPrivacy === 'public' ? 'private' : 'public')}>
+                    <Text style={{ color: theme.text }}>{settingsPrivacy === 'public' ? 'Public' : 'Private'}</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Status</Text>
+                  <TouchableOpacity style={{ backgroundColor: theme.background, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: theme.border }} onPress={() => {
+                    const nextStatus = settingsStatus === 'active' ? 'completed' : 'active';
+                    setSettingsStatus(nextStatus as StatusType)
+                  }}>
+                    <Text style={{ color: theme.text }}>{settingsStatus === 'active' ? 'Active' : 'Completed'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {/* Members (display only, for now) */}
+              <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Members</Text>
+              <FlatList
+                data={settingsMembers}
+                keyExtractor={(item, idx) => item.id || idx.toString()}
+                horizontal
+                renderItem={({ item }) => (
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', marginRight: 8, borderWidth: 1, borderColor: theme.border }}>
+                    <Text style={{ color: theme.text, fontWeight: 'bold' }}>{item.name?.[0] || '?'}</Text>
+                  </View>
+                )}
+                style={{ marginBottom: 16 }}
+              />
+              {/* Advanced Settings */}
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ color: theme.text, fontWeight: '600', marginBottom: 4 }}>Advanced Settings</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ flex: 1, color: theme.text }}>Auto-assign Tasks</Text>
+                  <Switch value={settingsAutoAssign} onValueChange={setSettingsAutoAssign} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ flex: 1, color: theme.text }}>Require Time Tracking</Text>
+                  <Switch value={settingsRequireTimeTracking} onValueChange={setSettingsRequireTimeTracking} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ flex: 1, color: theme.text }}>Enable Budget Tracking</Text>
+                  <Switch value={settingsEnableBudgetTracking} onValueChange={setSettingsEnableBudgetTracking} />
+                </View>
+                <Text style={{ color: theme.text, marginBottom: 4 }}>Notification Preferences</Text>
+                <TextInput
+                  style={{ backgroundColor: theme.background, borderRadius: 8, borderWidth: 1, borderColor: theme.border, color: theme.text, marginBottom: 8, padding: 8 }}
+                  value={settingsNotificationPrefs}
+                  onChangeText={setSettingsNotificationPrefs}
+                  placeholder="e.g. all, mentions, none"
+                  placeholderTextColor={theme.textDim}
+                />
+                <Text style={{ color: theme.text, marginBottom: 4 }}>Workflow Settings</Text>
+                <TextInput
+                  style={{ backgroundColor: theme.background, borderRadius: 8, borderWidth: 1, borderColor: theme.border, color: theme.text, marginBottom: 8, padding: 8 }}
+                  value={settingsWorkflow}
+                  onChangeText={setSettingsWorkflow}
+                  placeholder="Custom workflow JSON or description"
+                  placeholderTextColor={theme.textDim}
+                />
+                <Text style={{ color: theme.text, marginBottom: 4 }}>Access Control</Text>
+                <TextInput
+                  style={{ backgroundColor: theme.background, borderRadius: 8, borderWidth: 1, borderColor: theme.border, color: theme.text, marginBottom: 8, padding: 8 }}
+                  value={settingsAccessControl}
+                  onChangeText={setSettingsAccessControl}
+                  placeholder="e.g. public, private, team-only"
+                  placeholderTextColor={theme.textDim}
+                />
+              </View>
+              {/* Error message */}
+              {settingsError ? <Text style={{ color: theme.error, marginBottom: 8 }}>{settingsError}</Text> : null}
+              {/* Save/Delete/Archive Buttons */}
+              <TouchableOpacity
+                style={{ backgroundColor: theme.tint, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12, opacity: settingsSaving ? 0.5 : 1 }}
+                onPress={handleSaveSettings}
+                disabled={settingsSaving}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>{settingsSaving ? 'Saving...' : 'Save Changes'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: theme.error, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 }}
+                onPress={async () => {
+                  setSettingsSaving(true)
+                  setSettingsError("")
+                  try {
+                    await projectService.deleteProject(project.$id)
+                    setShowSettings(false)
+                    router.replace('/projects')
+                  } catch (e) {
+                    setSettingsError("Failed to delete project. Please try again.")
+                  } finally {
+                    setSettingsSaving(false)
+                  }
+                }}
+                disabled={settingsSaving}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Delete Project</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: theme.background, borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: theme.border }}
+                onPress={() => setShowSettings(false)}
+              >
+                <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -681,5 +981,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
+  },
+  projectCardContainer: {
+    margin: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  settingsButton: {
+    padding: 4,
   },
 })

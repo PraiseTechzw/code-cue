@@ -8,6 +8,7 @@ import { notificationService } from "@/services/notificationService"
 import { useToast } from "@/contexts/ToastContext"
 import { NotificationItem } from "@/components/NotificationItem"
 import Colors from "@/constants/Colors"
+import { projectService } from "@/services/projectService"
 
 export default function NotificationsScreen() {
   const colorScheme = useColorScheme()
@@ -16,9 +17,20 @@ export default function NotificationsScreen() {
 
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     loadNotifications()
+    const checkNetworkStatus = async () => {
+      let online = true
+      if ('isOnline' in (projectService as any) && typeof (projectService as any).isOnline === 'function') {
+        online = await (projectService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadNotifications = async () => {
@@ -67,6 +79,12 @@ export default function NotificationsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Offline/Sync Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: '#FDECEA', padding: 10, borderRadius: 8, margin: 10 }}>
+          <Text style={{ color: '#B00020', textAlign: 'center' }}>You are offline. Some features may be limited.</Text>
+        </View>
+      )}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <Text style={[styles.title, { color: theme.text }]}>Notifications</Text>
         <TouchableOpacity onPress={handleMarkAllRead} style={styles.markAllButton} activeOpacity={0.7}>

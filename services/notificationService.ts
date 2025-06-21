@@ -1,11 +1,10 @@
 import * as Notifications from "expo-notifications"
 import * as Device from "expo-device"
 import { Platform } from "react-native"
-import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { databases, account, DATABASE_ID, COLLECTIONS, COLLECTION_IDS } from "@/lib/appwrite"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import type { Notification } from "@/types/appwrite"
 import { ID, Query } from 'appwrite'
-import { offlineStore } from './offlineStore'
 
 export type { Notification }
 
@@ -22,13 +21,13 @@ export const NOTIFICATION_TYPES = {
   WARNING: 'warning',
   ERROR: 'error',
   REMINDER: 'reminder',
-  TASK_ASSIGNED: 'task_assigned',
-  TASK_DUE: 'task_due',
-  PHASE_STARTED: 'phase_started',
-  PHASE_COMPLETED: 'phase_completed',
-  PROJECT_UPDATED: 'project_updated',
-  TEAM_MEMBER_JOINED: 'team_member_joined',
-  COMMENT_ADDED: 'comment_added'
+  TASK_ASSIGNED: 'info',
+  TASK_DUE: 'info',
+  PHASE_STARTED: 'info',
+  PHASE_COMPLETED: 'info',
+  PROJECT_UPDATED: 'info',
+  TEAM_MEMBER_JOINED: 'info',
+  COMMENT_ADDED: 'info'
 }
 
 // Notification priorities
@@ -36,6 +35,17 @@ export const NOTIFICATION_PRIORITIES = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high'
+}
+
+// Helper for allowed notification types
+const allowedTypes = ['info', 'success', 'warning', 'error', 'reminder'] as const;
+const allowedPriorities = ['low', 'medium', 'high'] as const;
+
+function safeType(type: string): Notification['type'] {
+  return (allowedTypes.includes(type as any) ? type : 'info') as Notification['type'];
+}
+function safePriority(priority: string): Notification['priority'] {
+  return (allowedPriorities.includes(priority as any) ? priority : 'medium') as Notification['priority'];
 }
 
 // Configure notifications
@@ -114,7 +124,7 @@ export const getNotifications = async (): Promise<Notification[]> => {
     
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.NOTIFICATIONS,
+      COLLECTION_IDS.NOTIFICATIONS,
       [
         Query.equal('user_id', user.$id),
         Query.orderDesc('$createdAt')
@@ -133,7 +143,7 @@ export const markNotificationAsRead = async (notificationId: string): Promise<bo
   try {
     await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.NOTIFICATIONS,
+      COLLECTION_IDS.NOTIFICATIONS,
       notificationId,
       { read: true }
     )
@@ -152,7 +162,7 @@ export const markAllNotificationsAsRead = async (): Promise<boolean> => {
     // Get all unread notifications
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.NOTIFICATIONS,
+      COLLECTION_IDS.NOTIFICATIONS,
       [
         Query.equal('user_id', user.$id),
         Query.equal('read', false)
@@ -163,7 +173,7 @@ export const markAllNotificationsAsRead = async (): Promise<boolean> => {
     for (const notification of documents) {
       await databases.updateDocument(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         notification.$id,
         { read: true }
       )
@@ -178,32 +188,29 @@ export const markAllNotificationsAsRead = async (): Promise<boolean> => {
 
 // Create notification
 export const createNotification = async (
-  title: string,
-  description: string | null,
-  type: string,
-  relatedId?: string,
-  relatedType?: string
+  notification: {
+    title: string;
+    description: string | null;
+    type: Notification['type'];
+    related_id?: string;
+    related_type?: string;
+    action_url?: string;
+    priority: Notification['priority'];
+    read: boolean;
+  }
 ): Promise<Notification | null> => {
   try {
     const user = await account.get()
-    
     const newNotification = {
-      title,
-      description,
-      type,
-      read: false,
+      ...notification,
       user_id: user.$id,
-      related_id: relatedId || null,
-      related_type: relatedType || null
     }
-
     const createdNotification = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.NOTIFICATIONS,
+      COLLECTION_IDS.NOTIFICATIONS,
       ID.unique(),
       newNotification
     ) as unknown as Notification
-
     return createdNotification
   } catch (error) {
     console.error("Error creating notification:", error)
@@ -218,7 +225,7 @@ export const getUnreadNotificationCount = async (): Promise<number> => {
     
     const { total } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.NOTIFICATIONS,
+      COLLECTION_IDS.NOTIFICATIONS,
       [
         Query.equal('user_id', user.$id),
         Query.equal('read', false)
@@ -275,7 +282,7 @@ export const notificationService = {
 
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         [
           Query.equal('user_id', user.$id),
           Query.orderDesc('$createdAt')
@@ -308,7 +315,7 @@ export const notificationService = {
       // Get all unread notifications
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         [
           Query.equal('user_id', user.$id),
           Query.equal('read', false)
@@ -319,7 +326,7 @@ export const notificationService = {
       for (const notification of documents) {
         await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.NOTIFICATIONS,
+          COLLECTION_IDS.NOTIFICATIONS,
           notification.$id,
           { read: true }
         )
@@ -372,7 +379,16 @@ export const notificationService = {
     }
   },
 
-  async createNotification(notification: Omit<Notification, "$id" | "$createdAt" | "user_id">) {
+  async createNotification(notification: {
+    title: string;
+    description: string | null;
+    type: Notification['type'];
+    related_id?: string;
+    related_type?: string;
+    action_url?: string;
+    priority: Notification['priority'];
+    read: boolean;
+  }) {
     try {
       const user = await account.get()
       if (!user) throw new Error("User not authenticated")
@@ -384,7 +400,7 @@ export const notificationService = {
 
       const createdNotification = await databases.createDocument(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         ID.unique(),
         newNotification
       ) as unknown as Notification
@@ -468,7 +484,7 @@ export const notificationService = {
 
       const { total } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         [
           Query.equal('user_id', user.$id),
           Query.equal('read', false)
@@ -496,10 +512,6 @@ export const notificationService = {
     })
 
     // Clean up listeners when needed
-    return () => {
-      Notifications.removeNotificationSubscription(notificationListener)
-      Notifications.removeNotificationSubscription(responseListener)
-    }
   },
 
   handleNotificationReceived(notification: Notifications.Notification): void {
@@ -514,7 +526,7 @@ export const notificationService = {
     const data = response.notification.request.content.data
     
     // Mark notification as read
-    if (data.notificationId) {
+    if (typeof data.notificationId === 'string') {
       this.markAsRead(data.notificationId)
     }
 
@@ -544,22 +556,7 @@ export const notificationService = {
 
   async updatePushToken(token: string): Promise<void> {
     try {
-      const online = await offlineStore.isOnline()
       const currentUser = await account.get()
-
-      if (!online) {
-        await offlineStore.addOfflineChange({
-          id: ID.unique(),
-          table_name: 'profiles',
-          record_id: currentUser.$id,
-          operation: 'UPDATE',
-          data: { push_token: token },
-          created_at: new Date().toISOString(),
-          synced: false,
-          retry_count: 0
-        })
-        return
-      }
 
       // Update profile with push token
       await databases.updateDocument(
@@ -573,51 +570,6 @@ export const notificationService = {
     }
   },
 
-  async getNotifications(
-    limit: number = 50,
-    offset: number = 0,
-    unreadOnly: boolean = false
-  ): Promise<Notification[]> {
-    try {
-      const online = await offlineStore.isOnline()
-      const currentUser = await account.get()
-
-      if (!online) {
-        const cached = await offlineStore.getData(CACHE_KEYS.NOTIFICATIONS, async () => [])
-        return cached.filter((notification: Notification) => 
-          notification.user_id === currentUser.$id &&
-          (!unreadOnly || !notification.read)
-        ).slice(offset, offset + limit)
-      }
-
-      const queries = [
-        Query.equal('user_id', currentUser.$id),
-        Query.orderDesc('$createdAt'),
-        Query.limit(limit),
-        Query.offset(offset)
-      ]
-
-      if (unreadOnly) {
-        queries.push(Query.equal('read', false))
-      }
-
-      const { documents } = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
-        queries
-      )
-
-      const notifications = documents as unknown as Notification[]
-      
-      // Cache the results
-      await offlineStore.setData(CACHE_KEYS.NOTIFICATIONS, notifications)
-      
-      return notifications
-    } catch (error) {
-      console.error('Error getting notifications:', error)
-      return []
-    }
-  },
 
   async createTaskAssignmentNotification(
     taskId: string,
@@ -629,12 +581,11 @@ export const notificationService = {
       await this.createNotification({
         title: 'Task Assigned',
         description: `You have been assigned to: ${taskTitle}`,
-        type: NOTIFICATION_TYPES.TASK_ASSIGNED,
-        user_id: assigneeId,
+        type: safeType(NOTIFICATION_TYPES.TASK_ASSIGNED),
         related_id: taskId,
         related_type: 'task',
         action_url: `/task/${taskId}`,
-        priority: NOTIFICATION_PRIORITIES.MEDIUM,
+        priority: 'medium',
         read: false
       })
     } catch (error) {
@@ -653,12 +604,11 @@ export const notificationService = {
       await this.createNotification({
         title: 'Task Due Soon',
         description: `Task "${taskTitle}" is due soon`,
-        type: NOTIFICATION_TYPES.TASK_DUE,
-        user_id: userId,
+        type: safeType(NOTIFICATION_TYPES.TASK_DUE),
         related_id: taskId,
         related_type: 'task',
         action_url: `/task/${taskId}`,
-        priority: NOTIFICATION_PRIORITIES.HIGH,
+        priority: 'high',
         read: false
       })
 
@@ -671,7 +621,7 @@ export const notificationService = {
           reminderDate,
           {
             notificationId: taskId,
-            type: NOTIFICATION_TYPES.TASK_DUE,
+            type: safeType(NOTIFICATION_TYPES.TASK_DUE),
             relatedId: taskId,
             relatedType: 'task',
             actionUrl: `/task/${taskId}`
@@ -692,8 +642,8 @@ export const notificationService = {
   ): Promise<void> {
     try {
       const notificationType = action === 'started' 
-        ? NOTIFICATION_TYPES.PHASE_STARTED 
-        : NOTIFICATION_TYPES.PHASE_COMPLETED
+        ? safeType(NOTIFICATION_TYPES.PHASE_STARTED) 
+        : safeType(NOTIFICATION_TYPES.PHASE_COMPLETED)
 
       const title = action === 'started' 
         ? 'Phase Started' 
@@ -708,11 +658,10 @@ export const notificationService = {
           title,
           description,
           type: notificationType,
-          user_id: userId,
           related_id: phaseId,
           related_type: 'phase',
           action_url: `/project/${projectId}`,
-          priority: NOTIFICATION_PRIORITIES.MEDIUM,
+          priority: 'medium',
           read: false
         })
       }
@@ -732,12 +681,11 @@ export const notificationService = {
         await this.createNotification({
           title: 'New Team Member',
           description: `${newMemberName} has joined the project "${projectName}"`,
-          type: NOTIFICATION_TYPES.TEAM_MEMBER_JOINED,
-          user_id: userId,
+          type: safeType(NOTIFICATION_TYPES.TEAM_MEMBER_JOINED),
           related_id: projectId,
           related_type: 'project',
           action_url: `/project/${projectId}`,
-          priority: NOTIFICATION_PRIORITIES.LOW,
+          priority: 'low',
           read: false
         })
       }
@@ -758,12 +706,11 @@ export const notificationService = {
         await this.createNotification({
           title: 'New Comment',
           description: `${commenterName} commented on task "${taskTitle}"`,
-          type: NOTIFICATION_TYPES.COMMENT_ADDED,
-          user_id: userId,
+          type: safeType(NOTIFICATION_TYPES.COMMENT_ADDED),
           related_id: commentId,
           related_type: 'comment',
           action_url: `/task/${taskId}`,
-          priority: NOTIFICATION_PRIORITIES.LOW,
+          priority: 'low',
           read: false
         })
       }
@@ -785,9 +732,7 @@ export const notificationService = {
           body,
           data: data || {},
         },
-        trigger: {
-          date: scheduledFor,
-        },
+        trigger: { seconds: Math.max(1, Math.floor((scheduledFor.getTime() - Date.now()) / 1000)), repeats: false },
       })
 
       return identifier
@@ -827,8 +772,8 @@ export const notificationService = {
 
   async getNotificationSettings(): Promise<Record<string, boolean>> {
     try {
-      const cached = await offlineStore.getData(CACHE_KEYS.NOTIFICATION_SETTINGS, async () => ({}))
-      return cached
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.NOTIFICATION_SETTINGS)
+      return cached ? JSON.parse(cached) : {}
     } catch (error) {
       console.error('Error getting notification settings:', error)
       return {}
@@ -837,7 +782,7 @@ export const notificationService = {
 
   async updateNotificationSettings(settings: Record<string, boolean>): Promise<void> {
     try {
-      await offlineStore.setData(CACHE_KEYS.NOTIFICATION_SETTINGS, settings)
+      await AsyncStorage.setItem(CACHE_KEYS.NOTIFICATION_SETTINGS, JSON.stringify(settings))
     } catch (error) {
       console.error('Error updating notification settings:', error)
     }
@@ -845,18 +790,12 @@ export const notificationService = {
 
   async clearAllNotifications(): Promise<void> {
     try {
-      const online = await offlineStore.isOnline()
       const currentUser = await account.get()
-
-      if (!online) {
-        await offlineStore.setData(CACHE_KEYS.NOTIFICATIONS, [])
-        return
-      }
 
       // Get all user notifications
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
+        COLLECTION_IDS.NOTIFICATIONS,
         [Query.equal('user_id', currentUser.$id)]
       )
 
@@ -864,7 +803,7 @@ export const notificationService = {
       for (const notification of documents) {
         await databases.deleteDocument(
           DATABASE_ID,
-          COLLECTIONS.NOTIFICATIONS,
+          COLLECTION_IDS.NOTIFICATIONS,
           notification.$id
         )
       }

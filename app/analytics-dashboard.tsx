@@ -42,10 +42,25 @@ export default function AnalyticsDashboardScreen({ projectId }: AnalyticsDashboa
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'quarter'>('month')
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     loadData()
   }, [selectedProject, timeRange])
+
+  // Check network status
+  useEffect(() => {
+    const checkNetworkStatus = async () => {
+      let online = true
+      if ('isOnline' in (projectService as any) && typeof (projectService as any).isOnline === 'function') {
+        online = await (projectService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -141,6 +156,13 @@ export default function AnalyticsDashboardScreen({ projectId }: AnalyticsDashboa
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Offline Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: theme.tintLight, flexDirection: 'row', alignItems: 'center', padding: 8 }}>
+          <Ionicons name="cloud-offline-outline" size={16} color={theme.tint} />
+          <Text style={{ color: theme.tint, marginLeft: 8 }}>You're offline. Some features may be limited.</Text>
+        </View>
+      )}
       {/* Header */}
       <MotiView
         from={{ opacity: 0, translateY: -20 }}

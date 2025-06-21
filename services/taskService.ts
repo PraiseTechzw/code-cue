@@ -1,4 +1,4 @@
-import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { databases, account, DATABASE_ID, COLLECTION_IDS } from "@/lib/appwrite"
 import { offlineStore } from "./offlineStore"
 import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -69,7 +69,7 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
     // Execute query
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       [
         ...queryFilters,
         Query.orderDesc('$createdAt')
@@ -141,7 +141,7 @@ export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
     // Get tasks for project
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       [
         Query.equal('project_id', projectId),
         Query.orderDesc('$createdAt')
@@ -207,7 +207,7 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
     // Get task details
     const task = await databases.getDocument(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       taskId
     ) as unknown as Task
 
@@ -300,7 +300,7 @@ export const createTask = async (taskData: {
     // If online, create task
     const createdTask = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       ID.unique(),
       newTask
     ) as unknown as Task
@@ -324,7 +324,7 @@ export const updateTask = async (taskId: string, updates: UpdateTask): Promise<T
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.TASKS,
+        table_name: COLLECTION_IDS.TASKS,
         record_id: taskId,
         operation: "UPDATE",
         data: updates,
@@ -342,7 +342,7 @@ export const updateTask = async (taskId: string, updates: UpdateTask): Promise<T
     // If online, update task
     const updatedTask = await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       taskId,
       updates
     ) as unknown as Task
@@ -366,7 +366,7 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.TASKS,
+        table_name: COLLECTION_IDS.TASKS,
         record_id: taskId,
         operation: "DELETE",
         data: null,
@@ -384,7 +384,7 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
     // If online, delete task
     await databases.deleteDocument(
       DATABASE_ID,
-      COLLECTIONS.TASKS,
+      COLLECTION_IDS.TASKS,
       taskId
     )
 
@@ -412,7 +412,7 @@ export const createSubtask = async (subtaskData: NewSubtask): Promise<Subtask> =
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.SUBTASKS,
+        table_name: COLLECTION_IDS.SUBTASKS,
         record_id: ID.unique(),
         operation: "INSERT",
         data: newSubtask,
@@ -427,7 +427,7 @@ export const createSubtask = async (subtaskData: NewSubtask): Promise<Subtask> =
     // If online, create subtask
     const createdSubtask = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.SUBTASKS,
+      COLLECTION_IDS.SUBTASKS,
       ID.unique(),
       newSubtask
     ) as unknown as Subtask
@@ -450,7 +450,7 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.SUBTASKS,
+        table_name: COLLECTION_IDS.SUBTASKS,
         record_id: subtaskId,
         operation: "UPDATE",
         data: updateData,
@@ -465,7 +465,7 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
     // If online, update subtask
     const updatedSubtask = await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.SUBTASKS,
+      COLLECTION_IDS.SUBTASKS,
       subtaskId,
       updateData
     ) as unknown as Subtask
@@ -482,7 +482,7 @@ export const getSubtaskById = async (subtaskId: string): Promise<Subtask | null>
   try {
     const subtask = await databases.getDocument(
       DATABASE_ID,
-      COLLECTIONS.SUBTASKS,
+      COLLECTION_IDS.SUBTASKS,
       subtaskId
     ) as unknown as Subtask
 
@@ -510,7 +510,7 @@ export const createComment = async (commentData: NewComment): Promise<Comment> =
       // If offline, queue for later
       await offlineStore.addOfflineChange({
         id: ID.unique(),
-        table_name: COLLECTIONS.COMMENTS,
+        table_name: COLLECTION_IDS.COMMENTS,
         record_id: ID.unique(),
         operation: "INSERT",
         data: newComment,
@@ -525,7 +525,7 @@ export const createComment = async (commentData: NewComment): Promise<Comment> =
     // If online, create comment
     const createdComment = await databases.createDocument(
       DATABASE_ID,
-      COLLECTIONS.COMMENTS,
+      COLLECTION_IDS.COMMENTS,
       ID.unique(),
       newComment
     ) as unknown as Comment

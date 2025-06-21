@@ -61,6 +61,7 @@ export default function TimeTrackingScreen({ projectId }: TimeTrackingScreenProp
     is_billable: false,
     hourly_rate: 0
   })
+  const [isOffline, setIsOffline] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -70,6 +71,19 @@ export default function TimeTrackingScreen({ projectId }: TimeTrackingScreenProp
       }
     }
   }, [projectId])
+
+  useEffect(() => {
+    const checkNetworkStatus = async () => {
+      let online = true
+      if ('isOnline' in (projectService as any) && typeof (projectService as any).isOnline === 'function') {
+        online = await (projectService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -281,6 +295,12 @@ export default function TimeTrackingScreen({ projectId }: TimeTrackingScreenProp
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Offline/Sync Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: '#FDECEA', padding: 10, borderRadius: 8, margin: 10 }}>
+          <Text style={{ color: '#B00020', textAlign: 'center' }}>You are offline. Some features may be limited.</Text>
+        </View>
+      )}
       {/* Header */}
       <MotiView
         from={{ opacity: 0, translateY: -20 }}

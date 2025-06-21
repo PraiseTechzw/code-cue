@@ -45,6 +45,7 @@ import { projectService } from "@/services/projectService";
 import { taskService } from "@/services/taskService";
 import { useToast } from "@/contexts/ToastContext";
 import Colors from "@/constants/Colors";
+import { phaseService } from "@/services/phaseService";
 
 const { width, height } = Dimensions.get("window");
 const HEADER_MAX_HEIGHT = 120;
@@ -87,6 +88,8 @@ export default function HomeScreen() {
   const [selectedFilter, setSelectedFilter] = useState("all");
   const [greeting, setGreeting] = useState("");
   const [showQuickStats, setShowQuickStats] = useState(true);
+  const [projectProgress, setProjectProgress] = useState<number | null>(null);
+  const [progressLoading, setProgressLoading] = useState(false);
 
   // Animation values
   const scrollY = useSharedValue(0);
@@ -295,6 +298,17 @@ export default function HomeScreen() {
           today: 0,
           thisWeek: 0,
         });
+
+        // Fetch project progress using phaseService
+        setProgressLoading(true)
+        try {
+          const progress = await phaseService.calculateProjectProgress(projectId)
+          setProjectProgress(progress)
+        } catch (e) {
+          setProjectProgress(0)
+        } finally {
+          setProgressLoading(false)
+        }
       }
     } catch (error) {
       console.error("Error loading home data:", error);
@@ -405,6 +419,12 @@ export default function HomeScreen() {
       return
     }
     loadProjectTasks(projectId);
+    // Fetch project progress for the selected project
+    setProgressLoading(true)
+    phaseService.calculateProjectProgress(projectId)
+      .then(setProjectProgress)
+      .catch(() => setProjectProgress(0))
+      .finally(() => setProgressLoading(false))
   };
 
   const loadProjectTasks = async (projectId: string) => {
@@ -1131,26 +1151,18 @@ export default function HomeScreen() {
                       style={styles.progressContainer}
                     >
                       <View style={styles.progressHeader}>
-                        <Text style={[styles.progressTitle, { color: "#fff" }]}>
-                          Project Progress
-                        </Text>
-                        <View
-                          style={[
-                            styles.progressPercentageContainer,
-                            { backgroundColor: "rgba(255,255,255,0.2)" },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.progressPercentage,
-                              { color: "#fff" },
-                            ]}
-                          >
-                            {currentProject.progress}%
-                          </Text>
+                        <Text style={[styles.progressTitle, { color: "#fff" }]}>Project Progress</Text>
+                        <View style={[styles.progressPercentageContainer, { backgroundColor: "rgba(255,255,255,0.2)" }]}> 
+                          {progressLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={[styles.progressPercentage, { color: "#fff" }]}> 
+                              {typeof projectProgress === 'number' ? projectProgress : 0}%
+                            </Text>
+                          )}
                         </View>
                       </View>
-                      <ProgressBar progress={currentProject.progress} />
+                      <ProgressBar progress={typeof projectProgress === 'number' ? projectProgress : 0} />
                     </MotiView>
 
                     <MotiView

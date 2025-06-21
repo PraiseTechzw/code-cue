@@ -1,4 +1,4 @@
-import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { databases, account, DATABASE_ID, COLLECTION_IDS } from "@/lib/appwrite"
 import type { Profile } from "@/types/appwrite"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { ID, Query } from 'appwrite'
@@ -16,7 +16,7 @@ export const getProfile = async (): Promise<Profile | null> => {
     const user = await account.get()
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PROFILES,
+      COLLECTION_IDS.PROFILES,
       [Query.equal('user_id', user.$id)]
     )
 
@@ -42,7 +42,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
     // Check if profile exists
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PROFILES,
+      COLLECTION_IDS.PROFILES,
       [Query.equal('user_id', user.$id)]
     )
 
@@ -53,7 +53,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
       const existingProfile = documents[0] as unknown as Profile
       const updatedProfile = await databases.updateDocument(
         DATABASE_ID,
-        COLLECTIONS.PROFILES,
+        COLLECTION_IDS.PROFILES,
         existingProfile.$id,
         {
           ...profileData,
@@ -65,7 +65,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
       // Create new profile
       const newProfile = await databases.createDocument(
         DATABASE_ID,
-        COLLECTIONS.PROFILES,
+        COLLECTION_IDS.PROFILES,
         ID.unique(),
         {
           ...profileData,
@@ -91,7 +91,7 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
     const user = await account.get()
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PROFILES,
+      COLLECTION_IDS.PROFILES,
       [Query.equal('user_id', user.$id)]
     )
 
@@ -102,7 +102,7 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
     const existingProfile = documents[0] as unknown as Profile
     const updatedProfile = await databases.updateDocument(
       DATABASE_ID,
-      COLLECTIONS.PROFILES,
+      COLLECTION_IDS.PROFILES,
       existingProfile.$id,
       updates
     ) as unknown as Profile

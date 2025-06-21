@@ -24,6 +24,7 @@ import { projectService } from '@/services/projectService'
 import { useToast } from '@/contexts/ToastContext'
 import Colors from '@/constants/Colors'
 import { TeamMember } from '@/types/appwrite'
+import { taskService } from '@/services/taskService'
 
 interface TeamManagementScreenProps {
   projectId: string
@@ -45,6 +46,8 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
   const [selectedRole, setSelectedRole] = useState('member')
   const [project, setProject] = useState<any>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [isOffline, setIsOffline] = useState(false)
+  const [memberTasks, setMemberTasks] = useState<{ [userId: string]: number }>({})
 
   const roles = [
     { key: 'owner', label: 'Owner', description: 'Full project control' },
@@ -86,16 +89,49 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
     setRefreshing(false)
   }, [loadData])
 
+  // Check network status
+  useEffect(() => {
+    const checkNetworkStatus = async () => {
+      // Fallback: always online if isOnline is not defined
+      let online = true
+      if ('isOnline' in (teamService as any) && typeof (teamService as any).isOnline === 'function') {
+        online = await (teamService as any).isOnline()
+      }
+      setIsOffline(!online)
+    }
+    checkNetworkStatus()
+    const interval = setInterval(checkNetworkStatus, 10000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Fetch tasks assigned to each member
+  const fetchMemberTasks = useCallback(async () => {
+    if (!projectId) return
+    try {
+      const tasks = await taskService.getTasksByProject(projectId)
+      const taskCounts: { [userId: string]: number } = {}
+      tasks.forEach((task: any) => {
+        if (task.assignee_id) {
+          taskCounts[task.assignee_id] = (taskCounts[task.assignee_id] || 0) + 1
+        }
+      })
+      setMemberTasks(taskCounts)
+    } catch {}
+  }, [projectId])
+  useEffect(() => { fetchMemberTasks() }, [teamMembers, fetchMemberTasks])
+
   const handleAddMember = async () => {
     if (!newMemberEmail.trim()) {
       showToast('Please enter an email address', { type: 'error' })
       return
     }
-
     try {
-      // In a real app, you would invite the user by email
-      // For now, we'll simulate adding a member
-      showToast('Invitation sent successfully', { type: 'success' })
+      if ('inviteTeamMember' in (teamService as any) && typeof (teamService as any).inviteTeamMember === 'function') {
+        await (teamService as any).inviteTeamMember(projectId, newMemberEmail, selectedRole)
+        showToast('Invitation sent successfully', { type: 'success' })
+      } else {
+        showToast('Invitation simulated (no backend logic)', { type: 'info' })
+      }
       setShowAddMemberModal(false)
       setNewMemberEmail('')
       setSelectedRole('member')
@@ -146,6 +182,9 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
 
   const canManageTeam = userRole === 'owner' || userRole === 'admin'
 
+  // Fallback for theme.errorLight
+  const errorLight = (theme as any).errorLight || '#FDECEA'
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -157,6 +196,13 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Offline Banner */}
+      {isOffline && (
+        <View style={{ backgroundColor: theme.tintLight, flexDirection: 'row', alignItems: 'center', padding: 8 }}>
+          <Ionicons name="cloud-offline-outline" size={16} color={theme.tint} />
+          <Text style={{ color: theme.tint, marginLeft: 8 }}>You're offline. Some features may be limited.</Text>
+        </View>
+      )}
       {/* Header */}
       <MotiView
         from={{ opacity: 0, translateY: -20 }}
@@ -246,6 +292,12 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
                 <Text style={[styles.memberStatus, { color: theme.textDim }]}>
                   Joined {new Date(member.joined_at).toLocaleDateString()}
                 </Text>
+                {/* Assigned Tasks */}
+                <Text style={[styles.memberStatus, { color: theme.textDim }]}> Tasks: {memberTasks[member.user_id] || 0} </Text>
+                {/* Last Activity (if available) */}
+                {typeof (member as any).last_activity === 'string' && (
+                  <Text style={[styles.memberStatus, { color: theme.textDim }]}> Last Active: {new Date((member as any).last_activity).toLocaleDateString()} </Text>
+                )}
               </View>
             </View>
             <View style={styles.memberActions}>
@@ -262,7 +314,7 @@ export default function TeamManagementScreen({ projectId }: TeamManagementScreen
                     <Ionicons name="settings-outline" size={16} color={theme.tint} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: theme.errorLight }]}
+                    style={[styles.actionButton, { backgroundColor: errorLight }]}
                     onPress={() => handleRemoveMember(member)}
                   >
                     <Ionicons name="trash-outline" size={16} color={theme.error} />

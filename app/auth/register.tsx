@@ -10,6 +10,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [fullName, setFullName] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { signUp } = useAuth()
@@ -35,7 +36,7 @@ export default function RegisterScreen() {
 
     try {
       setLoading(true)
-      const success = await signUp(email, password)
+      const success = await signUp(email, password, fullName)
       if (success) {
         showToast("Account created successfully", { type: "success" })
         router.replace("/(tabs)")
@@ -58,6 +59,16 @@ export default function RegisterScreen() {
       </View>
 
       <View style={styles.form}>
+        <View style={[styles.inputContainer, { backgroundColor: theme.cardBackground }]}>
+          <TextInput
+            style={[styles.input, { color: theme.text }]}
+            placeholder="Full Name"
+            placeholderTextColor={theme.textDim}
+            value={fullName}
+            onChangeText={setFullName}
+          />
+        </View>
+
         <View style={[styles.inputContainer, { backgroundColor: theme.cardBackground }]}>
           <TextInput
             style={[styles.input, { color: theme.text }]}

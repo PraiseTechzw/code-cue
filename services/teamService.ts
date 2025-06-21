@@ -1,7 +1,7 @@
 import { databases, account, ID, Query } from '@/lib/appwrite'
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite'
 import { TeamMember, ProjectActivity } from '@/types/appwrite'
-import { offlineStore } from './offlineStore'
+import { offlineStore, isOnline } from './offlineStore'
 import { notificationService } from './notificationService'
 
 // Cache keys
@@ -69,7 +69,7 @@ export const teamService = {
    */
   async getTeamMembers(projectId: string): Promise<TeamMember[]> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       
       if (!online) {
         const cached = await offlineStore.getData(CACHE_KEYS.TEAM_MEMBERS, async () => [])
@@ -99,7 +99,7 @@ export const teamService = {
    */
   async addTeamMember(projectId: string, userId: string, role: string = 'member'): Promise<TeamMember | null> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       const currentUser = await account.get()
       
       // Check if user has permission to add members
@@ -179,7 +179,7 @@ export const teamService = {
    */
   async updateTeamMemberRole(memberId: string, newRole: string): Promise<TeamMember | null> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       const currentUser = await account.get()
 
       // Get member details
@@ -237,7 +237,7 @@ export const teamService = {
    */
   async removeTeamMember(memberId: string): Promise<boolean> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       const currentUser = await account.get()
 
       // Get member details
@@ -340,7 +340,7 @@ export const teamService = {
     metadata: Record<string, any> = {}
   ): Promise<void> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       
       const activity = {
         project_id: projectId,
@@ -382,7 +382,7 @@ export const teamService = {
    */
   async getProjectActivities(projectId: string, limit: number = 50): Promise<ProjectActivity[]> {
     try {
-      const online = await offlineStore.isOnline()
+      const online = isOnline()
       
       if (!online) {
         const cached = await offlineStore.getData(CACHE_KEYS.PROJECT_ACTIVITIES, async () => [])
