@@ -152,9 +152,9 @@ export default function GitHubConnectScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
         showToast("GitHub account connected successfully", { type: "success" })
 
-        // Navigate back to GitHub screen with a slight delay for the toast to be visible
+        // Navigate back to welcome screen with a slight delay for the toast to be visible
         setTimeout(() => {
-          router.push("/github")
+          router.push("/welcome")
         }, 500)
       } catch (error) {
         console.error("Error connecting GitHub:", error)

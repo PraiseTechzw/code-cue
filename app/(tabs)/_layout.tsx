@@ -15,6 +15,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { notificationService } from "@/services/notificationService";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
+import GitHubConnectionBanner from "@/components/GitHubConnectionBanner";
 import Colors from "@/constants/Colors";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
@@ -225,6 +226,7 @@ export default function TabLayout() {
   return (
     <>
       <ConnectionStatus />
+      <GitHubConnectionBanner />
 
       <Tabs
         screenOptions={{

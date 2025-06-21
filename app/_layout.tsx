@@ -16,6 +16,7 @@ import NetInfo from "@react-native-community/netinfo"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as SplashScreen from "expo-splash-screen"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
+import CustomSplashScreen from "@/components/SplashScreen"
 import Colors from "@/constants/Colors"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import { useSettingsEffects } from "@/hooks/useSettingsEffects"
@@ -25,6 +26,7 @@ SplashScreen.preventAutoHideAsync()
 
 function AppContent() {
   const [isReady, setIsReady] = useState(false)
+  const [showSplash, setShowSplash] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
   const [lastSynced, setLastSynced] = useState<string>("Never")
 
@@ -66,16 +68,17 @@ function AppContent() {
       console.error("Error preparing app:", error)
     } finally {
       setIsReady(true)
-      await SplashScreen.hideAsync()
+      // Don't hide splash screen immediately, let our custom splash screen handle it
     }
   }
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={Colors.light.tint} />
-      </View>
-    )
+  const handleSplashComplete = async () => {
+    setShowSplash(false)
+    await SplashScreen.hideAsync()
+  }
+
+  if (!isReady || showSplash) {
+    return <CustomSplashScreen onAnimationComplete={handleSplashComplete} />
   }
 
   return (
