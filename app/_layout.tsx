@@ -133,13 +133,13 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
+        <AuthProvider>
         <ThemeProvider>
           <SettingsProvider>
             <AppWrapper />
           </SettingsProvider>
         </ThemeProvider>
-      </AuthProvider>
+        </AuthProvider>
     </ErrorBoundary>
   )
 }

@@ -15,12 +15,17 @@ import { router } from "expo-router"
 import { useRef, useState, useEffect, useCallback } from "react"
 import { useColorScheme } from "react-native"
 import * as Haptics from "expo-haptics"
+import { useFocusEffect } from "expo-router"
 
 import { ProjectCard } from "@/components/ProjectCard"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import Colors from "@/constants/Colors"
+import { phaseService } from "@/services/phaseService"
+import { taskService } from "@/services/taskService"
+import { teamService } from "@/services/teamService"
+import { notificationService } from "@/services/notificationService"
 
 export default function ProjectsScreen() {
   const colorScheme = useColorScheme()
@@ -34,6 +39,7 @@ export default function ProjectsScreen() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [projectDetails, setProjectDetails] = useState<any>({})
 
   // Animation for the add button
   const scaleAnim = useRef(new Animated.Value(1)).current
@@ -162,24 +168,110 @@ export default function ProjectsScreen() {
     router.push("/new-project")
   }
 
+  const handleTeamManagement = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    // Navigate to team management screen
+    router.push("/team-management")
+  }
+
+  // Fetch additional project details (phases, tasks, members, notifications, progress)
+  const fetchProjectDetails = async (projectId: string) => {
+    const [phases, tasks, members, allNotifications, progress] = await Promise.all([
+      phaseService.getPhasesByProject(projectId),
+      taskService.getTasks({ projectId }),
+      teamService.getTeamMembers(projectId),
+      notificationService.getNotifications ? notificationService.getNotifications() : [],
+      phaseService.calculateProjectProgress(projectId),
+    ])
+    const notifications = allNotifications.filter((n: any) => n.related_id === projectId)
+    setProjectDetails((prev: any) => ({
+      ...prev,
+      [projectId]: { phases, tasks, members, notifications, progress }
+    }))
+  }
+
+  // Fetch details for all projects when loaded
+  useEffect(() => {
+    filteredProjects.forEach((project) => {
+      if (!projectDetails[project.$id]) fetchProjectDetails(project.$id)
+    })
+  }, [filteredProjects])
+
+  // Enhanced Project Card
   const renderProjectCard = useCallback(({ item }: { item: any }) => {
     const projectId = item.$id
     if (!projectId) return null
-    
+    const details = projectDetails[projectId] || {}
+    const progress = details.progress || 0
+    const members = details.members || []
+    const phases = details.phases || []
+    const tasks = details.tasks || []
+    const notifications = details.notifications || []
+    const unreadNotifications = notifications.filter((n: any) => !n.read).length
+
     return (
       <Pressable
         onPress={() => handleProjectPress(item)}
         style={({ pressed }) => [
-          { 
-            opacity: pressed ? 0.9 : 1, 
-            transform: [{ scale: pressed ? 0.98 : 1 }] 
-          }
+          { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }
         ]}
       >
-        <ProjectCard project={item} />
+        <View style={styles.projectCardContainer}>
+          <ProjectCard project={item} />
+          {/* Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarBg} />
+            <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+            <Text style={styles.progressText}>{progress}%</Text>
+          </View>
+          {/* Members Avatars */}
+          <View style={styles.membersRow}>
+            {members.slice(0, 5).map((member: any, idx: number) => (
+              <View key={member.id || idx} style={[styles.memberAvatar, { left: idx * -10 }]}> 
+                <Text style={styles.memberInitial}>{member.name?.[0] || '?'}</Text>
+              </View>
+            ))}
+            {members.length > 5 && (
+              <View style={[styles.memberAvatar, styles.memberAvatarMore, { left: 5 * -10 }]}>
+                <Text style={styles.memberInitial}>+{members.length - 5}</Text>
+              </View>
+            )}
+          </View>
+          {/* Phases/Tasks Summary */}
+          <View style={styles.phaseTaskRow}>
+            <Text style={styles.phaseTaskText}>{phases.length} phases</Text>
+            <Text style={styles.phaseTaskText}>{tasks.length} tasks</Text>
+          </View>
+          {/* Quick Actions Bar */}
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/analytics-dashboard?projectId=${projectId}`)}>
+              <Ionicons name="analytics-outline" size={20} color="#2196F3" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/workflow-automation?projectId=${projectId}`)}>
+              <Ionicons name="git-branch-outline" size={20} color="#9C27B0" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/time-tracking?projectId=${projectId}`)}>
+              <Ionicons name="time-outline" size={20} color="#4CAF50" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/github-connect?projectId=${projectId}`)}>
+              <Ionicons name="logo-github" size={20} color="#333" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/insights?projectId=${projectId}`)}>
+              <Ionicons name="bulb-outline" size={20} color={theme.tint} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/project/${projectId}/notifications`)}>
+              <Ionicons name="notifications-outline" size={20} color={theme.error} />
+              {unreadNotifications > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{unreadNotifications}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Pressable>
     )
-  }, [handleProjectPress])
+  }, [handleProjectPress, projectDetails, theme.tint, theme.error])
 
   const renderEmptyState = () => {
     if (loading) return null
@@ -239,6 +331,13 @@ export default function ProjectsScreen() {
               size={20} 
               color={theme.text} 
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: theme.cardBackground }]}
+            onPress={handleTeamManagement}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="people-outline" size={20} color={theme.text} />
           </TouchableOpacity>
           <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
             <TouchableOpacity
@@ -443,5 +542,115 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+  },
+  projectCardContainer: {
+    marginBottom: 24,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  progressBarContainer: {
+    height: 16,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 4,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  progressBarBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+  },
+  progressBarFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#2196F3',
+    borderRadius: 8,
+    zIndex: 1,
+  },
+  progressText: {
+    position: 'absolute',
+    right: 8,
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: 'bold',
+    zIndex: 2,
+  },
+  membersRow: {
+    flexDirection: 'row',
+    marginTop: 4,
+    marginBottom: 4,
+    height: 32,
+    alignItems: 'center',
+  },
+  memberAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eee',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+    position: 'relative',
+    zIndex: 2,
+  },
+  memberAvatarMore: {
+    backgroundColor: '#bbb',
+  },
+  memberInitial: {
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  phaseTaskRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  phaseTaskText: {
+    fontSize: 12,
+    color: '#888',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  quickActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 2,
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#e53935',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+    zIndex: 3,
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 })
