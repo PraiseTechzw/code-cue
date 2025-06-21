@@ -103,7 +103,7 @@ export function ConnectionStatus() {
 
     return () => {
       if (typeof unsubscribe === 'function') {
-        unsubscribe()
+      unsubscribe()
       }
       if (netInfoUnsubscribe && typeof netInfoUnsubscribe.remove === 'function') {
         netInfoUnsubscribe.remove()

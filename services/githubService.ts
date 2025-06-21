@@ -18,8 +18,20 @@ const CACHE_KEYS = {
 
 export const githubService = {
   // Connect GitHub account
-  async connectGitHub(accessToken: string, username: string) {
+  async connectGitHub(accessTokenOrParams: string | { accessToken: string; username: string }, username?: string) {
     try {
+      let accessToken: string
+      let usernameValue: string
+
+      // Handle both parameter formats
+      if (typeof accessTokenOrParams === 'string') {
+        accessToken = accessTokenOrParams
+        usernameValue = username!
+      } else {
+        accessToken = accessTokenOrParams.accessToken
+        usernameValue = accessTokenOrParams.username
+      }
+
       const user = await account.get()
       
       // Check if connection already exists
@@ -36,14 +48,14 @@ export const githubService = {
           COLLECTIONS.GITHUB_CONNECTIONS,
           existingConnections[0].$id,
           {
-            username,
+            username: usernameValue,
             access_token: accessToken
           }
         )
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
-        await SecureStore.setItemAsync('github_username', username)
+        await SecureStore.setItemAsync('github_username', usernameValue)
         
         // Cache connection
         await offlineStore.setItem(CACHE_KEYS.CONNECTION, updatedData[0])
@@ -57,14 +69,14 @@ export const githubService = {
           ID.unique(),
           {
             user_id: user.$id,
-            username,
+            username: usernameValue,
             access_token: accessToken
           }
         )
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
-        await SecureStore.setItemAsync('github_username', username)
+        await SecureStore.setItemAsync('github_username', usernameValue)
         
         // Cache connection
         await offlineStore.setItem(CACHE_KEYS.CONNECTION, newData[0])
@@ -331,6 +343,214 @@ export const githubService = {
       console.error("Error getting commits:", error)
       return []
     }
+  },
+
+  // Save commit
+  async saveCommit(commitData: Omit<GithubCommit, '$id' | '$createdAt' | 'user_id'>) {
+    try {
+      const user = await account.get()
+      
+      // Check if commit already exists
+      const { documents: existingCommits } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_COMMITS,
+        [
+          Query.equal('commit_id', commitData.commit_id),
+          Query.equal('repository_id', commitData.repository_id)
+        ]
+      )
+
+      if (existingCommits.length > 0) {
+        return existingCommits[0]
+      }
+
+      // Create new commit
+      const { documents: newData } = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_COMMITS,
+        ID.unique(),
+        {
+          ...commitData,
+          user_id: user.$id
+        }
+      )
+
+      return newData[0]
+    } catch (error) {
+      console.error("Error saving commit:", error)
+      return null
+    }
+  },
+
+  // Get GitHub connection
+  async getConnection() {
+    return this.getGitHubConnection()
+  },
+
+  // Add repository
+  async addRepository(repoData: {
+    name: string
+    full_name: string
+    html_url: string
+    project_id?: string | null
+  }) {
+    try {
+      const user = await account.get()
+      
+      // Extract repo_id from the URL
+      const urlParts = repoData.html_url.split('/')
+      const repo_id = `${urlParts[3]}/${urlParts[4]}`
+      
+      // Check if repository already exists
+      const { documents: existingRepos } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_REPOSITORIES,
+        [
+          Query.equal('user_id', user.$id),
+          Query.equal('full_name', repoData.full_name)
+        ]
+      )
+
+      if (existingRepos.length > 0) {
+        // Update existing repository
+        const { documents: updatedData } = await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_REPOSITORIES,
+          existingRepos[0].$id,
+          {
+            name: repoData.name,
+            full_name: repoData.full_name,
+            html_url: repoData.html_url,
+            project_id: repoData.project_id || null
+          }
+        )
+        return updatedData[0]
+      } else {
+        // Create new repository
+        const { documents: newData } = await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_REPOSITORIES,
+          ID.unique(),
+          {
+            repo_id,
+            name: repoData.name,
+            full_name: repoData.full_name,
+            html_url: repoData.html_url,
+            user_id: user.$id,
+            project_id: repoData.project_id || null
+          }
+        )
+        return newData[0]
+      }
+    } catch (error) {
+      console.error("Error adding repository:", error)
+      throw error
+    }
+  },
+
+  // Get commit by ID
+  async getCommitById(commitId: string) {
+    try {
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_COMMITS,
+        [Query.equal('$id', commitId)]
+      )
+
+      if (documents.length > 0) {
+        return documents[0] as unknown as GithubCommit
+      }
+      
+      return null
+    } catch (error) {
+      console.error("Error getting commit by ID:", error)
+      return null
+    }
+  },
+
+  // Link commit to task
+  async linkCommitToTask(commitId: string, taskId: string) {
+    try {
+      const { documents: commits } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_COMMITS,
+        [Query.equal('$id', commitId)]
+      )
+
+      if (commits.length > 0) {
+        const { documents: updatedData } = await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_COMMITS,
+          commits[0].$id,
+          { task_id: taskId }
+        )
+        return updatedData[0]
+      }
+      
+      return null
+    } catch (error) {
+      console.error("Error linking commit to task:", error)
+      return null
+    }
+  },
+
+  // Set selected repository (for caching)
+  async setSelectedRepository(repoId: string) {
+    try {
+      await offlineStore.setItem('selected_repository_id', repoId)
+    } catch (error) {
+      console.error("Error setting selected repository:", error)
+    }
+  },
+
+  // Fetch commits for repository
+  async fetchCommitsForRepository(repoId: string) {
+    try {
+      const connection = await this.getGitHubConnection()
+      if (!connection) {
+        throw new Error("GitHub not connected")
+      }
+
+      const repo = await this.getRepositoryById(repoId)
+      if (!repo) {
+        throw new Error("Repository not found")
+      }
+
+      // Fetch commits from GitHub API
+      const response = await fetch(`https://api.github.com/repos/${repo.full_name}/commits?per_page=50`, {
+        headers: {
+          Authorization: `token ${connection.access_token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`)
+      }
+
+      const commits = await response.json()
+
+      // Save commits to database
+      for (const commit of commits) {
+        await this.saveCommit({
+          commit_id: commit.sha,
+          repository_id: repoId,
+          message: commit.commit.message,
+          author: commit.commit.author.name,
+          committed_at: new Date(commit.commit.author.date).toISOString(),
+          html_url: commit.html_url
+        })
+      }
+
+      return commits
+    } catch (error) {
+      console.error("Error fetching commits for repository:", error)
+      throw error
+    }
+  },
+
+  // Disconnect GitHub (alias for disconnectGitHub)
+  async disconnectGithub() {
+    return this.disconnectGitHub()
   },
 
   // Save commit

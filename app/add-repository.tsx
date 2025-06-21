@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react"
 import {
   StyleSheet,
   View,
@@ -11,20 +11,28 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Dimensions,
 } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
+import Ionicons from "@expo/vector-icons/Ionicons"
 import { router } from "expo-router"
 import { useColorScheme } from "react-native"
+import BottomSheet, { BottomSheetView, BottomSheetScrollView } from "@gorhom/bottom-sheet"
 
 import { githubService } from "@/services/githubService"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 
+const { height: screenHeight } = Dimensions.get('window')
+
 export default function AddRepositoryScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const { showToast } = useToast()
+
+  // Bottom sheet refs
+  const bottomSheetRef = useRef<BottomSheet>(null)
+  const snapPoints = useMemo(() => ['25%', '75%'], [])
 
   const [repoUrl, setRepoUrl] = useState("")
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -87,7 +95,7 @@ export default function AddRepositoryScreen() {
           project_id: selectedProjectId,
         })
 
-          showToast("Repository added successfully", {type: "success"})
+        showToast("Repository added successfully", {type: "success"})
 
         // Navigate back to repositories screen
         router.push("/repositories")
@@ -100,119 +108,155 @@ export default function AddRepositoryScreen() {
     }
   }
 
-  const handleBack = () => {
+  const handleClose = useCallback(() => {
     router.back()
-  }
+  }, [])
+
+  const handleSheetChanges = useCallback((index: number) => {
+    console.log('handleSheetChanges', index)
+  }, [])
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-    >
-      <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.text} />
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: theme.text }]}>Add Repository</Text>
-        </View>
-
-        <View style={styles.form}>
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>GitHub Repository URL</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border },
-                errors.repoUrl && styles.inputError,
-              ]}
-              placeholder="https://github.com/username/repository"
-              placeholderTextColor={theme.textDim}
-              value={repoUrl}
-              onChangeText={setRepoUrl}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
-            {errors.repoUrl && <Text style={styles.errorText}>{errors.repoUrl}</Text>}
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Link to Project (Optional)</Text>
-            {loadingProjects ? (
-              <View style={[styles.loadingProjects, { backgroundColor: theme.cardBackground }]}>
-                <ActivityIndicator size="small" color={theme.tint} />
-                <Text style={[styles.loadingProjectsText, { color: theme.textDim }]}>Loading projects...</Text>
-              </View>
-            ) : projects.length === 0 ? (
-              <View style={[styles.noProjects, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-                <Text style={[styles.noProjectsText, { color: theme.textDim }]}>No projects available</Text>
-              </View>
-            ) : (
-              <View style={styles.projectsContainer}>
-                {projects.map((project) => (
-                  <TouchableOpacity
-                    key={project.id}
-                    style={[
-                      styles.projectItem,
-                      { backgroundColor: theme.cardBackground, borderColor: theme.border },
-                      selectedProjectId === project.id && {
-                        borderColor: theme.tint,
-                        backgroundColor: theme.tintLight,
-                      },
-                    ]}
-                    onPress={() => setSelectedProjectId(project.id === selectedProjectId ? null : project.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.projectName,
-                        { color: theme.text },
-                        selectedProjectId === project.id && { color: theme.tint },
-                      ]}
-                    >
-                      {project.name}
-                    </Text>
-                    {selectedProjectId === project.id && (
-                      <Ionicons name="checkmark-circle" size={20} color={theme.tint} />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.tint }]}
-            onPress={handleAddRepository}
-            disabled={loading}
+    <View style={[styles.container, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={1}
+        snapPoints={snapPoints}
+        onChange={handleSheetChanges}
+        enablePanDownToClose={true}
+        onClose={handleClose}
+        backgroundStyle={[styles.bottomSheetBackground, { backgroundColor: theme.background }]}
+        handleIndicatorStyle={[styles.handleIndicator, { backgroundColor: theme.border }]}
+      >
+        <BottomSheetScrollView 
+          style={styles.contentContainer}
+          contentContainerStyle={styles.contentContainerStyle}
+          showsVerticalScrollIndicator={false}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.addIcon} />
-                <Text style={styles.addButtonText}>Add Repository</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: theme.text }]}>Add Repository</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.form}>
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.text }]}>GitHub Repository URL</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border },
+                    errors.repoUrl && styles.inputError,
+                  ]}
+                  placeholder="https://github.com/username/repository"
+                  placeholderTextColor={theme.textDim}
+                  value={repoUrl}
+                  onChangeText={setRepoUrl}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                />
+                {errors.repoUrl && <Text style={styles.errorText}>{errors.repoUrl}</Text>}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.label, { color: theme.text }]}>Link to Project (Optional)</Text>
+                {loadingProjects ? (
+                  <View style={[styles.loadingProjects, { backgroundColor: theme.cardBackground }]}>
+                    <ActivityIndicator size="small" color={theme.tint} />
+                    <Text style={[styles.loadingProjectsText, { color: theme.textDim }]}>Loading projects...</Text>
+                  </View>
+                ) : projects.length === 0 ? (
+                  <View style={[styles.noProjects, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                    <Text style={[styles.noProjectsText, { color: theme.textDim }]}>No projects available</Text>
+                  </View>
+                ) : (
+                  <View style={styles.projectsContainer}>
+                    {projects.map((project) => (
+                      <TouchableOpacity
+                        key={project.$id || project.id}
+                        style={[
+                          styles.projectItem,
+                          { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                          selectedProjectId === (project.$id || project.id) && {
+                            borderColor: theme.tint,
+                            backgroundColor: theme.tintLight,
+                          },
+                        ]}
+                        onPress={() => setSelectedProjectId((project.$id || project.id) === selectedProjectId ? null : (project.$id || project.id))}
+                      >
+                        <Text
+                          style={[
+                            styles.projectName,
+                            { color: theme.text },
+                            selectedProjectId === (project.$id || project.id) && { color: theme.tint },
+                          ]}
+                        >
+                          {project.name}
+                        </Text>
+                        {selectedProjectId === (project.$id || project.id) && (
+                          <Ionicons name="checkmark-circle" size={20} color={theme.tint} />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: theme.tint }]}
+                onPress={handleAddRepository}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="add-circle-outline" size={20} color="#fff" style={styles.addIcon} />
+                    <Text style={styles.addButtonText}>Add Repository</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </BottomSheetScrollView>
+      </BottomSheet>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bottomSheetBackground: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  handleIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  contentContainerStyle: {
+    paddingBottom: 40,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     padding: 20,
     paddingBottom: 10,
   },
-  backButton: {
-    marginRight: 16,
+  closeButton: {
     padding: 4,
   },
   title: {

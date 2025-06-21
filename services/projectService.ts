@@ -334,9 +334,9 @@ const updateProjectsCache = async (newProject: Project) => {
         PROJECTS_CACHE_KEY,
         JSON.stringify({
           data: updatedData,
-          timestamp: Date.now(),
+        timestamp: Date.now(),
         })
-      )
+    )
     }
   } catch (error) {
     console.error("Error updating projects cache:", error)

@@ -12,7 +12,7 @@ const CACHE_KEYS = {
 
 // Get current user profile
 export const getProfile = async (): Promise<Profile | null> => {
-  try {
+    try {
     const user = await account.get()
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
@@ -27,11 +27,11 @@ export const getProfile = async (): Promise<Profile | null> => {
     }
 
     return null
-  } catch (error) {
+    } catch (error) {
     console.error("Error getting profile:", error)
-    return null
-  }
-}
+        return null
+      }
+    }
 
 // Create or update profile
 export const upsertProfile = async (profileData: Partial<Profile>): Promise<Profile | null> => {
@@ -79,7 +79,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
     // Update cache
     await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile))
     return profile
-  } catch (error) {
+    } catch (error) {
     console.error("Error upserting profile:", error)
     return null
   }
@@ -109,7 +109,7 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
 
     // Update cache
     await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(updatedProfile))
-    return updatedProfile
+          return updatedProfile
   } catch (error) {
     console.error("Error updating profile:", error)
     return null

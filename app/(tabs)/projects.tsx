@@ -119,12 +119,12 @@ export default function ProjectsScreen() {
             if (!projectId) return null
             
             return (
-              <Pressable
+            <Pressable
                 onPress={() => handleProjectPress(projectId)}
-                style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-              >
-                <ProjectCard project={item} />
-              </Pressable>
+              style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+            >
+              <ProjectCard project={item} />
+            </Pressable>
             )
           }}
           contentContainerStyle={styles.listContent}
