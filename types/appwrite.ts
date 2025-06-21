@@ -22,6 +22,27 @@ export interface Project {
   owner_id: string;
   start_date: string | null;
   end_date: string | null;
+  status: 'planning' | 'active' | 'on-hold' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  budget: number | null;
+  team_size: number | null;
+}
+
+export interface Phase {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  name: string;
+  description: string | null;
+  project_id: string;
+  order: number;
+  progress: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: 'not-started' | 'in-progress' | 'completed' | 'on-hold';
+  weight: number; // Percentage weight for overall project progress
+  assignee_id: string | null;
+  dependencies: string[]; // Array of phase IDs this phase depends on
 }
 
 export interface Task {
@@ -34,7 +55,13 @@ export interface Task {
   priority: string;
   due_date: string | null;
   project_id: string;
+  phase_id: string | null; // New field to link tasks to phases
   user_id: string;
+  assignee_id: string | null;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  dependencies: string[]; // Array of task IDs this task depends on
+  tags: string[];
 }
 
 export interface Subtask {

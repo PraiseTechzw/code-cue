@@ -23,7 +23,7 @@ export const isOnline = async (): Promise<boolean> => {
 }
 
 // Get all tasks with optional filters
-export const getTasks = async (filters?: { status?: string[]; projectId?: string }): Promise<Task[]> => {
+export const getTasks = async (filters?: { status?: string[]; projectId?: string; phaseId?: string }): Promise<Task[]> => {
   try {
     const online = await isOnline()
 
@@ -59,6 +59,10 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
 
       if (filters.projectId) {
         queryFilters.push(Query.equal('project_id', filters.projectId))
+      }
+
+      if (filters.phaseId) {
+        queryFilters.push(Query.equal('phase_id', filters.phaseId))
       }
     }
 
@@ -238,35 +242,59 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
 }
 
 // Create a new task
-export const createTask = async (taskData: NewTask): Promise<Task> => {
+export const createTask = async (taskData: {
+  title: string;
+  description?: string;
+  due_date?: string | null;
+  priority?: string;
+  project_id: string;
+  phase_id?: string | null;
+  status?: string;
+  assignee_id?: string | null;
+  estimated_hours?: number | null;
+  dependencies?: string[];
+  tags?: string[];
+}): Promise<Task> => {
   try {
     const online = await isOnline()
+    const now = new Date().toISOString()
 
     // Get current user
     const user = await account.get()
 
     const newTask = {
       ...taskData,
-      user_id: user.$id
+      user_id: user.$id,
+      status: taskData.status || "todo",
+      priority: taskData.priority || "medium",
+      phase_id: taskData.phase_id || null,
+      assignee_id: taskData.assignee_id || null,
+      estimated_hours: taskData.estimated_hours || null,
+      actual_hours: null,
+      dependencies: taskData.dependencies || [],
+      tags: taskData.tags || [],
     }
 
     if (!online) {
       // If offline, queue for later
-      await offlineStore.addOfflineChange({
-        id: ID.unique(),
-        table_name: COLLECTIONS.TASKS,
-        record_id: ID.unique(),
-        operation: "INSERT",
-        data: newTask,
-        created_at: new Date().toISOString(),
-        synced: false,
-        retry_count: 0
-      })
+      await AsyncStorage.setItem(
+        `offline_task_${Date.now()}`,
+        JSON.stringify({
+          operation: 'CREATE',
+          data: newTask,
+          timestamp: Date.now()
+        })
+      )
 
-      // Update local cache
-      await updateTasksCache(newTask as Task)
+      // Create temporary ID for offline use
+      const tempTask = {
+        ...newTask,
+        $id: `temp_${Date.now()}`,
+        $createdAt: now,
+        $updatedAt: now,
+      }
 
-      return newTask as Task
+      return tempTask as Task
     }
 
     // If online, create task

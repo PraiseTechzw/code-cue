@@ -38,7 +38,12 @@ export default function InsightsScreen() {
       // Get tasks for all projects
       let allTasks: any[] = []
       for (const project of projects) {
-        const tasks = await taskService.getTasksByProject(project.id)
+        const projectId = project.$id
+        if (!projectId) {
+          console.warn('Project has no valid ID:', project)
+          continue
+        }
+        const tasks = await taskService.getTasksByProject(projectId)
         allTasks = [...allTasks, ...tasks]
       }
 

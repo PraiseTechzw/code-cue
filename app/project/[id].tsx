@@ -22,19 +22,25 @@ import { TaskItem } from "@/components/TaskItem"
 import { ProgressBar } from "@/components/ProgressBar"
 import { projectService } from "@/services/projectService"
 import { taskService } from "@/services/taskService"
+import { phaseService } from "@/services/phaseService"
 import { useToast } from "@/contexts/ToastContext"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
 import { VerifyAction } from "@/components/VerifyAction"
+import { PhaseCard } from "@/components/PhaseCard"
 import Colors from "@/constants/Colors"
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams()
-  const [filterVisible, setFilterVisible] = useState(false)
-  const [activeFilter, setActiveFilter] = useState("all")
+  const colorScheme = useColorScheme()
+  const theme = Colors[colorScheme ?? "light"]
+  const { showToast } = useToast()
+
   const [project, setProject] = useState<any>(null)
+  const [phases, setPhases] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [activeFilter, setActiveFilter] = useState("all")
   const [isOffline, setIsOffline] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [taskStats, setTaskStats] = useState({
@@ -44,43 +50,19 @@ export default function ProjectDetailScreen() {
     total: 0,
   })
 
-  const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? "light"]
-  const { showToast } = useToast()
-
   // Animation for the add button
-  const addButtonScale = useRef(new Animated.Value(1)).current
-  const filterAnim = useRef(new Animated.Value(0)).current
-  const headerAnim = useRef(new Animated.Value(0)).current
-
-  // Animate header on mount
-  useEffect(() => {
-    Animated.timing(headerAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start()
-  }, [])
-
-  // Animate filter container
-  useEffect(() => {
-    Animated.timing(filterAnim, {
-      toValue: filterVisible ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start()
-  }, [filterVisible])
+  const buttonScale = useRef(new Animated.Value(1)).current
+  const headerAnim = useRef(new Animated.Value(1)).current
 
   const handlePressIn = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    Animated.spring(addButtonScale, {
+    Animated.spring(buttonScale, {
       toValue: 0.95,
       useNativeDriver: true,
     }).start()
   }
 
   const handlePressOut = () => {
-    Animated.spring(addButtonScale, {
+    Animated.spring(buttonScale, {
       toValue: 1,
       friction: 5,
       tension: 40,
@@ -127,7 +109,11 @@ export default function ProjectDetailScreen() {
       const projectData = await projectService.getProjectById(projectId)
       setProject(projectData)
 
-      // Load tasks for this project
+      // Load phases for this project
+      const phasesData = await phaseService.getPhasesByProject(projectId)
+      setPhases(phasesData)
+
+      // Load all tasks for this project
       const tasksData = await taskService.getTasksByProject(projectId)
       setTasks(tasksData)
 
@@ -166,6 +152,18 @@ export default function ProjectDetailScreen() {
       projectId = projectId[0]
     }
     router.push(`/add-task?projectId=${projectId}`)
+  }
+
+  const handleAddPhase = () => {
+    // Navigate to add phase screen
+    let projectId = id
+    if (Array.isArray(projectId)) {
+      projectId = projectId[0]
+    }
+    router.push({
+      pathname: "/add-phase",
+      params: { projectId }
+    })
   }
 
   const handleBack = () => {
@@ -218,6 +216,23 @@ export default function ProjectDetailScreen() {
       },
     ])
   }
+
+  const handlePhasePress = (phase: any) => {
+    // Navigate to phase detail screen
+    router.push({
+      pathname: "/phase/[id]",
+      params: { id: phase.$id }
+    })
+  }
+
+  // Group tasks by phase
+  const tasksByPhase = phases.map(phase => ({
+    phase,
+    tasks: tasks.filter(task => task.phase_id === phase.$id)
+  }))
+
+  // Tasks without phase
+  const unassignedTasks = tasks.filter(task => !task.phase_id)
 
   if (loading && !refreshing) {
     return (
@@ -311,194 +326,149 @@ export default function ProjectDetailScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      <View style={styles.progressContainer}>
-        <View style={styles.progressHeader}>
-          <Text style={[styles.progressTitle, { color: theme.text }]}>Project Progress</Text>
-          <View style={[styles.progressPercentageContainer, { backgroundColor: theme.tintLight }]}>
-            <Text style={[styles.progressPercentage, { color: theme.tint }]}>{project.progress || 0}%</Text>
-          </View>
-        </View>
-        <ProgressBar progress={typeof project.progress === 'number' ? project.progress : 0} />
-
-        <View style={styles.statsContainer}>
-          <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
-            <Ionicons name="list-outline" size={20} color="#2196F3" />
-            <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.todo}</Text>
-            <Text style={[styles.statLabel, { color: theme.textDim }]}>To Do</Text>
-          </View>
-
-          <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
-            <Ionicons name="time-outline" size={20} color="#FF9800" />
-            <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.inProgress}</Text>
-            <Text style={[styles.statLabel, { color: theme.textDim }]}>In Progress</Text>
-          </View>
-
-          <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
-            <Ionicons name="checkmark-circle-outline" size={20} color="#4CAF50" />
-            <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.done}</Text>
-            <Text style={[styles.statLabel, { color: theme.textDim }]}>Completed</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.tasksHeader}>
-        <Text style={[styles.tasksTitle, { color: theme.text }]}>Tasks</Text>
-        <View style={styles.taskActions}>
-          <TouchableOpacity
-            style={[styles.filterButton, { backgroundColor: theme.cardBackground }]}
-            onPress={() => setFilterVisible(!filterVisible)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Filter tasks"
-          >
-            <Ionicons name="filter-outline" size={20} color={theme.text} />
-          </TouchableOpacity>
-          <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: theme.tint }]}
-              onPress={handleAddTask}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add task"
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add Task</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </View>
-
-      <Animated.View
-        style={[
-          styles.filterContainer,
-          {
-            opacity: filterAnim,
-            height: filterAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 50],
-            }),
-            overflow: "hidden",
-          },
-        ]}
-      >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterScrollContent}
-        >
-          <TouchableOpacity
-            style={[
-              styles.filterOption,
-              activeFilter === "all" && [styles.activeFilterOption, { backgroundColor: theme.tint }],
-            ]}
-            onPress={() => handleFilterChange("all")}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: activeFilter === "all" }}
-            accessibilityLabel="Show all tasks"
-          >
-            <Text
-              style={
-                activeFilter === "all"
-                  ? styles.activeFilterOptionText
-                  : [styles.filterOptionText, { color: theme.text }]
-              }
-            >
-              All
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterOption,
-              activeFilter === "todo" && [styles.activeFilterOption, { backgroundColor: "#2196F3" }],
-            ]}
-            onPress={() => handleFilterChange("todo")}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: activeFilter === "todo" }}
-            accessibilityLabel="Show to do tasks"
-          >
-            <Text
-              style={
-                activeFilter === "todo"
-                  ? styles.activeFilterOptionText
-                  : [styles.filterOptionText, { color: theme.text }]
-              }
-            >
-              To Do
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterOption,
-              activeFilter === "inProgress" && [styles.activeFilterOption, { backgroundColor: "#FF9800" }],
-            ]}
-            onPress={() => handleFilterChange("inProgress")}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: activeFilter === "inProgress" }}
-            accessibilityLabel="Show in progress tasks"
-          >
-            <Text
-              style={
-                activeFilter === "inProgress"
-                  ? styles.activeFilterOptionText
-                  : [styles.filterOptionText, { color: theme.text }]
-              }
-            >
-              In Progress
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterOption,
-              activeFilter === "done" && [styles.activeFilterOption, { backgroundColor: "#4CAF50" }],
-            ]}
-            onPress={() => handleFilterChange("done")}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: activeFilter === "done" }}
-            accessibilityLabel="Show completed tasks"
-          >
-            <Text
-              style={
-                activeFilter === "done"
-                  ? styles.activeFilterOptionText
-                  : [styles.filterOptionText, { color: theme.text }]
-              }
-            >
-              Done
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </Animated.View>
-
       <ScrollView
-        style={styles.tasksList}
+        style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[theme.tint]} />}
       >
-        {filteredTasks.length > 0 ? (
-          filteredTasks.map((task) => (
-            <TaskItem 
-              key={task.$id} 
-              task={{
-                id: task.$id,
-                title: task.title,
-                due_date: task.due_date,
-                priority: task.priority
-              }} 
-              status={task.status as "todo" | "inProgress" | "done"} 
-            />
-          ))
-        ) : (
-          <View style={styles.emptyTasksContainer}>
-            <Ionicons name="list-outline" size={60} color={theme.textDim} />
-            <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>
-              No {activeFilter !== "all" ? activeFilter : ""} tasks found
-            </Text>
-            <Text style={[styles.emptyTasksSubtext, { color: theme.textDim }]}>
-              Tap the "Add Task" button to create a new task
-            </Text>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressTitle, { color: theme.text }]}>Project Progress</Text>
+            <View style={[styles.progressPercentageContainer, { backgroundColor: theme.tintLight }]}>
+              <Text style={[styles.progressPercentage, { color: theme.tint }]}>{project.progress || 0}%</Text>
+            </View>
           </View>
-        )}
+          <ProgressBar progress={typeof project.progress === 'number' ? project.progress : 0} />
+
+          <View style={styles.statsContainer}>
+            <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
+              <Ionicons name="list-outline" size={20} color="#2196F3" />
+              <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.todo}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>To Do</Text>
+            </View>
+
+            <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
+              <Ionicons name="time-outline" size={20} color="#FF9800" />
+              <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.inProgress}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>In Progress</Text>
+            </View>
+
+            <View style={[styles.statItem, { backgroundColor: theme.cardBackground }]}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#4CAF50" />
+              <Text style={[styles.statValue, { color: theme.text }]}>{taskStats.done}</Text>
+              <Text style={[styles.statLabel, { color: theme.textDim }]}>Completed</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Filter Buttons */}
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {["all", "todo", "inProgress", "done"].map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={[
+                  styles.filterButton,
+                  { backgroundColor: theme.cardBackground },
+                  activeFilter === filter && { backgroundColor: theme.tint },
+                ]}
+                onPress={() => handleFilterChange(filter)}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    { color: activeFilter === filter ? "#fff" : theme.text },
+                  ]}
+                >
+                  {filter === "all" ? "All" : filter === "inProgress" ? "In Progress" : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Phases Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Project Phases</Text>
+            <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: theme.tint }]}
+                onPress={handleAddPhase}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addButtonText}>Add Phase</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {phases.length > 0 ? (
+            phases.map((phase) => (
+              <PhaseCard
+                key={phase.$id}
+                phase={phase}
+                onPress={handlePhasePress}
+                showTasks={true}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyPhasesContainer}>
+              <Ionicons name="layers-outline" size={60} color={theme.textDim} />
+              <Text style={[styles.emptyPhasesText, { color: theme.textDim }]}>
+                No phases yet
+              </Text>
+              <Text style={[styles.emptyPhasesSubtext, { color: theme.textDim }]}>
+                Create phases to organize your project tasks
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Tasks Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>All Tasks</Text>
+            <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: theme.tint }]}
+                onPress={handleAddTask}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addButtonText}>Add Task</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => (
+              <TaskItem 
+                key={task.$id} 
+                task={{
+                  id: task.$id,
+                  title: task.title,
+                  due_date: task.due_date,
+                  priority: task.priority
+                }} 
+                status={task.status as "todo" | "inProgress" | "done"} 
+              />
+            ))
+          ) : (
+            <View style={styles.emptyTasksContainer}>
+              <Ionicons name="list-outline" size={60} color={theme.textDim} />
+              <Text style={[styles.emptyTasksText, { color: theme.textDim }]}>
+                No {activeFilter !== "all" ? activeFilter : ""} tasks found
+              </Text>
+              <Text style={[styles.emptyTasksSubtext, { color: theme.textDim }]}>
+                Tap the "Add Task" button to create a new task
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       <VerifyAction
@@ -603,20 +573,8 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
   },
-  tasksHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  tasksTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-  },
-  taskActions: {
-    flexDirection: "row",
-    alignItems: "center",
+  filterContainer: {
+    paddingHorizontal: 16,
   },
   filterButton: {
     padding: 10,
@@ -627,6 +585,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+  },
+  filterText: {
+    fontSize: 14,
+  },
+  section: {
+    padding: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
   },
   addButton: {
     flexDirection: "row",
@@ -645,54 +619,25 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 6,
   },
-  filterContainer: {
-    paddingHorizontal: 16,
-  },
-  filterScrollContent: {
-    paddingVertical: 12,
-  },
-  filterOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: "rgba(0,0,0,0.05)",
-  },
-  activeFilterOption: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  filterOptionText: {
-    fontSize: 14,
-  },
-  activeFilterOptionText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  tasksList: {
-    flex: 1,
-    padding: 16,
-  },
-  emptyTasksContainer: {
+  emptyPhasesContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 40,
     marginTop: 40,
   },
-  emptyTasksText: {
+  emptyPhasesText: {
     fontSize: 16,
     marginTop: 16,
     fontWeight: "600",
   },
-  emptyTasksSubtext: {
+  emptyPhasesSubtext: {
     fontSize: 14,
     textAlign: "center",
     marginTop: 8,
+  },
+  content: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -719,5 +664,22 @@ const styles = StyleSheet.create({
   backToProjectsText: {
     color: "#fff",
     fontWeight: "600",
+  },
+  emptyTasksContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+    marginTop: 40,
+  },
+  emptyTasksText: {
+    fontSize: 16,
+    marginTop: 16,
+    fontWeight: "600",
+  },
+  emptyTasksSubtext: {
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 8,
   },
 })

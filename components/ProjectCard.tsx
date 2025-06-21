@@ -60,7 +60,13 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
   useEffect(() => {
     const fetchTaskStats = async () => {
       try {
-        const tasks = await taskService.getTasksByProject(project.id)
+        const projectId = project.$id
+        if (!projectId) {
+          console.warn('Project has no valid ID:', project)
+          return
+        }
+        
+        const tasks = await taskService.getTasksByProject(projectId)
         const total = tasks.length
         const completed = tasks.filter(task => task.status === 'done').length
         
@@ -74,7 +80,7 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
     }
 
     fetchTaskStats()
-  }, [project.id])
+  }, [project.$id])
 
   const handlePressIn = () => {
     setIsPressed(true)
@@ -113,7 +119,12 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
     if (onPress) {
       onPress(project)
     } else {
-      router.push(`/project/${project.id}`)
+      const projectId = project.$id
+      if (!projectId) {
+        console.error('Project has no valid ID:', project)
+        return
+      }
+      router.push(`/project/${projectId}`)
     }
   }
 
@@ -132,7 +143,12 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
           style: "destructive",
           onPress: async () => {
             try {
-              await projectService.deleteProject(project.id)
+              const projectId = project.$id
+              if (!projectId) {
+                console.error('Project has no valid ID:', project)
+                return
+              }
+              await projectService.deleteProject(projectId)
               showToast("Project deleted successfully", { type: "success" })
               // Refresh the projects list
               router.replace("/")
@@ -207,7 +223,7 @@ export function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps)
             <View style={styles.lastUpdatedContainer}>
               <Ionicons name="time-outline" size={14} color={theme.textDim} style={styles.timeIcon} />
               <Text style={[styles.lastUpdated, { color: theme.textDim }]}>
-                Updated {formatDate(project.updated_at)}
+                Updated {formatDate(project.$updatedAt)}
               </Text>
             </View>
 

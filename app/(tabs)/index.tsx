@@ -250,8 +250,15 @@ export default function HomeScreen() {
         const project = sortedProjects[0];
         setCurrentProject(project);
 
+        // Validate project ID before getting tasks
+        const projectId = project.$id
+        if (!projectId || projectId.trim() === '') {
+          console.warn('loadData: project has no valid ID:', project)
+          return
+        }
+
         // Get tasks for this project
-        const projectTasks = await taskService.getTasksByProject(project.$id);
+        const projectTasks = await taskService.getTasksByProject(projectId);
 
         // Organize tasks by status
         const todoTasks = projectTasks.filter((task) => task.status === "todo");
@@ -343,9 +350,15 @@ export default function HomeScreen() {
   const handleAddTask = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (currentProject) {
+      const projectId = currentProject.$id
+      if (!projectId) {
+        console.error('Current project has no valid ID:', currentProject)
+        showToast("Invalid project ID", { type: "error" })
+        return
+      }
       router.push({
         pathname: "/add-task",
-        params: { projectId: currentProject.$id || currentProject.id },
+        params: { projectId },
       });
     } else {
       router.push("/new-project");
@@ -385,11 +398,23 @@ export default function HomeScreen() {
   const handleChangeProject = (project: any) => {
     setCurrentProject(project);
     bottomSheetModalRef.current?.dismiss();
-    loadProjectTasks(project.$id || project.id);
+    const projectId = project.$id
+    if (!projectId) {
+      console.error('Invalid project ID:', project)
+      showToast("Invalid project ID", { type: "error" })
+      return
+    }
+    loadProjectTasks(projectId);
   };
 
   const loadProjectTasks = async (projectId: string) => {
     try {
+      // Validate projectId
+      if (!projectId || projectId.trim() === '') {
+        console.warn('loadProjectTasks: projectId is empty or invalid')
+        return
+      }
+      
       setLoading(true);
       const projectTasks = await taskService.getTasksByProject(projectId);
 
@@ -769,17 +794,17 @@ export default function HomeScreen() {
       
       // Animate the task completion
       const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-      await taskService.updateTaskStatus(taskId, newStatus);
+      await taskService.updateTask(taskId, { status: newStatus });
       
       // Refresh data
       await loadData();
       
       showToast(
         newStatus === 'done' ? 'Task completed!' : 'Task marked as incomplete',
-        'success'
+        { type: 'success' }
       );
     } catch (error) {
-      showToast('Failed to update task status', 'error');
+      showToast('Failed to update task status', { type: 'error' });
     }
   };
 
@@ -1495,9 +1520,9 @@ export default function HomeScreen() {
                         {refreshing ? (
                           renderSkeleton()
                         ) : tasks.todo.length > 0 ? (
-                          tasks.todo.map((task: any, index: number) => (
-                            renderEnhancedTaskItem(task, 'todo', index))
-                          ))
+                          tasks.todo.map((task: any, index: number) => 
+                            renderEnhancedTaskItem(task, 'todo', index)
+                          )
                         ) : (
                           <View style={styles.emptyTasksContainer}>
                             <Text
@@ -1576,9 +1601,9 @@ export default function HomeScreen() {
                         {refreshing ? (
                           renderSkeleton()
                         ) : tasks.inProgress.length > 0 ? (
-                          tasks.inProgress.map((task: any, index: number) => (
-                            renderEnhancedTaskItem(task, 'inProgress', index))
-                          ))
+                          tasks.inProgress.map((task: any, index: number) => 
+                            renderEnhancedTaskItem(task, 'inProgress', index)
+                          )
                         ) : (
                           <View style={styles.emptyTasksContainer}>
                             <Text
@@ -1661,9 +1686,9 @@ export default function HomeScreen() {
                         {refreshing ? (
                           renderSkeleton()
                         ) : tasks.done.length > 0 ? (
-                          tasks.done.map((task: any, index: number) => (
-                            renderEnhancedTaskItem(task, 'done', index))
-                          ))
+                          tasks.done.map((task: any, index: number) => 
+                            renderEnhancedTaskItem(task, 'done', index)
+                          )
                         ) : (
                           <View style={styles.emptyTasksContainer}>
                             <Text
