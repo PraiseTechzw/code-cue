@@ -1,6 +1,4 @@
-"use client"
-
-import { createContext, useState, useContext, type ReactNode } from "react"
+import React, { createContext, useContext, useState, useRef, ReactNode } from "react"
 import { Toast, type ToastType, type ToastPosition, type ToastAnimation } from "@/components/Toast"
 
 interface ToastOptions {
