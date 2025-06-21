@@ -1,28 +1,32 @@
 "use client"
 
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, ActivityIndicator } from "react-native"
-import  Ionicons  from "@expo/vector-icons/Ionicons"
-import { useRef, useState, useEffect } from "react"
-import { useColorScheme } from "react-native"
-
-import { InsightCard } from "@/components/InsightCard"
-import { aiService } from "@/services/aiService"
-import { projectService } from "@/services/projectService"
-import { taskService } from "@/services/taskService"
-import { useToast } from "@/contexts/ToastContext"
-import Colors from "@/constants/Colors"
+import React, { useState, useEffect } from 'react'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, StatusBar, ActivityIndicator, RefreshControl } from 'react-native'
+import { router } from 'expo-router'
+import { useColorScheme } from 'react-native'
+import Ionicons from '@expo/vector-icons/Ionicons'
+import Colors from '@/constants/Colors'
+import { MotiView } from 'moti'
+import { aiService, Insight } from '@/services/aiService'
+import { projectService } from '@/services/projectService'
+import { taskService } from '@/services/taskService'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function InsightsScreen() {
   const colorScheme = useColorScheme()
-  const theme = Colors[colorScheme ?? "light"]
+  const theme = Colors[colorScheme ?? 'light']
+  const [activeTab, setActiveTab] = useState('overview')
+  const [insights, setInsights] = useState<Insight[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const { showToast } = useToast()
 
-  const [activeFilter, setActiveFilter] = useState("all")
-  const [loading, setLoading] = useState(true)
-  const [insights, setInsights] = useState<any[]>([])
-
-  // Animation for filter buttons
-  const filterButtonScale = useRef(new Animated.Value(1)).current
+  const tabs = [
+    { id: 'overview', label: 'AI Insights', icon: 'bulb-outline' },
+    { id: 'team', label: 'Team', icon: 'people-outline' },
+    { id: 'analytics', label: 'Analytics', icon: 'analytics-outline' },
+    { id: 'workflow', label: 'Workflow', icon: 'git-branch-outline' },
+  ]
 
   useEffect(() => {
     loadInsights()
@@ -31,213 +35,273 @@ export default function InsightsScreen() {
   const loadInsights = async () => {
     try {
       setLoading(true)
-
-      // Get projects and tasks to generate insights
       const projects = await projectService.getProjects()
-
-      // Get tasks for all projects
-      let allTasks: any[] = []
-      for (const project of projects) {
-        const projectId = project.$id
-        if (!projectId) {
-          console.warn('Project has no valid ID:', project)
-          continue
-        }
-        const tasks = await taskService.getTasksByProject(projectId)
-        allTasks = [...allTasks, ...tasks]
-      }
-
-      // Generate AI insights
-      const insightsData = await aiService.generateInsights(projects, allTasks)
-      setInsights(insightsData)
+      const tasks = await taskService.getTasks()
+      const aiInsights = await aiService.generateInsights(projects, tasks)
+      setInsights(aiInsights)
     } catch (error) {
-      console.error("Error loading insights:", error)
-      showToast("Failed to load insights", { type: "error" })
-
-      // Use fallback insights
-      const fallbackInsights = aiService.getFallbackInsights()
-      setInsights(fallbackInsights)
+      console.error('Error loading insights:', error)
+      showToast('Failed to load insights', { type: 'error' })
+      // Load fallback insights
+      setInsights(aiService.getFallbackInsights())
     } finally {
       setLoading(false)
     }
   }
 
-  const handleFilterPress = (filter: string) => {
-    setActiveFilter(filter)
+  const onRefresh = async () => {
+    setRefreshing(true)
+    await loadInsights()
+    setRefreshing(false)
   }
 
-  const handlePressIn = () => {
-    Animated.spring(filterButtonScale, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start()
-  }
-
-  const handlePressOut = () => {
-    Animated.spring(filterButtonScale, {
-      toValue: 1,
-      friction: 5,
-      tension: 40,
-      useNativeDriver: true,
-    }).start()
-  }
-
-  // Filter insights based on active filter
-  const filteredInsights =
-    activeFilter === "all" ? insights : insights.filter((insight) => insight.type === activeFilter)
-
-  // Get icon for insight type
   const getInsightIcon = (type: string) => {
     switch (type) {
-      case "suggestion":
-        return <Ionicons name="trending-up" size={24} color="#4CAF50" />
-      case "alert":
-        return <Ionicons name="warning-outline" size={24} color="#FF9800" />
-      case "productivity":
-        return <Ionicons name="time-outline" size={24} color="#2196F3" />
-      case "analytics":
-        return <Ionicons name="stats-chart-outline" size={24} color="#9C27B0" />
-      default:
-        return <Ionicons name="bulb-outline" size={24} color="#2196F3" />
+      case 'suggestion': return 'lightbulb-outline'
+      case 'alert': return 'warning-outline'
+      case 'productivity': return 'trending-up-outline'
+      case 'analytics': return 'analytics-outline'
+      default: return 'information-circle-outline'
     }
   }
 
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.tint} />
+  const getInsightColor = (type: string) => {
+    switch (type) {
+      case 'suggestion': return theme.tint
+      case 'alert': return theme.error
+      case 'productivity': return theme.success
+      case 'analytics': return '#2196F3'
+      default: return theme.textDim
+    }
+  }
+
+  const renderInsightCard = (insight: Insight) => (
+    <MotiView
+      key={insight.id}
+      from={{ opacity: 0, translateY: 20 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 500 }}
+      style={[styles.insightCard, { backgroundColor: theme.cardBackground }]}
+    >
+      <View style={styles.insightHeader}>
+        <Ionicons 
+          name={getInsightIcon(insight.type) as any} 
+          size={24} 
+          color={getInsightColor(insight.type)} 
+        />
+        <View style={styles.insightMeta}>
+          <Text style={[styles.insightType, { color: getInsightColor(insight.type) }]}>
+            {insight.type.charAt(0).toUpperCase() + insight.type.slice(1)}
+          </Text>
+          <Text style={[styles.insightTime, { color: theme.textDim }]}>
+            {new Date(insight.timestamp).toLocaleDateString()}
+          </Text>
+        </View>
       </View>
-    )
+      <Text style={[styles.insightTitle, { color: theme.text }]}>{insight.title}</Text>
+      <Text style={[styles.insightDescription, { color: theme.textDim }]}>
+        {insight.description}
+      </Text>
+    </MotiView>
+  )
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.contentContainer}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Insights</Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
+              Intelligent analysis of your projects and productivity patterns
+            </Text>
+            
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.tint} />
+                <Text style={[styles.loadingText, { color: theme.textDim }]}>
+                  Generating insights...
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.insightsList}>
+                {insights.map(renderInsightCard)}
+              </View>
+            )}
+          </MotiView>
+        )
+
+      case 'team':
+        return (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.contentContainer}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Team Insights</Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
+              Analyze team performance and collaboration patterns
+            </Text>
+            
+            <View style={styles.featureGrid}>
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/team-management')}
+              >
+                <Ionicons name="people-outline" size={32} color={theme.tint} />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Team Management</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  Manage team members and roles
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/analytics-dashboard')}
+              >
+                <Ionicons name="analytics-outline" size={32} color="#2196F3" />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Team Analytics</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  View team performance metrics
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </MotiView>
+        )
+
+      case 'analytics':
+        return (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.contentContainer}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Analytics Dashboard</Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
+              Detailed project analytics and performance metrics
+            </Text>
+            
+            <View style={styles.featureGrid}>
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/analytics-dashboard')}
+              >
+                <Ionicons name="analytics-outline" size={32} color="#2196F3" />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Project Analytics</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  View detailed project metrics
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/time-tracking')}
+              >
+                <Ionicons name="time-outline" size={32} color="#4CAF50" />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Time Analytics</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  Track time and productivity
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </MotiView>
+        )
+
+      case 'workflow':
+        return (
+          <MotiView
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 500 }}
+            style={styles.contentContainer}
+          >
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Workflow Automation</Text>
+            <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
+              Automate and optimize your project workflows
+            </Text>
+            
+            <View style={styles.featureGrid}>
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/workflow-automation')}
+              >
+                <Ionicons name="git-branch-outline" size={32} color="#9C27B0" />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Workflow Rules</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  Set up automated workflows
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.featureCard, { backgroundColor: theme.cardBackground }]}
+                onPress={() => router.push('/github-connect')}
+              >
+                <Ionicons name="logo-github" size={32} color="#333" />
+                <Text style={[styles.featureTitle, { color: theme.text }]}>GitHub Integration</Text>
+                <Text style={[styles.featureSubtitle, { color: theme.textDim }]}>
+                  Connect with GitHub workflows
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </MotiView>
+        )
+
+      default:
+        return null
+    }
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      refreshing={loading}
-      onRefresh={loadInsights}
-    >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>AI Insights</Text>
-        <Text style={[styles.subtitle, { color: theme.textDim }]}>Smart recommendations based on your activity</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+      
+      {/* Top Tabs */}
+      <View style={[styles.tabContainer, { backgroundColor: theme.background }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[
+                styles.tab,
+                activeTab === tab.id && { backgroundColor: theme.tint }
+              ]}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Ionicons
+                name={tab.icon as any}
+                size={20}
+                color={activeTab === tab.id ? '#fff' : theme.textDim}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  { color: activeTab === tab.id ? '#fff' : theme.textDim }
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === "all" && [styles.activeFilter, { backgroundColor: theme.tint }],
-          ]}
-          onPress={() => handleFilterPress("all")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[styles.filterText, activeFilter === "all" ? styles.activeFilterText : { color: theme.textDim }]}
-          >
-            All
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === "suggestion" && [styles.activeFilter, { backgroundColor: theme.tint }],
-          ]}
-          onPress={() => handleFilterPress("suggestion")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              activeFilter === "suggestion" ? styles.activeFilterText : { color: theme.textDim },
-            ]}
-          >
-            Suggestions
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === "alert" && [styles.activeFilter, { backgroundColor: theme.tint }],
-          ]}
-          onPress={() => handleFilterPress("alert")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[styles.filterText, activeFilter === "alert" ? styles.activeFilterText : { color: theme.textDim }]}
-          >
-            Alerts
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === "productivity" && [styles.activeFilter, { backgroundColor: theme.tint }],
-          ]}
-          onPress={() => handleFilterPress("productivity")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              activeFilter === "productivity" ? styles.activeFilterText : { color: theme.textDim },
-            ]}
-          >
-            Tips
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            activeFilter === "analytics" && [styles.activeFilter, { backgroundColor: theme.tint }],
-          ]}
-          onPress={() => handleFilterPress("analytics")}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              activeFilter === "analytics" ? styles.activeFilterText : { color: theme.textDim },
-            ]}
-          >
-            Analytics
-          </Text>
-        </TouchableOpacity>
+      {/* Content */}
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {renderTabContent()}
       </ScrollView>
-
-      <View style={styles.insightsContainer}>
-        {filteredInsights.length > 0 ? (
-          filteredInsights.map((insight) => (
-            <InsightCard
-              key={insight.id}
-              insight={{
-                ...insight,
-                icon: getInsightIcon(insight.type),
-              }}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="bulb-outline" size={60} color={theme.textDim} />
-            <Text style={[styles.emptyText, { color: theme.textDim }]}>
-              No {activeFilter !== "all" ? activeFilter : ""} insights available
-            </Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+    </SafeAreaView>
   )
 }
 
@@ -245,60 +309,115 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  tabContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  header: {
+  tabScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  tabLabel: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
     padding: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
-  subtitle: {
+  sectionSubtitle: {
     fontSize: 16,
-    marginTop: 4,
+    marginBottom: 24,
+    lineHeight: 22,
   },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  insightsList: {
+    gap: 16,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    marginRight: 10,
-    backgroundColor: "rgba(0,0,0,0.05)",
-  },
-  activeFilter: {
-    shadowColor: "#000",
+  insightCard: {
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  filterText: {
-    fontWeight: "500",
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  insightMeta: {
+    marginLeft: 12,
+  },
+  insightType: {
     fontSize: 14,
+    fontWeight: '600',
   },
-  activeFilterText: {
-    color: "#fff",
-    fontWeight: "600",
+  insightTime: {
+    fontSize: 12,
   },
-  insightsContainer: {
-    padding: 16,
+  insightTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 4,
   },
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 40,
-    marginTop: 40,
+  insightDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
-  emptyText: {
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginLeft: 12,
     fontSize: 16,
-    textAlign: "center",
-    marginTop: 16,
+    fontWeight: '600',
+  },
+  featureGrid: {
+    gap: 16,
+  },
+  featureCard: {
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  featureTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  featureSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 })

@@ -18,11 +18,9 @@ export default function SettingsScreen() {
     toggleOfflineMode,
     togglePushNotifications,
     toggleAutoSync,
-    toggleDataUsage,
     toggleHapticFeedback,
-    toggleSoundEffects,
-    setFontSize,
-    setLanguage,
+    updateFontSize,
+    updateLanguage,
   } = useAppSettings()
   const themeColors = Colors[settings.theme === "dark" ? "dark" : "light"]
   const { showToast } = useToast()
@@ -66,15 +64,6 @@ export default function SettingsScreen() {
     }
   }
 
-  const handleDataUsageChange = async (value: boolean) => {
-    try {
-      await toggleDataUsage()
-      showToast(`Data usage set to ${value ? "high" : "low"}`)
-    } catch (error) {
-      showToast("Failed to update data usage")
-    }
-  }
-
   const handleHapticFeedbackChange = async (value: boolean) => {
     try {
       await toggleHapticFeedback()
@@ -84,18 +73,9 @@ export default function SettingsScreen() {
     }
   }
 
-  const handleSoundEffectsChange = async (value: boolean) => {
-    try {
-      await toggleSoundEffects()
-      showToast(value ? "Sound effects enabled" : "Sound effects disabled")
-    } catch (error) {
-      showToast("Failed to update sound effects")
-    }
-  }
-
   const handleFontSizeChange = async (size: "small" | "medium" | "large") => {
     try {
-      await setFontSize(size)
+      await updateFontSize(size)
       showToast(`Font size set to ${size}`)
     } catch (error) {
       showToast("Failed to update font size")
@@ -104,7 +84,7 @@ export default function SettingsScreen() {
 
   const handleLanguageChange = async (language: string) => {
     try {
-      await setLanguage(language)
+      await updateLanguage(language)
       showToast(`Language set to ${language}`)
     } catch (error) {
       showToast("Failed to update language")
@@ -208,19 +188,6 @@ export default function SettingsScreen() {
               thumbColor={settings.autoSync ? "#f4f3f4" : "#f4f3f4"}
             />
           </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="cellular-outline" size={24} color={themeColors.text} />
-              <Text style={[styles.settingLabel, { color: themeColors.text }]}>High Data Usage</Text>
-            </View>
-            <Switch
-              value={settings.dataUsage === "high"}
-              onValueChange={handleDataUsageChange}
-              trackColor={{ false: "#767577", true: themeColors.tint }}
-              thumbColor={settings.dataUsage === "high" ? "#f4f3f4" : "#f4f3f4"}
-            />
-          </View>
         </View>
 
         <View style={[styles.section, { borderBottomColor: themeColors.border }]}>
@@ -236,19 +203,6 @@ export default function SettingsScreen() {
               onValueChange={handleHapticFeedbackChange}
               trackColor={{ false: "#767577", true: themeColors.tint }}
               thumbColor={settings.hapticFeedback ? "#f4f3f4" : "#f4f3f4"}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="volume-high-outline" size={24} color={themeColors.text} />
-              <Text style={[styles.settingLabel, { color: themeColors.text }]}>Sound Effects</Text>
-            </View>
-            <Switch
-              value={settings.soundEffects}
-              onValueChange={handleSoundEffectsChange}
-              trackColor={{ false: "#767577", true: themeColors.tint }}
-              thumbColor={settings.soundEffects ? "#f4f3f4" : "#f4f3f4"}
             />
           </View>
         </View>

@@ -17,6 +17,13 @@ import { ConnectionStatus } from "@/components/ConnectionStatus"
 import CustomSplashScreen from "@/components/SplashScreen"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import { useSettingsEffects } from "@/hooks/useSettingsEffects"
+import { useRouter } from "expo-router"
+import { useColorScheme } from "react-native"
+import { useAuth } from "@/contexts/AuthContext"
+import { useSettings } from "@/contexts/SettingsContext"
+import { useTheme } from "@/contexts/ThemeContext"
+import GitHubConnectionBanner from "@/components/GitHubConnectionBanner"
+import Colors from "@/constants/Colors"
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync()
@@ -93,6 +100,7 @@ function AppContent() {
         <Stack.Screen name="github-connect" />
         <Stack.Screen name="add-repository" />
         <Stack.Screen name="add-task" />
+        <Stack.Screen name="add-phase" />
         <Stack.Screen name="edit-profile" />
         <Stack.Screen name="edit-project" />
         <Stack.Screen name="link-commit" />
@@ -107,10 +115,16 @@ function AppContent() {
         <Stack.Screen name="task" />
         <Stack.Screen name="terms-of-service" />
         <Stack.Screen name="toast-demo" />
+        <Stack.Screen name="time-tracking" />
+        <Stack.Screen name="team-management" />
+        <Stack.Screen name="analytics-dashboard" />
+        <Stack.Screen name="workflow-automation" />
+        <Stack.Screen name="phase" />
+        <Stack.Screen name="edit-phase" />
+        <Stack.Screen name="github-debug" />
         <Stack.Screen name="+html" />
         <Stack.Screen name="+not-found" />
       </Stack>
-     
       <ConnectionStatus />
     </GestureHandlerRootView>
   )
@@ -119,17 +133,77 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <SafeAreaProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <ThemeProvider>
           <SettingsProvider>
-            <ThemeProvider>
-              <ToastProvider>
-                <AppContent />
-              </ToastProvider>
-            </ThemeProvider>
+            <AppWrapper />
           </SettingsProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </ErrorBoundary>
+  )
+}
+
+function AppWrapper() {
+  const colorScheme = useColorScheme()
+  const theme = Colors[colorScheme ?? "light"]
+  const { user, loading } = useAuth()
+  const { settings } = useSettings()
+  const { setThemePreference } = useTheme()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (settings.theme !== "system") {
+      setThemePreference(settings.theme)
+    }
+  }, [settings.theme, setThemePreference])
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return null
+  }
+
+  // If not authenticated, show auth screens
+  if (!user) {
+    return (
+      <ToastProvider>
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: theme.background,
+            },
+            headerTintColor: theme.text,
+            headerTitleStyle: {
+              fontWeight: "600",
+            },
+            contentStyle: {
+              backgroundColor: theme.background,
+            },
+          }}
+        >
+          <Stack.Screen
+            name="auth"
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="welcome"
+            options={{
+              headerShown: false,
+            }}
+          />
+        </Stack>
+      </ToastProvider>
+    )
+  }
+
+  // If authenticated, show main app
+  return (
+    <ToastProvider>
+      <ConnectionStatus />
+      <GitHubConnectionBanner />
+      <AppContent />
+    </ToastProvider>
   )
 }

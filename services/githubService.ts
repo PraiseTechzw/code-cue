@@ -1,4 +1,4 @@
-import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
+import { databases, account, DATABASE_ID, COLLECTION_IDS } from "@/lib/appwrite"
 import type { GithubRepository, GithubCommit, GithubConnection } from "@/types/appwrite"
 import { notificationService } from "./notificationService"
 import * as SecureStore from "expo-secure-store"
@@ -16,9 +16,121 @@ const CACHE_KEYS = {
   CONNECTION: 'github_connection_cache'
 }
 
+// Debug helper function
+const debugLog = (functionName: string, message: string, data?: any) => {
+  console.log(`[GitHubService.${functionName}] ${message}`, data || '')
+}
+
+// Test collection access
+const testCollectionAccess = async (collectionName: string) => {
+  try {
+    debugLog('testCollectionAccess', `Testing access to collection: ${collectionName}`)
+    
+    // Test with a simple query
+    const result = await databases.listDocuments(
+      DATABASE_ID,
+      collectionName,
+      [Query.limit(1)]
+    )
+    
+    debugLog('testCollectionAccess', `✅ Successfully accessed collection: ${collectionName}`, {
+      total: result.total,
+      documents: result.documents.length
+    })
+    
+    return true
+  } catch (error) {
+    debugLog('testCollectionAccess', `❌ Failed to access collection: ${collectionName}`, {
+      error: error instanceof Error ? error.message : String(error),
+      collectionName,
+      databaseId: DATABASE_ID
+    })
+    return false
+  }
+}
+
 export const githubService = {
+  // Quick debug function - call this from console
+  async quickDebug() {
+    console.log('🔍 [GitHubService] Starting quick debug...')
+    console.log('🔍 [GitHubService] Database ID:', DATABASE_ID)
+    console.log('🔍 [GitHubService] Collections:', {
+      GITHUB_CONNECTIONS: COLLECTION_IDS.GITHUB_CONNECTIONS,
+      GITHUB_REPOSITORIES: COLLECTION_IDS.GITHUB_REPOSITORIES,
+      GITHUB_COMMITS: COLLECTION_IDS.GITHUB_COMMITS
+    })
+    
+    try {
+      // Test each collection individually
+      const collections = [
+        { name: 'GITHUB_CONNECTIONS', id: COLLECTION_IDS.GITHUB_CONNECTIONS },
+        { name: 'GITHUB_REPOSITORIES', id: COLLECTION_IDS.GITHUB_REPOSITORIES },
+        { name: 'GITHUB_COMMITS', id: COLLECTION_IDS.GITHUB_COMMITS }
+      ]
+      
+      for (const collection of collections) {
+        console.log(`🔍 [GitHubService] Testing ${collection.name}: ${collection.id}`)
+        try {
+          const result = await databases.listDocuments(
+            DATABASE_ID,
+            collection.id,
+            [Query.limit(1)]
+          )
+          console.log(`✅ [GitHubService] ${collection.name} - SUCCESS:`, {
+            total: result.total,
+            documents: result.documents.length
+          })
+        } catch (error) {
+          console.log(`❌ [GitHubService] ${collection.name} - FAILED:`, {
+            error: error instanceof Error ? error.message : String(error),
+            collectionId: collection.id,
+            databaseId: DATABASE_ID
+          })
+        }
+      }
+      
+      // Test getGitHubConnection specifically
+      console.log('🔍 [GitHubService] Testing getGitHubConnection...')
+      try {
+        const connection = await this.getGitHubConnection()
+        console.log('✅ [GitHubService] getGitHubConnection result:', connection)
+      } catch (error) {
+        console.log('❌ [GitHubService] getGitHubConnection failed:', {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      
+    } catch (error) {
+      console.log('❌ [GitHubService] Quick debug failed:', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  },
+
+  // Test all collections
+  async testAllCollections() {
+    debugLog('testAllCollections', 'Starting collection access tests...')
+    
+    const collections = [
+      COLLECTION_IDS.GITHUB_CONNECTIONS,
+      COLLECTION_IDS.GITHUB_REPOSITORIES,
+      COLLECTION_IDS.GITHUB_COMMITS
+    ]
+    
+    const results: Record<string, boolean> = {}
+    
+    for (const collection of collections) {
+      results[collection] = await testCollectionAccess(collection)
+    }
+    
+    debugLog('testAllCollections', 'Collection test results:', results)
+    return results
+  },
+
   // Connect GitHub account
   async connectGitHub(accessTokenOrParams: string | { accessToken: string; username: string }, username?: string) {
+    debugLog('connectGitHub', 'Starting GitHub connection process...')
+    
     try {
       let accessToken: string
       let usernameValue: string
@@ -34,7 +146,7 @@ export const githubService = {
 
       // Validate inputs
       if (!accessToken || !usernameValue) {
-        console.error("Invalid inputs:", { accessToken: !!accessToken, usernameValue: !!usernameValue })
+        debugLog('connectGitHub', '❌ Invalid inputs', { accessToken: !!accessToken, usernameValue: !!usernameValue })
         throw new Error("Access token and username are required")
       }
 
@@ -43,49 +155,58 @@ export const githubService = {
       usernameValue = String(usernameValue).trim()
 
       if (!accessToken || !usernameValue) {
-        console.error("Empty values after trimming:", { accessToken: !!accessToken, usernameValue: !!usernameValue })
+        debugLog('connectGitHub', '❌ Empty values after trimming', { accessToken: !!accessToken, usernameValue: !!usernameValue })
         throw new Error("Access token and username cannot be empty")
       }
 
-      console.log("Getting user account...")
+      debugLog('connectGitHub', 'Getting user account...')
       const user = await account.get()
       if (!user || !user.$id) {
-        console.error("User authentication failed:", { user: !!user, userId: user?.$id })
+        debugLog('connectGitHub', '❌ User authentication failed', { user: !!user, userId: user?.$id })
         throw new Error("User not authenticated")
       }
 
-      console.log("User authenticated:", { userId: user.$id })
+      debugLog('connectGitHub', '✅ User authenticated', { userId: user.$id })
 
-      // Test database connection
-      console.log("Testing database connection...")
+      // Test database connection and collection access
+      debugLog('connectGitHub', 'Testing database connection...')
       try {
+        debugLog('connectGitHub', `Testing collection: ${COLLECTION_IDS.GITHUB_CONNECTIONS}`)
         const testQuery = await databases.listDocuments(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_CONNECTIONS,
+          COLLECTION_IDS.GITHUB_CONNECTIONS,
           [Query.equal('user_id', user.$id)]
         )
-        console.log("Database connection test successful")
+        debugLog('connectGitHub', '✅ Database connection test successful', {
+          total: testQuery.total,
+          documents: testQuery.documents.length
+        })
       } catch (dbError) {
-        console.error("Database connection test failed:", dbError)
-        throw new Error("Database connection failed")
+        debugLog('connectGitHub', '❌ Database connection test failed', {
+          error: dbError instanceof Error ? dbError.message : String(dbError),
+          collection: COLLECTION_IDS.GITHUB_CONNECTIONS,
+          databaseId: DATABASE_ID,
+          userId: user.$id
+        })
+        throw new Error(`Database connection failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`)
       }
 
-      console.log("Checking existing connections...")
+      debugLog('connectGitHub', 'Checking existing connections...')
       // Check if connection already exists
       const { documents: existingConnections } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_CONNECTIONS,
+        COLLECTION_IDS.GITHUB_CONNECTIONS,
         [Query.equal('user_id', user.$id)]
       )
 
-      console.log("Existing connections found:", existingConnections.length)
+      debugLog('connectGitHub', 'Existing connections found', { count: existingConnections.length })
 
       if (existingConnections && existingConnections.length > 0) {
-        console.log("Updating existing connection...")
+        debugLog('connectGitHub', 'Updating existing connection...')
         // Update existing connection
         const existingConnection = existingConnections[0]
         if (!existingConnection || !existingConnection.$id) {
-          console.error("Invalid existing connection:", existingConnection)
+          debugLog('connectGitHub', '❌ Invalid existing connection', existingConnection)
           throw new Error("Invalid existing connection data")
         }
 
@@ -93,17 +214,17 @@ export const githubService = {
           username: usernameValue,
           access_token: accessToken
         }
-        console.log("Update data:", { username: updateData.username, hasToken: !!updateData.access_token })
+        debugLog('connectGitHub', 'Update data prepared', { username: updateData.username, hasToken: !!updateData.access_token })
 
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_CONNECTIONS,
+          COLLECTION_IDS.GITHUB_CONNECTIONS,
           existingConnection.$id,
           updateData
         )
         
-        console.log("Connection updated successfully")
-        console.log("Updated data result:", { hasUpdatedData: !!updatedData, updatedDataLength: updatedData?.length })
+        debugLog('connectGitHub', '✅ Connection updated successfully')
+        debugLog('connectGitHub', 'Updated data result', { hasUpdatedData: !!updatedData, updatedDataLength: updatedData?.length })
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
@@ -115,33 +236,33 @@ export const githubService = {
         }
         
         if (!updatedData || !updatedData[0]) {
-          console.error("No data returned from updateDocument")
+          debugLog('connectGitHub', '❌ No data returned from updateDocument')
           throw new Error("Failed to update GitHub connection")
         }
         
         return updatedData[0]
       } else {
-        console.log("Creating new connection...")
+        debugLog('connectGitHub', 'Creating new connection...')
         // Create new connection
         const createData = {
           user_id: user.$id,
           username: usernameValue,
           access_token: accessToken
         }
-        console.log("Create data:", { userId: createData.user_id, username: createData.username, hasToken: !!createData.access_token })
+        debugLog('connectGitHub', 'Create data prepared', { userId: createData.user_id, username: createData.username, hasToken: !!createData.access_token })
 
         const documentId = ID.unique()
-        console.log("Generated document ID:", documentId)
+        debugLog('connectGitHub', 'Generated document ID', documentId)
 
         const { documents: newData } = await databases.createDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_CONNECTIONS,
+          COLLECTION_IDS.GITHUB_CONNECTIONS,
           documentId,
           createData
         )
         
-        console.log("Connection created successfully")
-        console.log("New data result:", { hasNewData: !!newData, newDataLength: newData?.length })
+        debugLog('connectGitHub', '✅ Connection created successfully')
+        debugLog('connectGitHub', 'New data result', { hasNewData: !!newData, newDataLength: newData?.length })
         
         // Store token securely
         await SecureStore.setItemAsync('github_access_token', accessToken)
@@ -153,15 +274,14 @@ export const githubService = {
         }
         
         if (!newData || !newData[0]) {
-          console.error("No data returned from createDocument")
+          debugLog('connectGitHub', '❌ No data returned from createDocument')
           throw new Error("Failed to create GitHub connection")
         }
         
         return newData[0]
       }
     } catch (error) {
-      console.error("Error connecting GitHub:", error)
-      console.error("Error details:", {
+      debugLog('connectGitHub', '❌ Error connecting GitHub', {
         name: error instanceof Error ? error.name : 'Unknown',
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
@@ -172,69 +292,106 @@ export const githubService = {
 
   // Disconnect GitHub account
   async disconnectGitHub() {
+    debugLog('disconnectGitHub', 'Starting GitHub disconnection...')
+    
     try {
       const user = await account.get()
+      debugLog('disconnectGitHub', 'User retrieved', { userId: user.$id })
       
       // Delete connection from database
+      debugLog('disconnectGitHub', `Querying collection: ${COLLECTION_IDS.GITHUB_CONNECTIONS}`)
       const { documents: connections } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_CONNECTIONS,
+        COLLECTION_IDS.GITHUB_CONNECTIONS,
         [Query.equal('user_id', user.$id)]
       )
 
+      debugLog('disconnectGitHub', 'Found connections', { count: connections.length })
+
       if (connections.length > 0) {
+        debugLog('disconnectGitHub', 'Deleting connection', { connectionId: connections[0].$id })
         await databases.deleteDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_CONNECTIONS,
+          COLLECTION_IDS.GITHUB_CONNECTIONS,
           connections[0].$id
         )
+        debugLog('disconnectGitHub', '✅ Connection deleted successfully')
       }
       
       // Remove stored tokens
       await SecureStore.deleteItemAsync('github_access_token')
       await SecureStore.deleteItemAsync('github_username')
+      debugLog('disconnectGitHub', '✅ Stored tokens removed')
       
       // Clear caches
       await offlineStore.removeItem(CACHE_KEYS.CONNECTION)
       await offlineStore.removeItem(CACHE_KEYS.REPOSITORIES)
       await offlineStore.removeItem(CACHE_KEYS.COMMITS)
+      debugLog('disconnectGitHub', '✅ Caches cleared')
       
       return true
     } catch (error) {
-      console.error("Error disconnecting GitHub:", error)
+      debugLog('disconnectGitHub', '❌ Error disconnecting GitHub', {
+        error: error instanceof Error ? error.message : String(error)
+      })
       throw error
     }
   },
 
   // Get GitHub connection
   async getGitHubConnection() {
+    debugLog('getGitHubConnection', 'Getting GitHub connection...')
+    
     try {
       const user = await account.get()
       if (!user || !user.$id) {
-        console.warn("User not authenticated in getGitHubConnection")
+        debugLog('getGitHubConnection', '❌ User not authenticated')
         return null
       }
       
+      debugLog('getGitHubConnection', 'User authenticated', { userId: user.$id })
+      debugLog('getGitHubConnection', `Querying collection: ${COLLECTION_IDS.GITHUB_CONNECTIONS}`)
+      
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_CONNECTIONS,
+        COLLECTION_IDS.GITHUB_CONNECTIONS,
         [Query.equal('user_id', user.$id)]
       )
 
+      debugLog('getGitHubConnection', 'Query results', { 
+        documentsFound: documents.length,
+        collection: COLLECTION_IDS.GITHUB_CONNECTIONS,
+        databaseId: DATABASE_ID,
+        userId: user.$id
+      })
+
       if (documents && documents.length > 0) {
         const connection = documents[0]
+        debugLog('getGitHubConnection', 'Connection found', {
+          connectionId: connection.$id,
+          hasUserId: !!connection.user_id,
+          hasUsername: !!connection.username,
+          hasAccessToken: !!connection.access_token
+        })
+        
         // Validate connection data
         if (connection.user_id && connection.username && connection.access_token) {
+          debugLog('getGitHubConnection', '✅ Valid connection data found')
           return connection as unknown as GithubConnection
         } else {
-          console.warn("Invalid connection data found:", connection)
+          debugLog('getGitHubConnection', '❌ Invalid connection data found', connection)
           return null
         }
       }
       
+      debugLog('getGitHubConnection', 'No connection found')
       return null
     } catch (error) {
-      console.error("Error getting GitHub connection:", error)
+      debugLog('getGitHubConnection', '❌ Error getting GitHub connection', {
+        error: error instanceof Error ? error.message : String(error),
+        collection: COLLECTION_IDS.GITHUB_CONNECTIONS,
+        databaseId: DATABASE_ID
+      })
       return null
     }
   },
@@ -246,13 +403,16 @@ export const githubService = {
 
   // Fetch and cache repositories
   async fetchAndCacheRepositories(accessToken: string, userId: string) {
+    debugLog('fetchAndCacheRepositories', 'Starting repository fetch and cache...')
+    
     try {
       // Validate inputs
       if (!accessToken || !userId) {
-        console.error("Invalid inputs for fetchAndCacheRepositories:", { accessToken: !!accessToken, userId: !!userId })
+        debugLog('fetchAndCacheRepositories', '❌ Invalid inputs', { accessToken: !!accessToken, userId: !!userId })
         throw new Error("Access token and user ID are required")
       }
 
+      debugLog('fetchAndCacheRepositories', 'Fetching from GitHub API...')
       // Fetch repositories from GitHub API
       const response = await fetch("https://api.github.com/user/repos?sort=updated&per_page=100", {
         headers: {
@@ -261,6 +421,7 @@ export const githubService = {
       })
 
       if (!response.ok) {
+        debugLog('fetchAndCacheRepositories', '❌ GitHub API error', { status: response.status, statusText: response.statusText })
         throw new Error(`GitHub API error: ${response.status} - ${response.statusText}`)
       }
 
@@ -268,11 +429,11 @@ export const githubService = {
 
       // Validate repos array
       if (!Array.isArray(repos)) {
-        console.error("Invalid response from GitHub API:", repos)
+        debugLog('fetchAndCacheRepositories', '❌ Invalid response from GitHub API', repos)
         throw new Error("Invalid response format from GitHub API")
       }
 
-      console.log(`Fetched ${repos.length} repositories from GitHub`)
+      debugLog('fetchAndCacheRepositories', `✅ Fetched ${repos.length} repositories from GitHub`)
 
       // Save repositories to database
       let savedCount = 0
@@ -289,20 +450,21 @@ export const githubService = {
             })
             savedCount++
           } else {
-            console.warn("Skipping invalid repository data:", repo)
+            debugLog('fetchAndCacheRepositories', '⚠️ Skipping invalid repository data', repo)
           }
         } catch (repoError) {
-          console.error("Error saving individual repository:", repoError, repo)
+          debugLog('fetchAndCacheRepositories', '❌ Error saving individual repository', { error: repoError, repo })
           // Continue with other repositories
         }
       }
 
-      console.log(`Successfully saved ${savedCount} repositories to database`)
+      debugLog('fetchAndCacheRepositories', `✅ Successfully saved ${savedCount} repositories to database`)
 
       // Fetch and cache the updated repositories
+      debugLog('fetchAndCacheRepositories', `Querying collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [
           Query.equal('user_id', userId),
           Query.orderDesc('$updatedAt')
@@ -311,29 +473,34 @@ export const githubService = {
 
       if (documents) {
         await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, documents)
-        console.log(`Cached ${documents.length} repositories`)
+        debugLog('fetchAndCacheRepositories', `✅ Cached ${documents.length} repositories`)
       }
     } catch (error) {
-      console.error("Error fetching and caching repositories:", error)
+      debugLog('fetchAndCacheRepositories', '❌ Error fetching and caching repositories', {
+        error: error instanceof Error ? error.message : String(error)
+      })
       throw error // Re-throw to allow calling code to handle
     }
   },
 
   // Save repository
   async saveRepository(repoData: Omit<GithubRepository, '$id' | '$createdAt' | '$updatedAt' | 'user_id' | 'project_id'>) {
+    debugLog('saveRepository', 'Saving repository...', { repoId: repoData.repo_id, name: repoData.name })
+    
     try {
       const user = await account.get()
       
       // Validate required fields
       if (!repoData.repo_id || !repoData.name || !repoData.full_name || !repoData.html_url) {
-        console.warn("Invalid repository data:", repoData)
+        debugLog('saveRepository', '❌ Invalid repository data', repoData)
         return null
       }
       
+      debugLog('saveRepository', `Checking existing repositories in collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       // Check if repository already exists
       const { documents: existingRepos } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [
           Query.equal('user_id', user.$id),
           Query.equal('repo_id', repoData.repo_id)
@@ -341,10 +508,11 @@ export const githubService = {
       )
 
       if (existingRepos.length > 0) {
+        debugLog('saveRepository', 'Updating existing repository', { repoId: existingRepos[0].$id })
         // Update existing repository
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
+          COLLECTION_IDS.GITHUB_REPOSITORIES,
           existingRepos[0].$id,
           {
             name: repoData.name,
@@ -353,12 +521,14 @@ export const githubService = {
             html_url: repoData.html_url
           }
         )
+        debugLog('saveRepository', '✅ Repository updated successfully')
         return updatedData[0]
       } else {
+        debugLog('saveRepository', 'Creating new repository')
         // Create new repository
         const { documents: newData } = await databases.createDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
+          COLLECTION_IDS.GITHUB_REPOSITORIES,
           ID.unique(),
           {
             repo_id: repoData.repo_id,
@@ -370,10 +540,14 @@ export const githubService = {
             project_id: null
           }
         )
+        debugLog('saveRepository', '✅ Repository created successfully')
         return newData[0]
       }
     } catch (error) {
-      console.error("Error saving repository:", error)
+      debugLog('saveRepository', '❌ Error saving repository', {
+        error: error instanceof Error ? error.message : String(error),
+        repoData
+      })
       return null
     }
   },
@@ -385,6 +559,8 @@ export const githubService = {
     html_url: string
     project_id?: string | null
   }) {
+    debugLog('addRepository', 'Adding repository...', { name: repoData.name, fullName: repoData.full_name })
+    
     try {
       const user = await account.get()
       
@@ -392,10 +568,11 @@ export const githubService = {
       const urlParts = repoData.html_url.split('/')
       const repo_id = `${urlParts[3]}/${urlParts[4]}`
       
+      debugLog('addRepository', `Checking existing repositories in collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       // Check if repository already exists
       const { documents: existingRepos } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [
           Query.equal('user_id', user.$id),
           Query.equal('full_name', repoData.full_name)
@@ -403,10 +580,11 @@ export const githubService = {
       )
 
       if (existingRepos.length > 0) {
+        debugLog('addRepository', 'Updating existing repository', { repoId: existingRepos[0].$id })
         // Update existing repository
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
+          COLLECTION_IDS.GITHUB_REPOSITORIES,
           existingRepos[0].$id,
           {
             name: repoData.name,
@@ -415,12 +593,14 @@ export const githubService = {
             project_id: repoData.project_id || null
           }
         )
+        debugLog('addRepository', '✅ Repository updated successfully')
         return updatedData[0]
       } else {
+        debugLog('addRepository', 'Creating new repository')
         // Create new repository
         const { documents: newData } = await databases.createDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
+          COLLECTION_IDS.GITHUB_REPOSITORIES,
           ID.unique(),
           {
             repo_id,
@@ -431,21 +611,28 @@ export const githubService = {
             project_id: repoData.project_id || null
           }
         )
+        debugLog('addRepository', '✅ Repository created successfully')
         return newData[0]
       }
     } catch (error) {
-      console.error("Error adding repository:", error)
+      debugLog('addRepository', '❌ Error adding repository', {
+        error: error instanceof Error ? error.message : String(error),
+        repoData
+      })
       throw error
     }
   },
 
   // Get repositories
   async getRepositories() {
+    debugLog('getRepositories', 'Getting repositories...')
+    
     try {
       // Check network status
       const netInfo = await NetInfo.fetch()
 
       if (!netInfo.isConnected) {
+        debugLog('getRepositories', '⚠️ Offline mode - returning cached repositories')
         // Return cached repositories if offline
         const cachedRepos = await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)
         return cachedRepos || []
@@ -453,34 +640,50 @@ export const githubService = {
 
       const user = await account.get()
       if (!user || !user.$id) {
-        console.warn("User not authenticated in getRepositories")
+        debugLog('getRepositories', '❌ User not authenticated')
         throw new Error("User not authenticated")
       }
 
+      debugLog('getRepositories', `Querying collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [
           Query.equal('user_id', user.$id),
           Query.orderDesc('$updatedAt')
         ]
       )
 
+      debugLog('getRepositories', 'Query results', { 
+        documentsFound: documents.length,
+        collection: COLLECTION_IDS.GITHUB_REPOSITORIES,
+        databaseId: DATABASE_ID,
+        userId: user.$id
+      })
+
       // Cache the repositories data
       if (documents && Array.isArray(documents)) {
         await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, documents)
+        debugLog('getRepositories', `✅ Cached ${documents.length} repositories`)
       }
 
       return documents as unknown as GithubRepository[]
     } catch (error) {
-      console.error("Error fetching GitHub repositories:", error)
+      debugLog('getRepositories', '❌ Error fetching GitHub repositories', {
+        error: error instanceof Error ? error.message : String(error),
+        collection: COLLECTION_IDS.GITHUB_REPOSITORIES,
+        databaseId: DATABASE_ID
+      })
 
       // Try to get from cache if there's an error
       try {
+        debugLog('getRepositories', '⚠️ Trying to get from cache due to error')
         const cachedRepos = await offlineStore.getItem(CACHE_KEYS.REPOSITORIES)
         return cachedRepos || []
       } catch (cacheError) {
-        console.error("Error getting cached repositories:", cacheError)
+        debugLog('getRepositories', '❌ Error getting cached repositories', {
+          error: cacheError instanceof Error ? cacheError.message : String(cacheError)
+        })
         return []
       }
     }
@@ -488,82 +691,120 @@ export const githubService = {
 
   // Get repository by ID
   async getRepositoryById(id: string) {
+    debugLog('getRepositoryById', 'Getting repository by ID...', { id })
+    
     try {
+      debugLog('getRepositoryById', `Querying collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [Query.equal('$id', id)]
       )
 
       if (documents.length > 0) {
+        debugLog('getRepositoryById', '✅ Repository found', { repoId: documents[0].$id })
         return documents[0] as unknown as GithubRepository
       }
       
+      debugLog('getRepositoryById', '❌ Repository not found', { id })
       return null
     } catch (error) {
-      console.error("Error getting repository by ID:", error)
+      debugLog('getRepositoryById', '❌ Error getting repository by ID', {
+        error: error instanceof Error ? error.message : String(error),
+        id,
+        collection: COLLECTION_IDS.GITHUB_REPOSITORIES,
+        databaseId: DATABASE_ID
+      })
       return null
     }
   },
 
   // Link repository to project
   async linkRepositoryToProject(repoId: string, projectId: string) {
+    debugLog('linkRepositoryToProject', 'Linking repository to project...', { repoId, projectId })
+    
     try {
+      debugLog('linkRepositoryToProject', `Querying collection: ${COLLECTION_IDS.GITHUB_REPOSITORIES}`)
       const { documents: repos } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
+        COLLECTION_IDS.GITHUB_REPOSITORIES,
         [Query.equal('$id', repoId)]
       )
 
       if (repos.length > 0) {
+        debugLog('linkRepositoryToProject', 'Updating repository with project link', { repoId: repos[0].$id })
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
+          COLLECTION_IDS.GITHUB_REPOSITORIES,
           repos[0].$id,
           { project_id: projectId }
         )
+        debugLog('linkRepositoryToProject', '✅ Repository linked to project successfully')
         return updatedData[0]
       }
       
+      debugLog('linkRepositoryToProject', '❌ Repository not found', { repoId })
       return null
     } catch (error) {
-      console.error("Error linking repository to project:", error)
+      debugLog('linkRepositoryToProject', '❌ Error linking repository to project', {
+        error: error instanceof Error ? error.message : String(error),
+        repoId,
+        projectId
+      })
       return null
     }
   },
 
   // Get commits for repository
   async getCommits(repositoryId: string) {
+    debugLog('getCommits', 'Getting commits for repository...', { repositoryId })
+    
     try {
+      debugLog('getCommits', `Querying collection: ${COLLECTION_IDS.GITHUB_COMMITS}`)
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
+        COLLECTION_IDS.GITHUB_COMMITS,
         [
           Query.equal('repository_id', repositoryId),
           Query.orderDesc('committed_at')
         ]
       )
 
+      debugLog('getCommits', 'Query results', { 
+        documentsFound: documents.length,
+        collection: COLLECTION_IDS.GITHUB_COMMITS,
+        databaseId: DATABASE_ID,
+        repositoryId
+      })
+
       return documents as unknown as GithubCommit[]
     } catch (error) {
-      console.error("Error getting commits:", error)
+      debugLog('getCommits', '❌ Error getting commits', {
+        error: error instanceof Error ? error.message : String(error),
+        repositoryId,
+        collection: COLLECTION_IDS.GITHUB_COMMITS,
+        databaseId: DATABASE_ID
+      })
       return []
     }
   },
 
   // Save commit
   async saveCommit(commitData: Omit<GithubCommit, '$id' | '$createdAt'>) {
+    debugLog('saveCommit', 'Saving commit...', { commitId: commitData.commit_id, message: commitData.message })
+    
     try {
       // Validate required fields
       if (!commitData.commit_id || !commitData.repository_id || !commitData.message || !commitData.author || !commitData.committed_at || !commitData.html_url) {
-        console.warn("Invalid commit data:", commitData)
+        debugLog('saveCommit', '❌ Invalid commit data', commitData)
         return null
       }
       
+      debugLog('saveCommit', `Checking existing commits in collection: ${COLLECTION_IDS.GITHUB_COMMITS}`)
       // Check if commit already exists
       const { documents: existingCommits } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
+        COLLECTION_IDS.GITHUB_COMMITS,
         [
           Query.equal('commit_id', commitData.commit_id),
           Query.equal('repository_id', commitData.repository_id)
@@ -571,13 +812,15 @@ export const githubService = {
       )
 
       if (existingCommits.length > 0) {
+        debugLog('saveCommit', '✅ Commit already exists', { commitId: existingCommits[0].$id })
         return existingCommits[0]
       }
 
+      debugLog('saveCommit', 'Creating new commit')
       // Create new commit
       const { documents: newData } = await databases.createDocument(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
+        COLLECTION_IDS.GITHUB_COMMITS,
         ID.unique(),
         {
           commit_id: commitData.commit_id,
@@ -590,81 +833,116 @@ export const githubService = {
         }
       )
 
+      debugLog('saveCommit', '✅ Commit created successfully')
       return newData[0]
     } catch (error) {
-      console.error("Error saving commit:", error)
+      debugLog('saveCommit', '❌ Error saving commit', {
+        error: error instanceof Error ? error.message : String(error),
+        commitData
+      })
       return null
     }
   },
 
   // Get commit by ID
   async getCommitById(commitId: string) {
+    debugLog('getCommitById', 'Getting commit by ID...', { commitId })
+    
     try {
+      debugLog('getCommitById', `Querying collection: ${COLLECTION_IDS.GITHUB_COMMITS}`)
       const { documents } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
+        COLLECTION_IDS.GITHUB_COMMITS,
         [Query.equal('$id', commitId)]
       )
 
       if (documents.length > 0) {
+        debugLog('getCommitById', '✅ Commit found', { commitId: documents[0].$id })
         return documents[0] as unknown as GithubCommit
       }
       
+      debugLog('getCommitById', '❌ Commit not found', { commitId })
       return null
     } catch (error) {
-      console.error("Error getting commit by ID:", error)
+      debugLog('getCommitById', '❌ Error getting commit by ID', {
+        error: error instanceof Error ? error.message : String(error),
+        commitId,
+        collection: COLLECTION_IDS.GITHUB_COMMITS,
+        databaseId: DATABASE_ID
+      })
       return null
     }
   },
 
   // Link commit to task
   async linkCommitToTask(commitId: string, taskId: string) {
+    debugLog('linkCommitToTask', 'Linking commit to task...', { commitId, taskId })
+    
     try {
+      debugLog('linkCommitToTask', `Querying collection: ${COLLECTION_IDS.GITHUB_COMMITS}`)
       const { documents: commits } = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
+        COLLECTION_IDS.GITHUB_COMMITS,
         [Query.equal('$id', commitId)]
       )
 
       if (commits.length > 0) {
+        debugLog('linkCommitToTask', 'Updating commit with task link', { commitId: commits[0].$id })
         const { documents: updatedData } = await databases.updateDocument(
           DATABASE_ID,
-          COLLECTIONS.GITHUB_COMMITS,
+          COLLECTION_IDS.GITHUB_COMMITS,
           commits[0].$id,
           { task_id: taskId }
         )
+        debugLog('linkCommitToTask', '✅ Commit linked to task successfully')
         return updatedData[0]
       }
       
+      debugLog('linkCommitToTask', '❌ Commit not found', { commitId })
       return null
     } catch (error) {
-      console.error("Error linking commit to task:", error)
+      debugLog('linkCommitToTask', '❌ Error linking commit to task', {
+        error: error instanceof Error ? error.message : String(error),
+        commitId,
+        taskId
+      })
       return null
     }
   },
 
   // Set selected repository (for caching)
   async setSelectedRepository(repoId: string) {
+    debugLog('setSelectedRepository', 'Setting selected repository...', { repoId })
+    
     try {
       await offlineStore.setItem('selected_repository_id', repoId)
+      debugLog('setSelectedRepository', '✅ Selected repository cached')
     } catch (error) {
-      console.error("Error setting selected repository:", error)
+      debugLog('setSelectedRepository', '❌ Error setting selected repository', {
+        error: error instanceof Error ? error.message : String(error),
+        repoId
+      })
     }
   },
 
   // Fetch commits for repository
   async fetchCommitsForRepository(repoId: string) {
+    debugLog('fetchCommitsForRepository', 'Fetching commits for repository...', { repoId })
+    
     try {
       const connection = await this.getGitHubConnection()
       if (!connection) {
+        debugLog('fetchCommitsForRepository', '❌ GitHub not connected')
         throw new Error("GitHub not connected")
       }
 
       const repo = await this.getRepositoryById(repoId)
       if (!repo) {
+        debugLog('fetchCommitsForRepository', '❌ Repository not found', { repoId })
         throw new Error("Repository not found")
       }
 
+      debugLog('fetchCommitsForRepository', 'Fetching from GitHub API...', { fullName: repo.full_name })
       // Fetch commits from GitHub API
       const response = await fetch(`https://api.github.com/repos/${repo.full_name}/commits?per_page=50`, {
         headers: {
@@ -673,10 +951,12 @@ export const githubService = {
       })
 
       if (!response.ok) {
+        debugLog('fetchCommitsForRepository', '❌ GitHub API error', { status: response.status })
         throw new Error(`GitHub API error: ${response.status}`)
       }
 
       const commits = await response.json()
+      debugLog('fetchCommitsForRepository', `✅ Fetched ${commits.length} commits from GitHub API`)
 
       // Save commits to database
       for (const commit of commits) {
@@ -692,13 +972,17 @@ export const githubService = {
             task_id: null
           })
         } else {
-          console.warn("Skipping invalid commit data:", commit)
+          debugLog('fetchCommitsForRepository', '⚠️ Skipping invalid commit data', commit)
         }
       }
 
+      debugLog('fetchCommitsForRepository', '✅ Commits saved to database successfully')
       return commits
     } catch (error) {
-      console.error("Error fetching commits for repository:", error)
+      debugLog('fetchCommitsForRepository', '❌ Error fetching commits for repository', {
+        error: error instanceof Error ? error.message : String(error),
+        repoId
+      })
       throw error
     }
   },

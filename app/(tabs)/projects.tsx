@@ -118,7 +118,7 @@ export default function ProjectsScreen() {
       
       // Ensure all projects have valid IDs
       const validProjects = data.filter(project => {
-        const projectId = project.$id || project.id
+        const projectId = project.$id
         if (!projectId || projectId.trim() === '') {
           console.warn('Invalid project found:', project)
           return false
@@ -144,7 +144,7 @@ export default function ProjectsScreen() {
 
   const handleProjectPress = useCallback((project: any) => {
     // Validate project ID before navigation
-    const projectId = project.$id || project.id
+    const projectId = project.$id
     if (!projectId || projectId.trim() === '') {
       console.error('Invalid project ID:', projectId)
       showToast("Invalid project ID", { type: "error" })
@@ -163,7 +163,7 @@ export default function ProjectsScreen() {
   }
 
   const renderProjectCard = useCallback(({ item }: { item: any }) => {
-    const projectId = item.$id || item.id
+    const projectId = item.$id
     if (!projectId) return null
     
     return (
@@ -294,7 +294,7 @@ export default function ProjectsScreen() {
       ) : (
         <FlatList
           data={filteredProjects}
-          keyExtractor={(item) => item.$id || item.id}
+          keyExtractor={(item) => item.$id}
           renderItem={renderProjectCard}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

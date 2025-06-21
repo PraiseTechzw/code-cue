@@ -9,15 +9,12 @@ import { notificationService } from "@/services/notificationService"
 
 interface Settings {
   theme: "light" | "dark" | "system"
-  offlineMode: boolean
   pushNotifications: boolean
+  offlineMode: boolean
   autoSync: boolean
-  dataUsage: "low" | "medium" | "high"
-  language: string
-  fontSize: "small" | "medium" | "large"
   hapticFeedback: boolean
-  soundEffects: boolean
-  lastSynced: string
+  fontSize: "small" | "medium" | "large"
+  language: string
 }
 
 interface SettingsContextType {
@@ -32,12 +29,9 @@ const defaultSettings: Settings = {
   offlineMode: true,
   pushNotifications: true,
   autoSync: true,
-  dataUsage: "medium",
-  language: "en",
-  fontSize: "medium",
   hapticFeedback: true,
-  soundEffects: true,
-  lastSynced: "Never"
+  fontSize: "medium",
+  language: "en"
 }
 
 const SettingsContext = createContext<SettingsContextType>({

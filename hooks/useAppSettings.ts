@@ -24,23 +24,15 @@ export function useAppSettings() {
     await updateSetting("autoSync", !settings.autoSync)
   }, [settings.autoSync, updateSetting])
 
-  const toggleDataUsage = useCallback(async () => {
-    await updateSetting("dataUsage", settings.dataUsage === "high" ? "low" : "high")
-  }, [settings.dataUsage, updateSetting])
-
   const toggleHapticFeedback = useCallback(async () => {
     await updateSetting("hapticFeedback", !settings.hapticFeedback)
   }, [settings.hapticFeedback, updateSetting])
 
-  const toggleSoundEffects = useCallback(async () => {
-    await updateSetting("soundEffects", !settings.soundEffects)
-  }, [settings.soundEffects, updateSetting])
-
-  const setFontSize = useCallback(async (size: "small" | "medium" | "large") => {
-    await updateSetting("fontSize", size)
+  const updateFontSize = useCallback(async (fontSize: "small" | "medium" | "large") => {
+    await updateSetting("fontSize", fontSize)
   }, [updateSetting])
 
-  const setLanguage = useCallback(async (language: string) => {
+  const updateLanguage = useCallback(async (language: string) => {
     await updateSetting("language", language)
   }, [updateSetting])
 
@@ -51,10 +43,8 @@ export function useAppSettings() {
     toggleOfflineMode,
     togglePushNotifications,
     toggleAutoSync,
-    toggleDataUsage,
     toggleHapticFeedback,
-    toggleSoundEffects,
-    setFontSize,
-    setLanguage,
+    updateFontSize,
+    updateLanguage,
   }
 } 

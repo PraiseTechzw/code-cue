@@ -6,7 +6,6 @@ import { notificationService } from "@/services/notificationService"
 import { offlineStore } from "@/services/offlineStore"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Haptics from "expo-haptics"
-import { Audio } from "expo-av"
 import { StatusBar, Platform } from "react-native"
 import Colors from "@/constants/Colors"
 
@@ -98,17 +97,6 @@ export function useSettingsEffects() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     }
   }, [settings.hapticFeedback])
-
-  // Handle sound effects changes
-  useEffect(() => {
-    if (settings.soundEffects) {
-      Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-      })
-    }
-  }, [settings.soundEffects])
 
   // Handle font size changes
   useEffect(() => {
