@@ -147,6 +147,11 @@ export const githubService = {
     }
   },
 
+  // Get GitHub connection (alias)
+  async getConnection() {
+    return this.getGitHubConnection()
+  },
+
   // Fetch and cache repositories
   async fetchAndCacheRepositories(accessToken: string, userId: string) {
     try {
@@ -238,6 +243,67 @@ export const githubService = {
     } catch (error) {
       console.error("Error saving repository:", error)
       return null
+    }
+  },
+
+  // Add repository
+  async addRepository(repoData: {
+    name: string
+    full_name: string
+    html_url: string
+    project_id?: string | null
+  }) {
+    try {
+      const user = await account.get()
+      
+      // Extract repo_id from the URL
+      const urlParts = repoData.html_url.split('/')
+      const repo_id = `${urlParts[3]}/${urlParts[4]}`
+      
+      // Check if repository already exists
+      const { documents: existingRepos } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.GITHUB_REPOSITORIES,
+        [
+          Query.equal('user_id', user.$id),
+          Query.equal('full_name', repoData.full_name)
+        ]
+      )
+
+      if (existingRepos.length > 0) {
+        // Update existing repository
+        const { documents: updatedData } = await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_REPOSITORIES,
+          existingRepos[0].$id,
+          {
+            name: repoData.name,
+            full_name: repoData.full_name,
+            html_url: repoData.html_url,
+            project_id: repoData.project_id || null
+          }
+        )
+        return updatedData[0]
+      } else {
+        // Create new repository
+        const { documents: newData } = await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.GITHUB_REPOSITORIES,
+          ID.unique(),
+          {
+            repo_id,
+            name: repoData.name,
+            full_name: repoData.full_name,
+            html_url: repoData.html_url,
+            user_id: user.$id,
+            project_id: repoData.project_id || null
+          }
+        )
+        return newData[0]
+      }
+    } catch (error) {
+      console.error("Error adding repository:", error)
+      throw error
     }
   },
 
@@ -382,72 +448,6 @@ export const githubService = {
     }
   },
 
-  // Get GitHub connection
-  async getConnection() {
-    return this.getGitHubConnection()
-  },
-
-  // Add repository
-  async addRepository(repoData: {
-    name: string
-    full_name: string
-    html_url: string
-    project_id?: string | null
-  }) {
-    try {
-      const user = await account.get()
-      
-      // Extract repo_id from the URL
-      const urlParts = repoData.html_url.split('/')
-      const repo_id = `${urlParts[3]}/${urlParts[4]}`
-      
-      // Check if repository already exists
-      const { documents: existingRepos } = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.GITHUB_REPOSITORIES,
-        [
-          Query.equal('user_id', user.$id),
-          Query.equal('full_name', repoData.full_name)
-        ]
-      )
-
-      if (existingRepos.length > 0) {
-        // Update existing repository
-        const { documents: updatedData } = await databases.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
-          existingRepos[0].$id,
-          {
-            name: repoData.name,
-            full_name: repoData.full_name,
-            html_url: repoData.html_url,
-            project_id: repoData.project_id || null
-          }
-        )
-        return updatedData[0]
-      } else {
-        // Create new repository
-        const { documents: newData } = await databases.createDocument(
-          DATABASE_ID,
-          COLLECTIONS.GITHUB_REPOSITORIES,
-          ID.unique(),
-          {
-            repo_id,
-            name: repoData.name,
-            full_name: repoData.full_name,
-            html_url: repoData.html_url,
-            user_id: user.$id,
-            project_id: repoData.project_id || null
-          }
-        )
-        return newData[0]
-      }
-    } catch (error) {
-      console.error("Error adding repository:", error)
-      throw error
-    }
-  },
-
   // Get commit by ID
   async getCommitById(commitId: string) {
     try {
@@ -553,4 +553,4 @@ export const githubService = {
   async disconnectGithub() {
     return this.disconnectGitHub()
   }
-}
+} 

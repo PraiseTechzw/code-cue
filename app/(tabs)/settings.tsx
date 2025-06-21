@@ -28,7 +28,7 @@ export default function SettingsScreen() {
   const { showToast } = useToast()
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
 
   const handleThemeChange = async (value: boolean) => {
     try {
@@ -271,6 +271,38 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <View style={[styles.section, { borderBottomColor: themeColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Account</Text>
+          
+          {user && (
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Ionicons name="person-outline" size={24} color={themeColors.text} />
+                <View>
+                  <Text style={[styles.settingLabel, { color: themeColors.text }]}>{user.name}</Text>
+                  <Text style={[styles.settingSubtext, { color: themeColors.textDim }]}>{user.email}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: themeColors.error }]}
+            onPress={async () => {
+              try {
+                await signOut()
+                showToast("Logged out successfully")
+                router.replace("/auth/login")
+              } catch (error) {
+                showToast("Failed to logout")
+              }
+            }}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#fff" />
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   )
@@ -347,5 +379,23 @@ const styles = StyleSheet.create({
   },
   languageButtonText: {
     fontSize: 14,
+  },
+  logoutButton: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  logoutButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  settingSubtext: {
+    fontSize: 12,
+    marginTop: 2,
   },
 })

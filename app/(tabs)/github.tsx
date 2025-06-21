@@ -18,37 +18,19 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons"
 import { useColorScheme } from "react-native"
 import { router } from "expo-router"
-import * as AuthSession from "expo-auth-session"
 import * as SecureStore from "expo-secure-store"
 import { useIsFocused } from "@react-navigation/native"
 import * as Haptics from "expo-haptics"
 
-import { CommitItem } from "@/components/CommitItem"
 import { githubService } from "@/services/githubService"
 import { useToast } from "@/contexts/ToastContext"
-import { useAuth } from "@/contexts/AuthContext"
 import Colors from "@/constants/Colors"
 import type { GithubRepository } from "@/services/githubService"
-
-// Remove OAuth configuration
-const GITHUB_CLIENT_ID = "your-github-client-id" // Replace with your actual GitHub client ID
-const GITHUB_REDIRECT_URI = AuthSession.makeRedirectUri({
-  scheme: "devcue",
-  path: "github-callback",
-})
-
-// GitHub OAuth discovery document
-const discovery = {
-  authorizationEndpoint: "https://github.com/login/oauth/authorize",
-  tokenEndpoint: "https://github.com/login/oauth/access_token",
-  revocationEndpoint: "https://github.com/settings/connections/applications/" + GITHUB_CLIENT_ID,
-}
 
 export default function GitHubScreen() {
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
   const { showToast } = useToast()
-  const { isConnected } = useAuth()
   const isFocused = useIsFocused()
 
   const [loading, setLoading] = useState(true)
@@ -58,16 +40,12 @@ export default function GitHubScreen() {
   const [selectedRepo, setSelectedRepo] = useState<GithubRepository | null>(null)
   const [commits, setCommits] = useState<any[]>([])
   const [authInProgress, setAuthInProgress] = useState(false)
-  const hasFetchedFromGitHub = useRef(false)
   const isLoadingRef = useRef(false)
   const [showRepoModal, setShowRepoModal] = useState(false)
   const [repoSearch, setRepoSearch] = useState('')
   const modalAnim = useRef(new Animated.Value(0)).current
 
   // Animation for the connect button
-  const pulseAnim = useRef(new Animated.Value(1)).current
-  const fadeAnim = useRef(new Animated.Value(0)).current
-  const slideAnim = useRef(new Animated.Value(50)).current
   const buttonScale = useRef(new Animated.Value(1)).current
 
   // Add new state for commit fetch error
@@ -142,14 +120,14 @@ export default function GitHubScreen() {
         const lastSelectedRepoId = await SecureStore.getItemAsync("lastSelectedGitHubRepo")
         let repoToSelect = reposData[0]
         if (lastSelectedRepoId) {
-          const savedRepo = reposData.find((repo: GithubRepository) => repo.id === lastSelectedRepoId)
+          const savedRepo = reposData.find((repo: GithubRepository) => repo.$id === lastSelectedRepoId)
           if (savedRepo) {
             repoToSelect = savedRepo
           }
         }
         setSelectedRepo(repoToSelect)
         // Get commits for selected repo
-        const commitsData = await githubService.getCommits(repoToSelect.id)
+        const commitsData = await githubService.getCommits(repoToSelect.$id)
         setCommits(commitsData)
       }
     } catch (error) {
@@ -168,27 +146,6 @@ export default function GitHubScreen() {
       loadGitHubData(false)
     }
   }, [refreshing])
-
-  const handleRefreshFromGitHub = useCallback(async () => {
-    if (connection && !refreshing && !isLoadingRef.current) {
-      setRefreshing(true)
-      await loadGitHubData(true)
-    }
-  }, [connection, refreshing])
-
-  const handleManualConnect = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    router.push("/github-connect")
-  }
-
-  const handleOpenRepoModal = () => {
-    setShowRepoModal(true)
-    Animated.timing(modalAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start()
-  }
 
   const handleCloseRepoModal = () => {
     Animated.timing(modalAnim, {
@@ -210,10 +167,10 @@ export default function GitHubScreen() {
       setLoading(true)
 
       // Save the selected repo ID
-      await SecureStore.setItemAsync("lastSelectedGitHubRepo", repo.id)
+      await SecureStore.setItemAsync("lastSelectedGitHubRepo", repo.$id)
 
       // Get commits for selected repo
-      const commitsData = await githubService.getCommits(repo.id)
+      const commitsData = await githubService.getCommits(repo.$id)
       setCommits(commitsData)
       
       handleCloseRepoModal()
@@ -224,15 +181,6 @@ export default function GitHubScreen() {
       setLoading(false)
       isLoadingRef.current = false
     }
-  }
-
-  const handleLinkCommit = (commitId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    // Navigate to link commit to task screen
-    router.push({
-      pathname: "/link-commit",
-      params: { commitId }
-    } as any)
   }
 
   const handleDisconnect = async () => {
@@ -258,19 +206,6 @@ export default function GitHubScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     if (repo.html_url) {
       Linking.openURL(repo.html_url)
-    }
-  }
-
-  const handleViewAllRepositories = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    router.push("/repositories")
-  }
-
-  const handleViewCommit = (commit: any) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    if (selectedRepo?.html_url && commit.commit_id) {
-      const commitUrl = `${selectedRepo.html_url}/commit/${commit.commit_id}`
-      Linking.openURL(commitUrl)
     }
   }
 
@@ -366,10 +301,10 @@ export default function GitHubScreen() {
               <Text style={{ color: theme.textDim, fontSize: 13 }}>{commits.length} Commits</Text>
             </View>
             {/* Last updated */}
-            {selectedRepo.updated_at && (
+            {selectedRepo.$updatedAt && (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                 <Ionicons name="time-outline" size={15} color={theme.textDim} style={{ marginRight: 2 }} />
-                <Text style={{ color: theme.textDim, fontSize: 13 }}>Updated {new Date(selectedRepo.updated_at).toLocaleDateString()}</Text>
+                <Text style={{ color: theme.textDim, fontSize: 13 }}>Updated {new Date(selectedRepo.$updatedAt).toLocaleDateString()}</Text>
               </View>
             )}
           </View>
@@ -405,19 +340,19 @@ export default function GitHubScreen() {
             </View>
             <FlatList
               data={repositories.filter(r => r.name.toLowerCase().includes(repoSearch.toLowerCase()))}
-              keyExtractor={item => item.id}
+              keyExtractor={item => item.$id}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={{ padding: 16, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: selectedRepo?.id === item.id ? theme.tintLight : 'transparent', borderRadius: 10 }}
+                  style={{ padding: 16, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: selectedRepo?.$id === item.$id ? theme.tintLight : 'transparent', borderRadius: 10 }}
                   activeOpacity={0.7}
                   onPress={async () => {
                     setShowRepoModal(false)
                     setSelectedRepo(item)
-                    await SecureStore.setItemAsync("lastSelectedGitHubRepo", item.id)
+                    await SecureStore.setItemAsync("lastSelectedGitHubRepo", item.$id)
                     setLoading(true)
                     setCommitFetchError(null)
                     try {
-                      const commitsData = await githubService.getCommits(item.id)
+                      const commitsData = await githubService.getCommits(item.$id)
                       setCommits(commitsData)
                     } catch (err: any) {
                       setCommitFetchError(err?.message || 'Failed to fetch commits')
@@ -428,7 +363,7 @@ export default function GitHubScreen() {
                 >
                   <Text style={{ color: theme.text, fontWeight: 'bold' }}>{item.name}</Text>
                   {item.description ? <Text style={{ color: theme.textDim, fontSize: 13 }}>{item.description}</Text> : null}
-                  {selectedRepo?.id === item.id && (
+                  {selectedRepo?.$id === item.$id && (
                     <Ionicons name="checkmark-circle" size={18} color={theme.tint} style={{ position: 'absolute', right: 16, top: 20 }} />
                   )}
                 </TouchableOpacity>
@@ -460,8 +395,8 @@ export default function GitHubScreen() {
             setLoading(true)
             setCommitFetchError(null)
             try {
-              await githubService.fetchCommitsForRepository(selectedRepo.id)
-              const commitsData = await githubService.getCommits(selectedRepo.id)
+              await githubService.fetchCommitsForRepository(selectedRepo.$id)
+              const commitsData = await githubService.getCommits(selectedRepo.$id)
               setCommits(commitsData)
               showToast('Commits fetched from GitHub', { type: 'success' })
             } catch (err: any) {
@@ -493,7 +428,7 @@ export default function GitHubScreen() {
       ) : repositories.length > 0 && selectedRepo ? (
         <FlatList
           data={commits}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.$id}
           renderItem={({ item }) => (
             <View style={{ padding: 12, borderBottomWidth: 1, borderColor: theme.border, backgroundColor: theme.cardBackground, borderRadius: 10, marginVertical: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2, elevation: 1 }}>
               <Text style={{ color: theme.text, fontWeight: '500' }}>{item.message}</Text>
@@ -505,7 +440,7 @@ export default function GitHubScreen() {
               <Text style={[styles.commitsTitle, { color: theme.text }]}>Recent Commits</Text>
               <TouchableOpacity
                 style={styles.viewAllButton}
-                onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.id}` as any)}
+                onPress={() => selectedRepo && router.push(`/repository/${selectedRepo.$id}` as any)}
                 accessibilityLabel="View All Commits"
                 accessibilityHint="Shows all commits for this repository"
                 activeOpacity={0.7}
