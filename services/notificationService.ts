@@ -5,8 +5,38 @@ import { databases, account, DATABASE_ID, COLLECTIONS } from "@/lib/appwrite"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import type { Notification } from "@/types/appwrite"
 import { ID, Query } from 'appwrite'
+import { offlineStore } from './offlineStore'
 
 export type { Notification }
+
+// Cache keys
+const CACHE_KEYS = {
+  NOTIFICATIONS: 'notifications',
+  NOTIFICATION_SETTINGS: 'notification_settings'
+}
+
+// Notification types
+export const NOTIFICATION_TYPES = {
+  INFO: 'info',
+  SUCCESS: 'success',
+  WARNING: 'warning',
+  ERROR: 'error',
+  REMINDER: 'reminder',
+  TASK_ASSIGNED: 'task_assigned',
+  TASK_DUE: 'task_due',
+  PHASE_STARTED: 'phase_started',
+  PHASE_COMPLETED: 'phase_completed',
+  PROJECT_UPDATED: 'project_updated',
+  TEAM_MEMBER_JOINED: 'team_member_joined',
+  COMMENT_ADDED: 'comment_added'
+}
+
+// Notification priorities
+export const NOTIFICATION_PRIORITIES = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high'
+}
 
 // Configure notifications
 Notifications.setNotificationHandler({
@@ -229,6 +259,9 @@ export const notificationService = {
             lightColor: "#FF231F7C",
           })
         }
+
+        // Set up notification listeners
+        this.setupNotificationListeners()
       }
     } catch (error) {
       console.error("Error initializing notifications:", error)
@@ -448,4 +481,398 @@ export const notificationService = {
       return 0
     }
   },
+
+  setupNotificationListeners(): void {
+    // Handle notification received while app is running
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification)
+      this.handleNotificationReceived(notification)
+    })
+
+    // Handle notification response (user tapped notification)
+    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response:', response)
+      this.handleNotificationResponse(response)
+    })
+
+    // Clean up listeners when needed
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener)
+      Notifications.removeNotificationSubscription(responseListener)
+    }
+  },
+
+  handleNotificationReceived(notification: Notifications.Notification): void {
+    // Update notification count
+    this.updateNotificationCount()
+    
+    // Show in-app notification if needed
+    this.showInAppNotification(notification)
+  },
+
+  handleNotificationResponse(response: Notifications.NotificationResponse): void {
+    const data = response.notification.request.content.data
+    
+    // Mark notification as read
+    if (data.notificationId) {
+      this.markAsRead(data.notificationId)
+    }
+
+    // Navigate to relevant screen
+    this.navigateToNotificationTarget(data)
+  },
+
+  updateNotificationCount(): void {
+    // This would typically update a global state or context
+    // For now, we'll just log it
+    this.getUnreadCount().then(count => {
+      console.log('Unread notifications:', count)
+    })
+  },
+
+  showInAppNotification(notification: Notifications.Notification): void {
+    // This would typically show a toast or in-app notification
+    // For now, we'll just log it
+    console.log('In-app notification:', notification.request.content.title)
+  },
+
+  navigateToNotificationTarget(data: any): void {
+    // This would typically use navigation to go to the target screen
+    // For now, we'll just log it
+    console.log('Navigate to:', data.actionUrl)
+  },
+
+  async updatePushToken(token: string): Promise<void> {
+    try {
+      const online = await offlineStore.isOnline()
+      const currentUser = await account.get()
+
+      if (!online) {
+        await offlineStore.addOfflineChange({
+          id: ID.unique(),
+          table_name: 'profiles',
+          record_id: currentUser.$id,
+          operation: 'UPDATE',
+          data: { push_token: token },
+          created_at: new Date().toISOString(),
+          synced: false,
+          retry_count: 0
+        })
+        return
+      }
+
+      // Update profile with push token
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.PROFILES,
+        currentUser.$id,
+        { push_token: token }
+      )
+    } catch (error) {
+      console.error('Error updating push token:', error)
+    }
+  },
+
+  async getNotifications(
+    limit: number = 50,
+    offset: number = 0,
+    unreadOnly: boolean = false
+  ): Promise<Notification[]> {
+    try {
+      const online = await offlineStore.isOnline()
+      const currentUser = await account.get()
+
+      if (!online) {
+        const cached = await offlineStore.getData(CACHE_KEYS.NOTIFICATIONS, async () => [])
+        return cached.filter((notification: Notification) => 
+          notification.user_id === currentUser.$id &&
+          (!unreadOnly || !notification.read)
+        ).slice(offset, offset + limit)
+      }
+
+      const queries = [
+        Query.equal('user_id', currentUser.$id),
+        Query.orderDesc('$createdAt'),
+        Query.limit(limit),
+        Query.offset(offset)
+      ]
+
+      if (unreadOnly) {
+        queries.push(Query.equal('read', false))
+      }
+
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.NOTIFICATIONS,
+        queries
+      )
+
+      const notifications = documents as unknown as Notification[]
+      
+      // Cache the results
+      await offlineStore.setData(CACHE_KEYS.NOTIFICATIONS, notifications)
+      
+      return notifications
+    } catch (error) {
+      console.error('Error getting notifications:', error)
+      return []
+    }
+  },
+
+  async createTaskAssignmentNotification(
+    taskId: string,
+    taskTitle: string,
+    assigneeId: string,
+    projectId: string
+  ): Promise<void> {
+    try {
+      await this.createNotification({
+        title: 'Task Assigned',
+        description: `You have been assigned to: ${taskTitle}`,
+        type: NOTIFICATION_TYPES.TASK_ASSIGNED,
+        user_id: assigneeId,
+        related_id: taskId,
+        related_type: 'task',
+        action_url: `/task/${taskId}`,
+        priority: NOTIFICATION_PRIORITIES.MEDIUM,
+        read: false
+      })
+    } catch (error) {
+      console.error('Error creating task assignment notification:', error)
+    }
+  },
+
+  async createTaskDueNotification(
+    taskId: string,
+    taskTitle: string,
+    userId: string,
+    dueDate: Date
+  ): Promise<void> {
+    try {
+      // Create immediate notification
+      await this.createNotification({
+        title: 'Task Due Soon',
+        description: `Task "${taskTitle}" is due soon`,
+        type: NOTIFICATION_TYPES.TASK_DUE,
+        user_id: userId,
+        related_id: taskId,
+        related_type: 'task',
+        action_url: `/task/${taskId}`,
+        priority: NOTIFICATION_PRIORITIES.HIGH,
+        read: false
+      })
+
+      // Schedule reminder notification
+      const reminderDate = new Date(dueDate.getTime() - 24 * 60 * 60 * 1000) // 1 day before
+      if (reminderDate > new Date()) {
+        await this.scheduleNotification(
+          'Task Due Tomorrow',
+          `Task "${taskTitle}" is due tomorrow`,
+          reminderDate,
+          {
+            notificationId: taskId,
+            type: NOTIFICATION_TYPES.TASK_DUE,
+            relatedId: taskId,
+            relatedType: 'task',
+            actionUrl: `/task/${taskId}`
+          }
+        )
+      }
+    } catch (error) {
+      console.error('Error creating task due notification:', error)
+    }
+  },
+
+  async createPhaseNotification(
+    phaseId: string,
+    phaseName: string,
+    projectId: string,
+    action: 'started' | 'completed',
+    userIds: string[]
+  ): Promise<void> {
+    try {
+      const notificationType = action === 'started' 
+        ? NOTIFICATION_TYPES.PHASE_STARTED 
+        : NOTIFICATION_TYPES.PHASE_COMPLETED
+
+      const title = action === 'started' 
+        ? 'Phase Started' 
+        : 'Phase Completed'
+
+      const description = action === 'started'
+        ? `Phase "${phaseName}" has started`
+        : `Phase "${phaseName}" has been completed`
+
+      for (const userId of userIds) {
+        await this.createNotification({
+          title,
+          description,
+          type: notificationType,
+          user_id: userId,
+          related_id: phaseId,
+          related_type: 'phase',
+          action_url: `/project/${projectId}`,
+          priority: NOTIFICATION_PRIORITIES.MEDIUM,
+          read: false
+        })
+      }
+    } catch (error) {
+      console.error('Error creating phase notification:', error)
+    }
+  },
+
+  async createTeamMemberNotification(
+    projectId: string,
+    projectName: string,
+    newMemberName: string,
+    userIds: string[]
+  ): Promise<void> {
+    try {
+      for (const userId of userIds) {
+        await this.createNotification({
+          title: 'New Team Member',
+          description: `${newMemberName} has joined the project "${projectName}"`,
+          type: NOTIFICATION_TYPES.TEAM_MEMBER_JOINED,
+          user_id: userId,
+          related_id: projectId,
+          related_type: 'project',
+          action_url: `/project/${projectId}`,
+          priority: NOTIFICATION_PRIORITIES.LOW,
+          read: false
+        })
+      }
+    } catch (error) {
+      console.error('Error creating team member notification:', error)
+    }
+  },
+
+  async createCommentNotification(
+    commentId: string,
+    taskId: string,
+    taskTitle: string,
+    commenterName: string,
+    userIds: string[]
+  ): Promise<void> {
+    try {
+      for (const userId of userIds) {
+        await this.createNotification({
+          title: 'New Comment',
+          description: `${commenterName} commented on task "${taskTitle}"`,
+          type: NOTIFICATION_TYPES.COMMENT_ADDED,
+          user_id: userId,
+          related_id: commentId,
+          related_type: 'comment',
+          action_url: `/task/${taskId}`,
+          priority: NOTIFICATION_PRIORITIES.LOW,
+          read: false
+        })
+      }
+    } catch (error) {
+      console.error('Error creating comment notification:', error)
+    }
+  },
+
+  async scheduleNotification(
+    title: string,
+    body: string,
+    scheduledFor: Date,
+    data?: Record<string, any>
+  ): Promise<string> {
+    try {
+      const identifier = await Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: data || {},
+        },
+        trigger: {
+          date: scheduledFor,
+        },
+      })
+
+      return identifier
+    } catch (error) {
+      console.error('Error scheduling notification:', error)
+      throw error
+    }
+  },
+
+  async cancelScheduledNotification(identifier: string): Promise<void> {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(identifier)
+    } catch (error) {
+      console.error('Error canceling scheduled notification:', error)
+    }
+  },
+
+  async cancelAllScheduledNotifications(): Promise<void> {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync()
+    } catch (error) {
+      console.error('Error canceling all scheduled notifications:', error)
+    }
+  },
+
+  getNotificationPriority(priority: string): 'default' | 'normal' | 'high' {
+    switch (priority) {
+      case NOTIFICATION_PRIORITIES.HIGH:
+        return 'high'
+      case NOTIFICATION_PRIORITIES.MEDIUM:
+        return 'normal'
+      case NOTIFICATION_PRIORITIES.LOW:
+      default:
+        return 'default'
+    }
+  },
+
+  async getNotificationSettings(): Promise<Record<string, boolean>> {
+    try {
+      const cached = await offlineStore.getData(CACHE_KEYS.NOTIFICATION_SETTINGS, async () => ({}))
+      return cached
+    } catch (error) {
+      console.error('Error getting notification settings:', error)
+      return {}
+    }
+  },
+
+  async updateNotificationSettings(settings: Record<string, boolean>): Promise<void> {
+    try {
+      await offlineStore.setData(CACHE_KEYS.NOTIFICATION_SETTINGS, settings)
+    } catch (error) {
+      console.error('Error updating notification settings:', error)
+    }
+  },
+
+  async clearAllNotifications(): Promise<void> {
+    try {
+      const online = await offlineStore.isOnline()
+      const currentUser = await account.get()
+
+      if (!online) {
+        await offlineStore.setData(CACHE_KEYS.NOTIFICATIONS, [])
+        return
+      }
+
+      // Get all user notifications
+      const { documents } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.NOTIFICATIONS,
+        [Query.equal('user_id', currentUser.$id)]
+      )
+
+      // Delete all notifications
+      for (const notification of documents) {
+        await databases.deleteDocument(
+          DATABASE_ID,
+          COLLECTIONS.NOTIFICATIONS,
+          notification.$id
+        )
+      }
+
+      // Update notification count
+      this.updateNotificationCount()
+    } catch (error) {
+      console.error('Error clearing all notifications:', error)
+    }
+  }
 }
