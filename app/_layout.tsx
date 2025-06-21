@@ -51,7 +51,10 @@ function AppContent() {
       // Set up app state listener
       const appStateSubscription = AppState.addEventListener("change", nextAppState => {
         if (nextAppState === "active") {
-          offlineStore.syncOfflineChanges()
+          offlineStore.syncOfflineChanges((progress) => {
+            // Handle progress updates if needed
+            console.log("Sync progress:", progress)
+          })
         }
       })
 
@@ -83,7 +86,7 @@ function AppContent() {
           animation: "slide_from_right",
         }}
       />
-      <ConnectionStatus lastSyncTime={lastSynced} />
+      <ConnectionStatus />
     </GestureHandlerRootView>
   )
 }

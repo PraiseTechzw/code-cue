@@ -125,7 +125,7 @@ export const githubService = {
       )
 
       if (documents.length > 0) {
-        return documents[0] as GithubConnection
+        return documents[0] as unknown as GithubConnection
       }
       
       return null
@@ -258,7 +258,7 @@ export const githubService = {
         await offlineStore.setItem(CACHE_KEYS.REPOSITORIES, documents)
       }
 
-      return documents as GithubRepository[]
+      return documents as unknown as GithubRepository[]
     } catch (error) {
       console.error("Error fetching GitHub repositories:", error)
 
@@ -278,7 +278,7 @@ export const githubService = {
       )
 
       if (documents.length > 0) {
-        return documents[0] as GithubRepository
+        return documents[0] as unknown as GithubRepository
       }
       
       return null
@@ -326,7 +326,7 @@ export const githubService = {
         ]
       )
 
-      return documents as GithubCommit[]
+      return documents as unknown as GithubCommit[]
     } catch (error) {
       console.error("Error getting commits:", error)
       return []
@@ -369,4 +369,4 @@ export const githubService = {
       return null
     }
   }
-} 
+}

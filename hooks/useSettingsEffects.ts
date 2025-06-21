@@ -60,7 +60,9 @@ export function useSettingsEffects() {
         if (settings.offlineMode) {
           await offlineStore.loadCachedData()
         } else {
-          await offlineStore.persistCachedData()
+          // Get current cached data and persist it
+          const cachedData = await offlineStore.loadCachedData()
+          await offlineStore.persistCachedData(cachedData)
         }
       } catch (error) {
         console.error("Error updating offline mode:", error)
@@ -75,7 +77,10 @@ export function useSettingsEffects() {
     async function updateAutoSync() {
       try {
         if (settings.autoSync) {
-          await offlineStore.syncOfflineChanges()
+          await offlineStore.syncOfflineChanges((progress) => {
+            // Handle progress updates if needed
+            console.log("Sync progress:", progress)
+          })
           await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
         }
       } catch (error) {

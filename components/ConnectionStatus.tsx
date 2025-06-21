@@ -102,8 +102,12 @@ export function ConnectionStatus() {
     })
 
     return () => {
-      unsubscribe()
-      netInfoUnsubscribe()
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+      if (netInfoUnsubscribe && typeof netInfoUnsubscribe.remove === 'function') {
+        netInfoUnsubscribe.remove()
+      }
     }
   }, [])
 
@@ -128,7 +132,26 @@ export function ConnectionStatus() {
     if (syncProgress.inProgress) return
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    await offlineStore.syncOfflineChanges()
+    await offlineStore.syncOfflineChanges((progress) => {
+      setSyncProgress(progress)
+
+      // Update progress animation
+      if (progress.total > 0) {
+        const progressValue = progress.completed / progress.total
+        Animated.timing(progressAnim, {
+          toValue: progressValue,
+          duration: 300,
+          useNativeDriver: false,
+        }).start()
+      } else {
+        progressAnim.setValue(0)
+      }
+
+      // Reload pending changes after sync
+      if (!progress.inProgress) {
+        loadPendingChanges()
+      }
+    })
   }
 
   // Only show if offline or has pending changes

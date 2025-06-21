@@ -203,6 +203,14 @@ export const getUnreadNotificationCount = async (): Promise<number> => {
 }
 
 export const notificationService = {
+  async registerForPushNotifications() {
+    return await registerForPushNotificationsAsync();
+  },
+
+  async markAsRead(notificationId: string) {
+    return await markNotificationAsRead(notificationId);
+  },
+
   async initialize() {
     try {
       const token = await registerForPushNotificationsAsync()
@@ -256,32 +264,6 @@ export const notificationService = {
         console.error("Error getting cached notifications:", cacheError)
         return []
       }
-    }
-  },
-
-  async markAsRead(notificationId: string) {
-    try {
-      await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.NOTIFICATIONS,
-        notificationId,
-        { read: true }
-      )
-
-      // Update local cache
-      const notificationsJson = await AsyncStorage.getItem("notifications")
-      if (notificationsJson) {
-        const notifications = JSON.parse(notificationsJson)
-        const updatedNotifications = notifications.map((n: any) =>
-          n.$id === notificationId ? { ...n, read: true } : n
-        )
-        await AsyncStorage.setItem("notifications", JSON.stringify(updatedNotifications))
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error marking notification as read:", error)
-      return false
     }
   },
 

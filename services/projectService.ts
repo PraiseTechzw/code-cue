@@ -53,7 +53,7 @@ export const getProjects = async (): Promise<Project[]> => {
 
     // Get current user
     const user = await account.get()
-    
+
     // Get projects
     const { documents } = await databases.listDocuments(
       DATABASE_ID,
@@ -64,7 +64,7 @@ export const getProjects = async (): Promise<Project[]> => {
       ]
     )
 
-    const projects = documents as Project[]
+    const projects = documents as unknown as Project[]
 
     // Cache the result
     await AsyncStorage.setItem(
@@ -98,6 +98,12 @@ export const getProjects = async (): Promise<Project[]> => {
 // Get project by ID
 export const getProjectById = async (projectId: string): Promise<Project | null> => {
   try {
+    // Validate projectId
+    if (!projectId || projectId.trim() === '') {
+      console.warn('getProjectById: projectId is empty or invalid')
+      return null
+    }
+
     const online = await isOnline()
 
     // Try to get from cache first
@@ -124,7 +130,7 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
       DATABASE_ID,
       COLLECTIONS.PROJECTS,
       projectId
-    ) as Project
+    ) as unknown as Project
 
     // Cache the result
     await AsyncStorage.setItem(
@@ -211,7 +217,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
       })
 
       // Update local cache
-      await updateProjectsCache(newProject)
+      await updateProjectsCache(newProject as Project)
 
       return newProject as Project
     }
@@ -222,7 +228,7 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
       COLLECTIONS.PROJECTS,
       ID.unique(),
       newProject
-    ) as Project
+    ) as unknown as Project
 
     // Update cache
     await updateProjectsCache(createdProject)
@@ -264,7 +270,7 @@ export const updateProject = async (projectId: string, updates: UpdateProject): 
       COLLECTIONS.PROJECTS,
       projectId,
       updates
-    ) as Project
+    ) as unknown as Project
 
     // Update cache
     await updateProjectCache(projectId, updatedProject)

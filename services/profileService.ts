@@ -21,7 +21,7 @@ export const getProfile = async (): Promise<Profile | null> => {
     )
 
     if (documents.length > 0) {
-      const profile = documents[0] as Profile
+      const profile = documents[0] as unknown as Profile
       await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile))
       return profile
     }
@@ -50,7 +50,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
 
     if (documents.length > 0) {
       // Update existing profile
-      const existingProfile = documents[0] as Profile
+      const existingProfile = documents[0] as unknown as Profile
       const updatedProfile = await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.PROFILES,
@@ -59,7 +59,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
           ...profileData,
           user_id: user.$id
         }
-      ) as Profile
+      ) as unknown as Profile
       profile = updatedProfile
     } else {
       // Create new profile
@@ -72,7 +72,7 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
           user_id: user.$id,
           role: profileData.role || 'user'
         }
-      ) as Profile
+      ) as unknown as Profile
       profile = newProfile
     }
 
@@ -99,13 +99,13 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
       throw new Error("Profile not found")
     }
 
-    const existingProfile = documents[0] as Profile
+    const existingProfile = documents[0] as unknown as Profile
     const updatedProfile = await databases.updateDocument(
       DATABASE_ID,
       COLLECTIONS.PROFILES,
       existingProfile.$id,
       updates
-    ) as Profile
+    ) as unknown as Profile
 
     // Update cache
     await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(updatedProfile))
@@ -113,5 +113,24 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
   } catch (error) {
     console.error("Error updating profile:", error)
     return null
+  }
+}
+
+// Profile service object
+export const profileService = {
+  async getProfile() {
+    return await getProfile()
+  },
+
+  async upsertProfile(profileData: Partial<Profile>) {
+    return await upsertProfile(profileData)
+  },
+
+  async updateProfile(updates: Partial<Profile>) {
+    return await updateProfile(updates)
+  },
+
+  async updateTheme(theme: "light" | "dark") {
+    return await updateProfile({ theme })
   }
 }

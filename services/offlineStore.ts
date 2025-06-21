@@ -55,23 +55,49 @@ export const getOfflineChanges = async (): Promise<OfflineChange[]> => {
 }
 
 // Sync offline changes
-export const syncOfflineChanges = async (): Promise<void> => {
+export const syncOfflineChanges = async (progressCallback?: (progress: any) => void): Promise<void> => {
   try {
     const online = await isOnline()
     if (!online) {
       console.log("Device is offline, skipping sync")
-      return
-    }
+    return
+  }
 
     const changes = await getOfflineChanges()
     const unsyncedChanges = changes.filter(change => !change.synced)
 
     if (unsyncedChanges.length === 0) {
       console.log("No unsynced changes to process")
+      if (progressCallback) {
+        progressCallback({
+          total: 0,
+          completed: 0,
+          failed: 0,
+          inProgress: false,
+          lastSyncTime: Date.now(),
+          error: null
+        })
+      }
       return
     }
 
     console.log(`Syncing ${unsyncedChanges.length} offline changes`)
+
+    // Initialize progress
+    let completed = 0
+    let failed = 0
+    const total = unsyncedChanges.length
+
+    if (progressCallback) {
+      progressCallback({
+        total,
+        completed,
+        failed,
+        inProgress: true,
+        lastSyncTime: null,
+        error: null
+      })
+    }
 
     for (const change of unsyncedChanges) {
       try {
@@ -81,9 +107,11 @@ export const syncOfflineChanges = async (): Promise<void> => {
         change.synced = true
         await updateOfflineChange(change)
         
+        completed++
         console.log(`Successfully synced change: ${change.operation} on ${change.table_name}`)
       } catch (error) {
         console.error(`Error syncing change ${change.id}:`, error)
+        failed++
         
         // Increment retry count
         change.retry_count += 1
@@ -96,9 +124,43 @@ export const syncOfflineChanges = async (): Promise<void> => {
           await updateOfflineChange(change)
         }
       }
+
+      // Update progress
+      if (progressCallback) {
+        progressCallback({
+          total,
+          completed,
+          failed,
+          inProgress: true,
+          lastSyncTime: null,
+          error: null
+        })
+      }
+    }
+
+    // Final progress update
+    if (progressCallback) {
+      progressCallback({
+        total,
+        completed,
+        failed,
+        inProgress: false,
+        lastSyncTime: Date.now(),
+        error: failed > 0 ? `${failed} changes failed to sync` : null
+      })
     }
   } catch (error) {
     console.error("Error syncing offline changes:", error)
+    if (progressCallback) {
+      progressCallback({
+        total: 0,
+        completed: 0,
+        failed: 0,
+        inProgress: false,
+        lastSyncTime: null,
+        error: error instanceof Error ? error.message : "Unknown error"
+      })
+    }
   }
 }
 
@@ -212,7 +274,7 @@ export const removeItem = async (key: string): Promise<void> => {
 export const initializeOfflineStore = async (): Promise<void> => {
   try {
     // Set up network listener
-    NetInfo.addEventListener((state) => {
+    const netInfoUnsubscribe = NetInfo.addEventListener((state) => {
       if (state.isConnected) {
         // Sync when connection is restored
         syncOfflineChanges()
@@ -221,6 +283,9 @@ export const initializeOfflineStore = async (): Promise<void> => {
 
     // Initial sync attempt
     await syncOfflineChanges()
+
+    // Note: We don't return the unsubscribe function here since this is a one-time initialization
+    // The listener will be cleaned up when the app is closed
   } catch (error) {
     console.error("Error initializing offline store:", error)
   }
@@ -288,14 +353,142 @@ export const clearCache = async (): Promise<void> => {
   }
 }
 
+// Offline store object
 export const offlineStore = {
-  addOfflineChange,
-  getOfflineChanges,
-  syncOfflineChanges,
-  initializeOfflineStore,
-  cacheUserData,
-  clearCache,
-  setItem,
-  getItem,
-  removeItem
-} 
+  async loadCachedData() {
+    try {
+      const cachedData = {
+        projects: await getItem(CACHE_KEYS.PROJECTS) || [],
+        tasks: await getItem(CACHE_KEYS.TASKS) || [],
+        notifications: await getItem(CACHE_KEYS.NOTIFICATIONS) || [],
+        profiles: await getItem(CACHE_KEYS.PROFILES) || []
+      }
+      
+      return cachedData
+    } catch (error) {
+      console.error("Error loading cached data:", error)
+      return {
+        projects: [],
+        tasks: [],
+        notifications: [],
+        profiles: []
+      }
+    }
+  },
+
+  async persistCachedData(data: any) {
+    try {
+      if (data.projects) await setItem(CACHE_KEYS.PROJECTS, data.projects)
+      if (data.tasks) await setItem(CACHE_KEYS.TASKS, data.tasks)
+      if (data.notifications) await setItem(CACHE_KEYS.NOTIFICATIONS, data.notifications)
+      if (data.profiles) await setItem(CACHE_KEYS.PROFILES, data.profiles)
+    } catch (error) {
+      console.error("Error persisting cached data:", error)
+    }
+  },
+
+  async enableOfflineMode() {
+    try {
+      await AsyncStorage.setItem('offline_mode', 'true')
+      console.log("Offline mode enabled")
+    } catch (error) {
+      console.error("Error enabling offline mode:", error)
+    }
+  },
+
+  async disableOfflineMode() {
+    try {
+      await AsyncStorage.setItem('offline_mode', 'false')
+      console.log("Offline mode disabled")
+    } catch (error) {
+      console.error("Error disabling offline mode:", error)
+    }
+  },
+
+  async getData(key: string, fetchFunction: () => Promise<any>) {
+    try {
+      // Try to get from cache first
+      const cached = await getItem(key)
+      if (cached) return cached
+
+      // If not in cache, fetch and cache
+      const data = await fetchFunction()
+      if (data) await setItem(key, data)
+      return data
+    } catch (error) {
+      console.error(`Error getting data for key ${key}:`, error)
+      return null
+    }
+  },
+
+  async getPendingChangesCount() {
+    try {
+      const changes = await getOfflineChanges()
+      return changes.filter(change => !change.synced).length
+    } catch (error) {
+      console.error("Error getting pending changes count:", error)
+      return 0
+    }
+  },
+
+  async addSyncListener(callback: (progress?: any) => void) {
+    // Set up network status listener for sync
+    const netInfoUnsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected) {
+        // When connection is restored, trigger sync with default progress
+        const defaultProgress = {
+          total: 0,
+          completed: 0,
+          failed: 0,
+          inProgress: false,
+          lastSyncTime: Date.now(),
+          error: null
+        }
+        callback(defaultProgress)
+      }
+    })
+    
+    // Return a function that properly removes the listener
+    return () => {
+      if (netInfoUnsubscribe) {
+        netInfoUnsubscribe()
+      }
+    }
+  },
+
+  async initialize() {
+    return await initializeOfflineStore()
+  },
+
+  async cacheUserData() {
+    return await cacheUserData()
+  },
+
+  async syncOfflineChanges(progressCallback?: (progress: any) => void) {
+    return await syncOfflineChanges(progressCallback)
+  },
+
+  async addOfflineChange(change: OfflineChange) {
+    return await addOfflineChange(change)
+  },
+
+  async getOfflineChanges() {
+    return await getOfflineChanges()
+  },
+
+  async setItem(key: string, value: any) {
+    return await setItem(key, value)
+  },
+
+  async getItem(key: string) {
+    return await getItem(key)
+  },
+
+  async removeItem(key: string) {
+    return await removeItem(key)
+  },
+
+  async clearCache() {
+    return await clearCache()
+  }
+}

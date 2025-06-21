@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  SafeAreaView,
 } from "react-native"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useLocalSearchParams, router } from "expo-router"
@@ -66,7 +67,7 @@ export default function ProjectDetailScreen() {
     Animated.timing(filterAnim, {
       toValue: filterVisible ? 1 : 0,
       duration: 200,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start()
   }, [filterVisible])
 
@@ -105,17 +106,29 @@ export default function ProjectDetailScreen() {
   }, [id])
 
   const loadProjectData = async () => {
-    if (!id) return
+    // Validate and extract project ID
+    let projectId = id
+    if (Array.isArray(projectId)) {
+      projectId = projectId[0]
+    }
+    
+    if (!projectId || typeof projectId !== 'string' || projectId.trim() === '') {
+      console.error('Invalid project ID:', id)
+      showToast("Invalid project ID", { type: "error" })
+      return
+    }
+
+    console.log('Loading project data for ID:', projectId)
 
     try {
       setLoading(true)
 
       // Load project details
-      const projectData = await projectService.getProjectById(id as string)
+      const projectData = await projectService.getProjectById(projectId)
       setProject(projectData)
 
       // Load tasks for this project
-      const tasksData = await taskService.getTasksByProject(id as string)
+      const tasksData = await taskService.getTasksByProject(projectId)
       setTasks(tasksData)
 
       // Calculate task statistics
@@ -148,7 +161,11 @@ export default function ProjectDetailScreen() {
 
   const handleAddTask = () => {
     // Navigate to add task screen
-    router.push(`/add-task?projectId=${id}`)
+    let projectId = id
+    if (Array.isArray(projectId)) {
+      projectId = projectId[0]
+    }
+    router.push(`/add-task?projectId=${projectId}`)
   }
 
   const handleBack = () => {
@@ -162,12 +179,20 @@ export default function ProjectDetailScreen() {
 
   const handleEditProject = () => {
     // Navigate to edit project screen
-    router.push(`/edit-project/${id}`)
+    let projectId = id
+    if (Array.isArray(projectId)) {
+      projectId = projectId[0]
+    }
+    router.push(`/edit-project/${projectId}`)
   }
 
   const handleDeleteProject = async () => {
     try {
-      await projectService.deleteProject(id as string)
+      let projectId = id
+      if (Array.isArray(projectId)) {
+        projectId = projectId[0]
+      }
+      await projectService.deleteProject(projectId as string)
       showToast("Project deleted successfully",{type: 'success'})
       router.replace("/projects")
     } catch (error) {
@@ -235,7 +260,7 @@ export default function ProjectDetailScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {isOffline && (
         <View style={[styles.offlineBanner, { backgroundColor: theme.tintLight }]}>
           <Ionicons name="cloud-offline-outline" size={16} color={theme.tint} />
@@ -453,9 +478,9 @@ export default function ProjectDetailScreen() {
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
             <TaskItem 
-              key={task.id} 
+              key={task.$id} 
               task={{
-                id: task.id,
+                id: task.$id,
                 title: task.title,
                 due_date: task.due_date,
                 priority: task.priority
@@ -488,7 +513,7 @@ export default function ProjectDetailScreen() {
       />
 
       <ConnectionStatus />
-    </View>
+    </SafeAreaView>
   )
 }
 

@@ -72,6 +72,13 @@ export default function ProjectsScreen() {
   }
 
   const handleProjectPress = (projectId: string) => {
+    // Validate project ID before navigation
+    if (!projectId || projectId.trim() === '') {
+      console.error('Invalid project ID:', projectId)
+      showToast("Invalid project ID", { type: "error" })
+      return
+    }
+    
     // Navigate to project details
     router.push(`/project/${projectId}`)
   }
@@ -105,16 +112,21 @@ export default function ProjectsScreen() {
         </View>
       ) : (
         <FlatList
-          data={projects}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => handleProjectPress(item.id)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
-            >
-              <ProjectCard project={item} />
-            </Pressable>
-          )}
+          data={projects.filter(item => item.$id || item.id)}
+          keyExtractor={(item) => item.$id || item.id}
+          renderItem={({ item }) => {
+            const projectId = item.$id || item.id
+            if (!projectId) return null
+            
+            return (
+              <Pressable
+                onPress={() => handleProjectPress(projectId)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.9 : 1 }, { transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+              >
+                <ProjectCard project={item} />
+              </Pressable>
+            )
+          }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshing={refreshing}

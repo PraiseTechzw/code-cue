@@ -165,7 +165,7 @@ export default function AddTaskScreen() {
             if (subtaskTitle.trim()) {
               await taskService.createSubtask({
                 title: subtaskTitle,
-                task_id: newTask.id,
+                task_id: newTask.$id || newTask.id,
                 completed: false,
               })
             }

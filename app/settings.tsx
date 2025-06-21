@@ -189,7 +189,10 @@ export default function SettingsScreen() {
 
     try {
       setIsSyncing(true)
-      await offlineStore.syncOfflineChanges()
+      await offlineStore.syncOfflineChanges((progress) => {
+        // Handle progress updates if needed
+        console.log("Sync progress:", progress)
+      })
 
       // Update last synced time
       await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())

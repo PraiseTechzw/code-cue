@@ -19,7 +19,7 @@ export function TaskItem({ task, status }: TaskItemProps) {
   const theme = Colors[colorScheme ?? "light"]
 
   const handlePress = () => {
-    router.push(`/task/${task.id}`)
+    router.push(`/task/${task.$id || task.id}`)
   }
 
   const getStatusIcon = () => {

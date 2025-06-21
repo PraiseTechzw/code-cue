@@ -30,7 +30,10 @@ export const NetworkStatus = () => {
         // Start syncing
         setIsSyncing(true);
         try {
-          await offlineStore.syncOfflineChanges();
+          await offlineStore.syncOfflineChanges((progress) => {
+            // Handle progress updates if needed
+            console.log("Sync progress:", progress)
+          });
           // Hide the banner after successful sync
           setTimeout(() => {
             Animated.spring(slideAnim, {

@@ -227,14 +227,14 @@ export default function HomeScreen() {
       if (allProjects && allProjects.length > 0) {
         const sortedProjects = [...allProjects].sort(
           (a, b) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            new Date(b.$updatedAt).getTime() - new Date(a.$updatedAt).getTime()
         );
 
         const project = sortedProjects[0];
         setCurrentProject(project);
 
         // Get tasks for this project
-        const projectTasks = await taskService.getTasksByProject(project.id);
+        const projectTasks = await taskService.getTasksByProject(project.$id);
 
         // Organize tasks by status
         const todoTasks = projectTasks.filter((task) => task.status === "todo");
@@ -252,11 +252,12 @@ export default function HomeScreen() {
         // Calculate stats
         const now = new Date();
         const overdueTasks = projectTasks.filter(
-          (task) => task.status !== "done" && new Date(task.due_date) < now
+          (task) => task.status !== "done" && task.due_date && new Date(task.due_date) < now
         );
         const upcomingTasks = projectTasks.filter(
           (task) =>
             task.status !== "done" &&
+            task.due_date &&
             new Date(task.due_date) >= now &&
             new Date(task.due_date) <=
               new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -316,7 +317,7 @@ export default function HomeScreen() {
   const handleProjectPress = () => {
     if (currentProject) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      router.push(`/project/${currentProject.id}`);
+      router.push(`/project/${currentProject.$id}`);
     }
   };
 
@@ -325,7 +326,7 @@ export default function HomeScreen() {
     if (currentProject) {
       router.push({
         pathname: "/add-task",
-        params: { projectId: currentProject.id },
+        params: { projectId: currentProject.$id || currentProject.id },
       });
     } else {
       router.push("/new-project");
@@ -363,7 +364,7 @@ export default function HomeScreen() {
   const handleChangeProject = (project: any) => {
     setCurrentProject(project);
     bottomSheetModalRef.current?.dismiss();
-    loadProjectTasks(project.id);
+    loadProjectTasks(project.$id || project.id);
   };
 
   const loadProjectTasks = async (projectId: string) => {
@@ -387,11 +388,12 @@ export default function HomeScreen() {
       // Calculate stats
       const now = new Date();
       const overdueTasks = projectTasks.filter(
-        (task) => task.status !== "done" && new Date(task.due_date) < now
+        (task) => task.status !== "done" && task.due_date && new Date(task.due_date) < now
       );
       const upcomingTasks = projectTasks.filter(
         (task) =>
           task.status !== "done" &&
+          task.due_date &&
           new Date(task.due_date) >= now &&
           new Date(task.due_date) <=
             new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -447,9 +449,9 @@ export default function HomeScreen() {
         styles.projectItem,
         {
           backgroundColor:
-            item.id === currentProject?.id ? theme.tintLight : "transparent",
+            item.$id === currentProject?.$id ? theme.tintLight : "transparent",
           borderColor:
-            item.id === currentProject?.id ? theme.tint : theme.border,
+            item.$id === currentProject?.$id ? theme.tint : theme.border,
         },
       ]}
       onPress={() => handleChangeProject(item)}
@@ -499,15 +501,14 @@ export default function HomeScreen() {
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => (
             <TaskItem
-              key={task.id}
+              key={task.$id}
               task={{
-                id: task.id,
+                id: task.$id,
                 title: task.title,
-                dueDate: task.due_date || new Date().toISOString(),
+                due_date: task.due_date || new Date().toISOString(),
                 priority: task.priority,
               }}
-              status={task.status}
-              onPress={() => handleTaskPress(task.id)}
+              status="todo"
             />
           ))
         ) : (
@@ -1084,7 +1085,7 @@ export default function HomeScreen() {
                         ) : tasks.todo.length > 0 ? (
                           tasks.todo.map((task: any, index: number) => (
                             <MotiView
-                              key={task.id}
+                              key={task.$id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
                               transition={{
@@ -1095,14 +1096,13 @@ export default function HomeScreen() {
                             >
                               <TaskItem
                                 task={{
-                                  id: task.id,
+                                  id: task.$id,
                                   title: task.title,
-                                  dueDate:
+                                  due_date:
                                     task.due_date || new Date().toISOString(),
                                   priority: task.priority,
                                 }}
                                 status="todo"
-                                onPress={() => handleTaskPress(task.id)}
                               />
                             </MotiView>
                           ))
@@ -1186,7 +1186,7 @@ export default function HomeScreen() {
                         ) : tasks.inProgress.length > 0 ? (
                           tasks.inProgress.map((task: any, index: number) => (
                             <MotiView
-                              key={task.id}
+                              key={task.$id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
                               transition={{
@@ -1197,14 +1197,13 @@ export default function HomeScreen() {
                             >
                               <TaskItem
                                 task={{
-                                  id: task.id,
+                                  id: task.$id,
                                   title: task.title,
-                                  dueDate:
+                                  due_date:
                                     task.due_date || new Date().toISOString(),
                                   priority: task.priority,
                                 }}
                                 status="inProgress"
-                                onPress={() => handleTaskPress(task.id)}
                               />
                             </MotiView>
                           ))
@@ -1292,7 +1291,7 @@ export default function HomeScreen() {
                         ) : tasks.done.length > 0 ? (
                           tasks.done.map((task: any, index: number) => (
                             <MotiView
-                              key={task.id}
+                              key={task.$id}
                               from={{ opacity: 0, translateX: -20 }}
                               animate={{ opacity: 1, translateX: 0 }}
                               transition={{
@@ -1303,14 +1302,13 @@ export default function HomeScreen() {
                             >
                               <TaskItem
                                 task={{
-                                  id: task.id,
+                                  id: task.$id,
                                   title: task.title,
-                                  dueDate:
+                                  due_date:
                                     task.due_date || new Date().toISOString(),
                                   priority: task.priority,
                                 }}
                                 status="done"
-                                onPress={() => handleTaskPress(task.id)}
                               />
                             </MotiView>
                           ))
@@ -1423,7 +1421,7 @@ export default function HomeScreen() {
               <FlatList
                 data={projects}
                 renderItem={renderProjectItem}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.$id || item.id}
                 style={styles.projectsList}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 20 }}

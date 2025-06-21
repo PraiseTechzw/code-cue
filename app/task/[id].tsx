@@ -97,7 +97,7 @@ export default function TaskDetailScreen() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      await taskService.updateTask(task.id, { status: newStatus })
+      await taskService.updateTask(task.$id, { status: newStatus })
       setTask({ ...task, status: newStatus })
       showToast(`Task status updated to ${newStatus}`, {type:"success"})
     } catch (error) {
@@ -112,7 +112,7 @@ export default function TaskDetailScreen() {
     try {
       const newCommentData = await taskService.createComment({
         text: newComment,
-        task_id: task.id,
+        task_id: task.$id,
       })
 
       // Add the new comment to the list
@@ -131,7 +131,7 @@ export default function TaskDetailScreen() {
     try {
       const newSubtaskData = await taskService.createSubtask({
         title: newSubtask,
-        task_id: task.id,
+        task_id: task.$id,
         completed: false,
       })
 
@@ -151,7 +151,7 @@ export default function TaskDetailScreen() {
 
       // Update the subtask in the list
       const updatedSubtasks = subtasks.map((subtask) =>
-        subtask.id === subtaskId ? { ...subtask, completed: !completed } : subtask,
+        subtask.$id === subtaskId ? { ...subtask, completed: !completed } : subtask,
       )
 
       setSubtasks(updatedSubtasks)
@@ -165,7 +165,7 @@ export default function TaskDetailScreen() {
     if (isEditing) {
       // Save changes
       try {
-        await taskService.updateTask(task.id, {
+        await taskService.updateTask(task.$id, {
           title: editedTitle,
           description: editedDescription,
         })
@@ -192,7 +192,7 @@ export default function TaskDetailScreen() {
 
   const confirmDeleteTask = async () => {
     try {
-      await taskService.deleteTask(task.id)
+      await taskService.deleteTask(task.$id)
       showToast("Task deleted successfully", {type: "success"})
       router.back()
     } catch (error) {
@@ -409,9 +409,9 @@ export default function TaskDetailScreen() {
 
           {subtasks.length > 0 ? (
             subtasks.map((subtask) => (
-              <View key={subtask.id} style={styles.subtaskItem}>
+              <View key={subtask.$id} style={styles.subtaskItem}>
                 <TouchableOpacity
-                  onPress={() => toggleSubtask(subtask.id, subtask.completed)}
+                  onPress={() => toggleSubtask(subtask.$id, subtask.completed)}
                   style={styles.subtaskCheckbox}
                 >
                   {subtask.completed ? (

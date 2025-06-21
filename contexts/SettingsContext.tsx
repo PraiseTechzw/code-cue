@@ -123,7 +123,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         case "autoSync":
           if (value && isConnected) {
-            await offlineStore.syncOfflineChanges()
+            await offlineStore.syncOfflineChanges((progress) => {
+              // Handle progress updates if needed
+              console.log("Sync progress:", progress)
+            })
             await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
             setSettings(prev => ({
               ...prev,

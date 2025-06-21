@@ -72,7 +72,7 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
       ]
     )
 
-    const tasks = documents as Task[]
+    const tasks = documents as unknown as Task[]
 
     // Cache the result
     await AsyncStorage.setItem(
@@ -107,6 +107,12 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
 // Get tasks by project
 export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
   try {
+    // Validate projectId
+    if (!projectId || projectId.trim() === '') {
+      console.warn('getTasksByProject: projectId is empty or invalid')
+      return []
+    }
+
     const online = await isOnline()
 
     // Try to get from cache first
@@ -138,7 +144,7 @@ export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
       ]
     )
 
-    const tasks = documents as Task[]
+    const tasks = documents as unknown as Task[]
 
     // Cache the result
     await AsyncStorage.setItem(
@@ -199,7 +205,7 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
       DATABASE_ID,
       COLLECTIONS.TASKS,
       taskId
-    ) as Task
+    ) as unknown as Task
 
     // Cache the result
     await AsyncStorage.setItem(
@@ -258,7 +264,7 @@ export const createTask = async (taskData: NewTask): Promise<Task> => {
       })
 
       // Update local cache
-      await updateTasksCache(newTask)
+      await updateTasksCache(newTask as Task)
 
       return newTask as Task
     }
@@ -269,7 +275,7 @@ export const createTask = async (taskData: NewTask): Promise<Task> => {
       COLLECTIONS.TASKS,
       ID.unique(),
       newTask
-    ) as Task
+    ) as unknown as Task
 
     // Update cache
     await updateTasksCache(createdTask)
@@ -311,7 +317,7 @@ export const updateTask = async (taskId: string, updates: UpdateTask): Promise<T
       COLLECTIONS.TASKS,
       taskId,
       updates
-    ) as Task
+    ) as unknown as Task
 
     // Update cache
     await updateTaskCache(taskId, updatedTask)
@@ -396,7 +402,7 @@ export const createSubtask = async (subtaskData: NewSubtask): Promise<Subtask> =
       COLLECTIONS.SUBTASKS,
       ID.unique(),
       newSubtask
-    ) as Subtask
+    ) as unknown as Subtask
 
     return createdSubtask
   } catch (error) {
@@ -434,7 +440,7 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
       COLLECTIONS.SUBTASKS,
       subtaskId,
       updateData
-    ) as Subtask
+    ) as unknown as Subtask
 
     return updatedSubtask
   } catch (error) {
@@ -450,7 +456,7 @@ export const getSubtaskById = async (subtaskId: string): Promise<Subtask | null>
       DATABASE_ID,
       COLLECTIONS.SUBTASKS,
       subtaskId
-    ) as Subtask
+    ) as unknown as Subtask
 
     return subtask
   } catch (error) {
@@ -494,7 +500,7 @@ export const createComment = async (commentData: NewComment): Promise<Comment> =
       COLLECTIONS.COMMENTS,
       ID.unique(),
       newComment
-    ) as Comment
+    ) as unknown as Comment
 
     return createdComment
   } catch (error) {
@@ -565,4 +571,19 @@ const removeTaskFromCache = async (taskId: string) => {
   } catch (error) {
     console.error("Error removing task from cache:", error)
   }
-} 
+}
+
+// Export the taskService object
+export const taskService = {
+  isOnline,
+  getTasks,
+  getTasksByProject,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
+  createSubtask,
+  updateSubtask,
+  getSubtaskById,
+  createComment,
+}
