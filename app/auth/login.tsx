@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import {
   StyleSheet,
   View,
@@ -23,21 +23,29 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 import * as Haptics from "expo-haptics"
-import React from "react"
 
 const { width, height } = Dimensions.get("window")
 
 export default function LoginScreen() {
   const router = useRouter()
-  const { signIn, loading } = useAuth()
+  const { signIn } = useAuth()
   const { showToast } = useToast()
   const colorScheme = useColorScheme()
   const theme = Colors[colorScheme ?? "light"]
 
+  // Form state
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [loading, setLoading] = useState(false)
+  const [isFormValid, setIsFormValid] = useState(false)
+
+  // Form validation
+  const [errors, setErrors] = useState<{ email: string; password: string }>({
+    email: "",
+    password: "",
+  })
+
   const [focusedInput, setFocusedInput] = useState<string | null>(null)
   const [isKeyboardVisible, setKeyboardVisible] = useState(false)
 
@@ -49,6 +57,7 @@ export default function LoginScreen() {
   const buttonScale = useRef(new Animated.Value(1)).current
   const buttonOpacity = useRef(new Animated.Value(0.5)).current
   const errorShakeAnim = useRef(new Animated.Value(0)).current
+  const buttonLoadingRotation = useRef(new Animated.Value(0)).current
   
   // New animation refs for input focus and keyboard
   const logoContainerScale = useRef(new Animated.Value(1)).current
@@ -158,8 +167,12 @@ export default function LoginScreen() {
   }
 
   // Update button opacity based on form validity
-  const isFormValid = email.trim() !== "" && password.trim() !== ""
-  
+  useEffect(() => {
+    const isValid = email.trim() !== "" && password.trim() !== "" && 
+                   errors.email === "" && errors.password === ""
+    setIsFormValid(isValid)
+  }, [email, password, errors])
+
   useEffect(() => {
     Animated.timing(buttonOpacity, {
       toValue: isFormValid ? 1 : 0.5,
@@ -249,7 +262,10 @@ export default function LoginScreen() {
   }
 
   const validateForm = () => {
-    const newErrors: { [key: string]: string } = {}
+    const newErrors: { email: string; password: string } = {
+      email: "",
+      password: "",
+    }
 
     if (email.trim() === "") {
       newErrors.email = "Email is required"
@@ -266,7 +282,7 @@ export default function LoginScreen() {
     setErrors(newErrors)
     
     // Shake animation for errors
-    if (Object.keys(newErrors).length > 0) {
+    if (newErrors.email || newErrors.password) {
       Animated.sequence([
         Animated.timing(errorShakeAnim, {
           toValue: 10,
@@ -291,16 +307,65 @@ export default function LoginScreen() {
       ]).start()
     }
     
-    return Object.keys(newErrors).length === 0
+    return !newErrors.email && !newErrors.password
+  }
+
+  const startLoadingAnimation = () => {
+    // Start rotation animation
+    Animated.loop(
+      Animated.timing(buttonLoadingRotation, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      })
+    ).start()
+
+    // Pulse scale animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(buttonScale, {
+          toValue: 0.95,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonScale, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start()
+  }
+
+  const stopLoadingAnimation = () => {
+    buttonLoadingRotation.stopAnimation()
+    buttonScale.stopAnimation()
+    Animated.timing(buttonScale, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start()
   }
 
   const handleLogin = async () => {
     if (validateForm()) {
+      setLoading(true)
+      startLoadingAnimation()
+      
+      try {
       const success = await signIn(email, password)
       if (success) {
         showToast("Login successful", { type: "success" })
+          // Navigate to welcome screen after successful login
+          router.replace("/welcome")
       } else {
         showToast("Login failed. Please check your credentials.", { type: "error" })
+        }
+      } catch (error) {
+        showToast("An error occurred during login.", { type: "error" })
+      } finally {
+        setLoading(false)
+        stopLoadingAnimation()
       }
     }
   }
@@ -601,12 +666,20 @@ export default function LoginScreen() {
               styles.buttonContainer,
               { 
                 opacity: buttonOpacity, 
-                transform: [{ scale: buttonScale }] 
+                transform: [
+                  { scale: buttonScale },
+                ] 
               }
             ]}
           >
             <TouchableOpacity
-              style={[styles.loginButton, { backgroundColor: theme.tint }]}
+              style={[
+                styles.loginButton, 
+                { 
+                  backgroundColor: theme.tint,
+                  opacity: loading ? 0.8 : 1,
+                }
+              ]}
               onPress={handleLogin}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
@@ -614,7 +687,23 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <View style={styles.loadingContainer}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          rotate: buttonLoadingRotation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '360deg'],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <ActivityIndicator color="#fff" size="small" />
+                  </Animated.View>
+                  <Text style={styles.loadingText}>Signing In...</Text>
+                </View>
               ) : (
                 <>
                   <Ionicons name="log-in-outline" size={20} color="#fff" style={styles.loginIcon} />
@@ -746,6 +835,17 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
     minHeight: 56,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   loginIcon: {
     marginRight: 8,

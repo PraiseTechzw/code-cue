@@ -170,13 +170,18 @@ export const githubService = {
 
       // Save repositories to database
       for (const repo of repos) {
-        await this.saveRepository({
-          repo_id: repo.id.toString(),
-          name: repo.name,
-          full_name: repo.full_name,
-          description: repo.description,
-          html_url: repo.html_url
-        })
+        // Validate and sanitize repository data before saving
+        if (repo && repo.id && repo.name && repo.full_name && repo.html_url) {
+          await this.saveRepository({
+            repo_id: repo.id.toString(),
+            name: repo.name,
+            full_name: repo.full_name,
+            description: repo.description || null,
+            html_url: repo.html_url
+          })
+        } else {
+          console.warn("Skipping invalid repository data:", repo)
+        }
       }
 
       // Fetch and cache the updated repositories
@@ -202,6 +207,12 @@ export const githubService = {
     try {
       const user = await account.get()
       
+      // Validate required fields
+      if (!repoData.repo_id || !repoData.name || !repoData.full_name || !repoData.html_url) {
+        console.warn("Invalid repository data:", repoData)
+        return null
+      }
+      
       // Check if repository already exists
       const { documents: existingRepos } = await databases.listDocuments(
         DATABASE_ID,
@@ -221,7 +232,7 @@ export const githubService = {
           {
             name: repoData.name,
             full_name: repoData.full_name,
-            description: repoData.description,
+            description: repoData.description || null,
             html_url: repoData.html_url
           }
         )
@@ -233,7 +244,11 @@ export const githubService = {
           COLLECTIONS.GITHUB_REPOSITORIES,
           ID.unique(),
           {
-            ...repoData,
+            repo_id: repoData.repo_id,
+            name: repoData.name,
+            full_name: repoData.full_name,
+            description: repoData.description || null,
+            html_url: repoData.html_url,
             user_id: user.$id,
             project_id: null
           }
@@ -416,6 +431,12 @@ export const githubService = {
     try {
       const user = await account.get()
       
+      // Validate required fields
+      if (!commitData.commit_id || !commitData.repository_id || !commitData.message || !commitData.author || !commitData.committed_at || !commitData.html_url) {
+        console.warn("Invalid commit data:", commitData)
+        return null
+      }
+      
       // Check if commit already exists
       const { documents: existingCommits } = await databases.listDocuments(
         DATABASE_ID,
@@ -436,7 +457,13 @@ export const githubService = {
         COLLECTIONS.GITHUB_COMMITS,
         ID.unique(),
         {
-          ...commitData,
+          commit_id: commitData.commit_id,
+          repository_id: commitData.repository_id,
+          message: commitData.message,
+          author: commitData.author,
+          committed_at: commitData.committed_at,
+          html_url: commitData.html_url,
+          task_id: commitData.task_id || null,
           user_id: user.$id
         }
       )
@@ -531,15 +558,20 @@ export const githubService = {
 
       // Save commits to database
       for (const commit of commits) {
-        await this.saveCommit({
-          commit_id: commit.sha,
-          repository_id: repoId,
-          message: commit.commit.message,
-          author: commit.commit.author.name,
-          committed_at: new Date(commit.commit.author.date).toISOString(),
-          html_url: commit.html_url,
-          task_id: null
-        })
+        // Validate and sanitize commit data before saving
+        if (commit && commit.sha && commit.commit && commit.commit.message && commit.commit.author && commit.html_url) {
+          await this.saveCommit({
+            commit_id: commit.sha,
+            repository_id: repoId,
+            message: commit.commit.message,
+            author: commit.commit.author.name || 'Unknown',
+            committed_at: new Date(commit.commit.author.date).toISOString(),
+            html_url: commit.html_url,
+            task_id: null
+          })
+        } else {
+          console.warn("Skipping invalid commit data:", commit)
+        }
       }
 
       return commits

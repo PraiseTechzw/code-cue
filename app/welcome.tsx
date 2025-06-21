@@ -34,6 +34,12 @@ export default function WelcomeScreen() {
   const [hasGitHubConnection, setHasGitHubConnection] = useState(false)
   const [fadeAnim] = useState(new Animated.Value(0))
   const [slideAnim] = useState(new Animated.Value(50))
+  const [codeTypingAnim] = useState(new Animated.Value(0))
+  const [elementFloatAnim] = useState(new Animated.Value(0))
+  const [notificationAnim] = useState(new Animated.Value(0))
+  const [sunRotateAnim] = useState(new Animated.Value(0))
+  const [cloudFloatAnim] = useState(new Animated.Value(0))
+  const [birdFlyAnim] = useState(new Animated.Value(0))
 
   useEffect(() => {
     checkGitHubConnection()
@@ -60,6 +66,50 @@ export default function WelcomeScreen() {
         useNativeDriver: true,
       }),
     ]).start()
+
+    // Start continuous animations after entrance
+    setTimeout(() => {
+      // Code typing effect
+      Animated.loop(
+        Animated.timing(codeTypingAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        })
+      ).start()
+
+      // Element floating
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(elementFloatAnim, {
+            toValue: 1,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(elementFloatAnim, {
+            toValue: 0,
+            duration: 4000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start()
+
+      // Notification bell
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(notificationAnim, {
+            toValue: 1,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(notificationAnim, {
+            toValue: 0,
+            duration: 3000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start()
+    }, 800)
   }
 
   const checkGitHubConnection = async () => {
@@ -114,11 +164,137 @@ export default function WelcomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Image 
-            source={require("@/assets/images/logo.png")} 
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={styles.illustrationContainer}>
+            {/* CodeCue Project Management Vector Illustration */}
+            <View style={[styles.illustration, { backgroundColor: theme.cardBackground }]}>
+              {/* Code Window/IDE */}
+              <View style={[styles.codeWindow, { backgroundColor: theme.background }]}>
+                {/* Window Header */}
+                <View style={[styles.windowHeader, { backgroundColor: theme.tint }]}>
+                  <View style={styles.windowButtons}>
+                    <View style={[styles.windowButton, { backgroundColor: '#FF5F56' }]} />
+                    <View style={[styles.windowButton, { backgroundColor: '#FFBD2E' }]} />
+                    <View style={[styles.windowButton, { backgroundColor: '#27C93F' }]} />
+                  </View>
+                </View>
+                
+                {/* Code Content */}
+                <View style={styles.codeContent}>
+                  <View style={styles.codeLine}>
+                    <View style={[styles.codeKeyword, { backgroundColor: theme.tint }]} />
+                    <View style={[styles.codeText, { backgroundColor: theme.textDim }]} />
+                  </View>
+                  <View style={styles.codeLine}>
+                    <View style={[styles.codeIndent, { backgroundColor: theme.border }]} />
+                    <View style={[styles.codeFunction, { backgroundColor: theme.success }]} />
+                    <View style={[styles.codeText, { backgroundColor: theme.textDim }]} />
+                  </View>
+                  <View style={styles.codeLine}>
+                    <View style={[styles.codeIndent, { backgroundColor: theme.border }]} />
+                    <View style={[styles.codeIndent, { backgroundColor: theme.border }]} />
+                    <View style={[styles.codeString, { backgroundColor: theme.warning }]} />
+                  </View>
+                </View>
+              </View>
+              
+              {/* Floating Code Elements */}
+              <View style={styles.floatingElements}>
+                {/* Git Branch Icon */}
+                <Animated.View 
+                  style={[
+                    styles.gitBranch, 
+                    { 
+                      backgroundColor: theme.success,
+                      transform: [{
+                        translateY: elementFloatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -3],
+                        }),
+                      }],
+                    }
+                  ]} 
+                >
+                  <View style={[styles.branchLine, { backgroundColor: theme.background }]} />
+                  <View style={[styles.branchCircle, { backgroundColor: theme.background }]} />
+                </Animated.View>
+                
+                {/* Task Checkbox */}
+                <Animated.View 
+                  style={[
+                    styles.taskCheckbox, 
+                    { 
+                      backgroundColor: theme.tint,
+                      transform: [{
+                        translateY: elementFloatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -5],
+                        }),
+                      }],
+                    }
+                  ]} 
+                >
+                  <View style={[styles.checkmark, { backgroundColor: theme.background }]} />
+                </Animated.View>
+                
+                {/* Analytics Chart */}
+                <Animated.View 
+                  style={[
+                    styles.analyticsChart, 
+                    { 
+                      backgroundColor: theme.warning,
+                      transform: [{
+                        translateY: elementFloatAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -2],
+                        }),
+                      }],
+                    }
+                  ]} 
+                >
+                  <View style={[styles.chartBar, { backgroundColor: theme.background }]} />
+                  <View style={[styles.chartBar, styles.chartBar2, { backgroundColor: theme.background }]} />
+                  <View style={[styles.chartBar, styles.chartBar3, { backgroundColor: theme.background }]} />
+                </Animated.View>
+                
+                {/* Notification Bell */}
+                <Animated.View 
+                  style={[
+                    styles.notificationBell, 
+                    { 
+                      backgroundColor: theme.text,
+                      transform: [{
+                        rotate: notificationAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '15deg'],
+                        }),
+                      }],
+                    }
+                  ]} 
+                >
+                  <View style={[styles.bellClapper, { backgroundColor: theme.tint }]} />
+                </Animated.View>
+              </View>
+              
+              {/* Project Cards */}
+              <View style={styles.projectCards}>
+                <View style={[styles.projectCard, { backgroundColor: theme.tint }]}>
+                  <View style={[styles.cardHeader, { backgroundColor: theme.background }]} />
+                  <View style={[styles.cardContent, { backgroundColor: theme.background }]} />
+                </View>
+                <View style={[styles.projectCard, styles.projectCard2, { backgroundColor: theme.success }]}>
+                  <View style={[styles.cardHeader, { backgroundColor: theme.background }]} />
+                  <View style={[styles.cardContent, { backgroundColor: theme.background }]} />
+                </View>
+              </View>
+              
+              {/* Connection Lines */}
+              <View style={styles.connectionLines}>
+                <View style={[styles.connectionLine, { backgroundColor: theme.border }]} />
+                <View style={[styles.connectionLine, styles.connectionLine2, { backgroundColor: theme.border }]} />
+              </View>
+            </View>
+          </View>
+          
           <Text style={[styles.title, { color: theme.text }]}>
             Welcome to CodeCue!
           </Text>
@@ -253,10 +429,250 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 40,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    marginBottom: 16,
+  illustrationContainer: {
+    width: 140,
+    height: 140,
+    marginBottom: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  illustration: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    position: "relative",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  codeWindow: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: 8,
+    borderRadius: 12,
+  },
+  windowHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 24,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    justifyContent: "flex-end",
+  },
+  windowButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 4,
+  },
+  windowButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginHorizontal: 2,
+  },
+  codeContent: {
+    position: "absolute",
+    top: 24,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  codeLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  codeKeyword: {
+    width: 60,
+    height: 16,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  codeText: {
+    width: 100,
+    height: 16,
+    borderRadius: 4,
+  },
+  codeIndent: {
+    width: 16,
+    height: 16,
+    borderRadius: 2,
+    marginRight: 4,
+  },
+  codeFunction: {
+    width: 40,
+    height: 16,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  codeString: {
+    width: 60,
+    height: 16,
+    borderRadius: 4,
+  },
+  floatingElements: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  gitBranch: {
+    position: "absolute",
+    top: 20,
+    left: 15,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  branchLine: {
+    position: "absolute",
+    width: 12,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "white",
+  },
+  branchCircle: {
+    position: "absolute",
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "white",
+    top: 10,
+    left: 8,
+  },
+  taskCheckbox: {
+    position: "absolute",
+    top: 35,
+    right: 20,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkmark: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "white",
+  },
+  analyticsChart: {
+    position: "absolute",
+    top: 55,
+    right: 15,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  chartBar: {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "white",
+  },
+  chartBar2: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "white",
+  },
+  chartBar3: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "white",
+  },
+  notificationBell: {
+    position: "absolute",
+    top: 75,
+    right: 15,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bellClapper: {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "white",
+  },
+  projectCards: {
+    position: "absolute",
+    top: 95,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  projectCard: {
+    flex: 1,
+    borderRadius: 12,
+    margin: 4,
+    overflow: "hidden",
+  },
+  projectCard2: {
+    flex: 1,
+    borderRadius: 12,
+    margin: 4,
+    overflow: "hidden",
+  },
+  cardHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 24,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    justifyContent: "flex-end",
+  },
+  cardContent: {
+    position: "absolute",
+    top: 24,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  connectionLines: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  connectionLine: {
+    position: "absolute",
+    width: "100%",
+    height: 1,
+    backgroundColor: "white",
+  },
+  connectionLine2: {
+    position: "absolute",
+    width: "100%",
+    height: 1,
+    backgroundColor: "white",
+    top: 24,
   },
   title: {
     fontSize: 28,
