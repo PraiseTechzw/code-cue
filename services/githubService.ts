@@ -537,7 +537,8 @@ export const githubService = {
           message: commit.commit.message,
           author: commit.commit.author.name,
           committed_at: new Date(commit.commit.author.date).toISOString(),
-          html_url: commit.html_url
+          html_url: commit.html_url,
+          task_id: null
         })
       }
 
@@ -551,42 +552,5 @@ export const githubService = {
   // Disconnect GitHub (alias for disconnectGitHub)
   async disconnectGithub() {
     return this.disconnectGitHub()
-  },
-
-  // Save commit
-  async saveCommit(commitData: Omit<GithubCommit, '$id' | '$createdAt' | 'user_id'>) {
-    try {
-      const user = await account.get()
-      
-      // Check if commit already exists
-      const { documents: existingCommits } = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
-        [
-          Query.equal('commit_id', commitData.commit_id),
-          Query.equal('repository_id', commitData.repository_id)
-        ]
-      )
-
-      if (existingCommits.length > 0) {
-        return existingCommits[0]
-      }
-
-      // Create new commit
-      const { documents: newData } = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.GITHUB_COMMITS,
-        ID.unique(),
-        {
-          ...commitData,
-          user_id: user.$id
-        }
-      )
-
-      return newData[0]
-    } catch (error) {
-      console.error("Error saving commit:", error)
-      return null
-    }
   }
 }
