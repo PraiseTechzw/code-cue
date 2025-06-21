@@ -18,16 +18,17 @@ export const storage = new Storage(client);
 // Database and collection IDs
 export const DATABASE_ID = '6852cefa002e1a642ce3'; // code-cue-db
 export const COLLECTIONS = {
-  PROFILES: '6852cf11003554d32ea9', // profiles
-  PROJECTS: '6852cfd0002f57ec58c2', // projects
-  TASKS: '6852d0530022872d4b42', // tasks
-  SUBTASKS: '6852d0d60003950f81c8', // subtasks
-  COMMENTS: '6852d10d001628aa199c', // comments
-  NOTIFICATIONS: '6852d1510017135f7512', // notifications
-  GITHUB_REPOSITORIES: '6852d220000003fd119e', // github_repositories
-  GITHUB_COMMITS: '6852d2e100203c24157b', // github_commits
-  GITHUB_CONNECTIONS: '6852d4e20022f01bc54b' // github_connections
-};
+  PROFILES: "profiles",
+  PROJECTS: "projects",
+  TASKS: "tasks",
+  PHASES: "phases",
+  SUBTASKS: "subtasks",
+  COMMENTS: "comments",
+  NOTIFICATIONS: "notifications",
+  GITHUB_REPOSITORIES: "github_repositories",
+  GITHUB_COMMITS: "github_commits",
+  GITHUB_CONNECTIONS: "github_connections",
+} as const
 
 // Collection ID mapping for easy reference
 export const COLLECTION_IDS = {
