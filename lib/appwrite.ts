@@ -28,6 +28,15 @@ export const COLLECTIONS = {
   GITHUB_REPOSITORIES: "github_repositories",
   GITHUB_COMMITS: "github_commits",
   GITHUB_CONNECTIONS: "github_connections",
+  // New collections for advanced features
+  TEAM_MEMBERS: "team_members",
+  PROJECT_ACTIVITIES: "project_activities",
+  WORKFLOW_AUTOMATIONS: "workflow_automations",
+  PROJECT_TEMPLATES: "project_templates",
+  TIME_ENTRIES: "time_entries",
+  PROJECT_REPORTS: "project_reports",
+  PROJECT_BUDGETS: "project_budgets",
+  PROJECT_SETTINGS: "project_settings",
 } as const
 
 // Collection ID mapping for easy reference
@@ -41,7 +50,16 @@ export const COLLECTION_IDS = {
   GITHUB_REPOSITORIES: '6852d220000003fd119e',
   GITHUB_COMMITS: '6852d2e100203c24157b',
   GITHUB_CONNECTIONS: '6852d4e20022f01bc54b',
-  PHASES: '68569600002adc8cc0c0'
+  PHASES: '68569600002adc8cc0c0',
+  // New collection IDs for advanced features
+  TEAM_MEMBERS: '6856a20f000adc963119', // Replace with actual ID
+  PROJECT_ACTIVITIES: '6856a2980034d9194ed1', // Replace with actual ID
+  WORKFLOW_AUTOMATIONS: '6856a3370013e508cf66', // Replace with actual ID
+  PROJECT_TEMPLATES: '6856a3d6001dcbeff384', // Replace with actual ID
+  TIME_ENTRIES: '6856a4ad002ad28dc044', // Replace with actual ID
+  PROJECT_REPORTS: '6856a57500308e6f62be', // Replace with actual ID
+  PROJECT_BUDGETS: '6856a5ef00027047d9f2', // Replace with actual ID
+  PROJECT_SETTINGS: '6856a692003cbc14314e', // Replace with actual ID
 };
 
 // Custom storage adapter for React Native
