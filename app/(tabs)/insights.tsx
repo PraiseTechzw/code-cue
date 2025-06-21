@@ -98,47 +98,67 @@ export default function InsightsScreen() {
   const renderStatsCards = () => (
     <View style={styles.statsContainer}>
       <MotiView
-        from={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 500 }}
+        from={{ opacity: 0, scale: 0.9, translateY: 20 }}
+        animate={{ opacity: 1, scale: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 600 }}
         style={[styles.statCard, { backgroundColor: theme.cardBackground }]}
       >
-        <Ionicons name="folder-outline" size={24} color={theme.tint} />
+        <View style={[styles.statIconContainer, { backgroundColor: `${theme.tint}20` }]}>
+          <Ionicons name="folder-outline" size={28} color={theme.tint} />
+        </View>
         <Text style={[styles.statValue, { color: theme.text }]}>{stats.totalProjects}</Text>
         <Text style={[styles.statLabel, { color: theme.textDim }]}>Projects</Text>
+        <View style={[styles.statProgress, { backgroundColor: `${theme.tint}30` }]}>
+          <View style={[styles.statProgressFill, { backgroundColor: theme.tint, width: '100%' }]} />
+        </View>
       </MotiView>
 
       <MotiView
-        from={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 500, delay: 100 }}
+        from={{ opacity: 0, scale: 0.9, translateY: 20 }}
+        animate={{ opacity: 1, scale: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 600, delay: 150 }}
         style={[styles.statCard, { backgroundColor: theme.cardBackground }]}
       >
-        <Ionicons name="checkmark-circle" size={24} color={theme.success} />
+        <View style={[styles.statIconContainer, { backgroundColor: `${theme.success}20` }]}>
+          <Ionicons name="checkmark-circle" size={28} color={theme.success} />
+        </View>
         <Text style={[styles.statValue, { color: theme.text }]}>{stats.completedTasks}</Text>
         <Text style={[styles.statLabel, { color: theme.textDim }]}>Completed</Text>
+        <View style={[styles.statProgress, { backgroundColor: `${theme.success}30` }]}>
+          <View style={[styles.statProgressFill, { backgroundColor: theme.success, width: `${stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0}%` }]} />
+        </View>
       </MotiView>
 
       <MotiView
-        from={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 500, delay: 200 }}
+        from={{ opacity: 0, scale: 0.9, translateY: 20 }}
+        animate={{ opacity: 1, scale: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 600, delay: 300 }}
         style={[styles.statCard, { backgroundColor: theme.cardBackground }]}
       >
-        <Ionicons name="trending-up" size={24} color={theme.warning} />
+        <View style={[styles.statIconContainer, { backgroundColor: `${theme.warning}20` }]}>
+          <Ionicons name="trending-up" size={28} color={theme.warning} />
+        </View>
         <Text style={[styles.statValue, { color: theme.text }]}>{stats.productivityScore}%</Text>
         <Text style={[styles.statLabel, { color: theme.textDim }]}>Productivity</Text>
+        <View style={[styles.statProgress, { backgroundColor: `${theme.warning}30` }]}>
+          <View style={[styles.statProgressFill, { backgroundColor: theme.warning, width: `${stats.productivityScore}%` }]} />
+        </View>
       </MotiView>
 
       <MotiView
-        from={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'timing', duration: 500, delay: 300 }}
+        from={{ opacity: 0, scale: 0.9, translateY: 20 }}
+        animate={{ opacity: 1, scale: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 600, delay: 450 }}
         style={[styles.statCard, { backgroundColor: theme.cardBackground }]}
       >
-        <Ionicons name="alert-circle" size={24} color={theme.error} />
+        <View style={[styles.statIconContainer, { backgroundColor: `${theme.error}20` }]}>
+          <Ionicons name="alert-circle" size={28} color={theme.error} />
+        </View>
         <Text style={[styles.statValue, { color: theme.text }]}>{stats.overdueTasks}</Text>
         <Text style={[styles.statLabel, { color: theme.textDim }]}>Overdue</Text>
+        <View style={[styles.statProgress, { backgroundColor: `${theme.error}30` }]}>
+          <View style={[styles.statProgressFill, { backgroundColor: theme.error, width: stats.overdueTasks > 0 ? '100%' : '0%' }]} />
+        </View>
       </MotiView>
     </View>
   )
@@ -169,30 +189,56 @@ export default function InsightsScreen() {
             transition={{ type: 'timing', duration: 500 }}
             style={styles.contentContainer}
           >
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Insights Dashboard</Text>
-            <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
-              Intelligent analysis of your projects and productivity patterns
-            </Text>
+            {/* Futuristic Header */}
+            <MotiView
+              from={{ opacity: 0, translateY: -20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: 'timing', duration: 600 }}
+              style={styles.futuristicHeader}
+            >
+              <View style={[styles.headerGlow, { backgroundColor: `${theme.tint}20` }]} />
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>AI Insights Dashboard</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textDim }]}>
+                Intelligent analysis of your projects and productivity patterns
+              </Text>
+            </MotiView>
             
-            {/* Stats Cards */}
-            {renderStatsCards()}
+            {/* Stats Cards with better spacing */}
+            <View style={styles.statsWrapper}>
+              {renderStatsCards()}
+            </View>
             
             {loading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.tint} />
+              <MotiView
+                from={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'timing', duration: 500 }}
+                style={styles.loadingContainer}
+              >
+                <View style={[styles.loadingSpinner, { borderColor: `${theme.tint}30`, borderTopColor: theme.tint }]} />
                 <Text style={[styles.loadingText, { color: theme.textDim }]}>
                   Generating insights...
                 </Text>
-              </View>
+              </MotiView>
             ) : (
-              <View style={styles.insightsContainer}>
-                <Text style={[styles.insightsTitle, { color: theme.text }]}>
-                  Recent Insights ({insights.length})
-                </Text>
+              <MotiView
+                from={{ opacity: 0, translateY: 30 }}
+                animate={{ opacity: 1, translateY: 0 }}
+                transition={{ type: 'timing', duration: 600, delay: 300 }}
+                style={styles.insightsContainer}
+              >
+                <View style={styles.insightsHeader}>
+                  <Text style={[styles.insightsTitle, { color: theme.text }]}>
+                    Recent Insights ({insights.length})
+                  </Text>
+                  <View style={[styles.insightsBadge, { backgroundColor: `${theme.tint}20` }]}>
+                    <Text style={[styles.insightsBadgeText, { color: theme.tint }]}>AI Powered</Text>
+                  </View>
+                </View>
                 <View style={styles.insightsList}>
                   {insights.map((insight, index) => renderInsightCard(insight, index))}
                 </View>
-              </View>
+              </MotiView>
             )}
           </MotiView>
         )
@@ -325,13 +371,21 @@ export default function InsightsScreen() {
       
       {/* Top Tabs */}
       <View style={[styles.tabContainer, { backgroundColor: theme.background }]}>
+        <View style={[styles.tabBackground, { backgroundColor: `${theme.tint}10` }]} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.id}
               style={[
                 styles.tab,
-                activeTab === tab.id && { backgroundColor: theme.tint }
+                activeTab === tab.id && { 
+                  backgroundColor: theme.tint,
+                  shadowColor: theme.tint,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }
               ]}
               onPress={() => setActiveTab(tab.id)}
             >
@@ -372,8 +426,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContainer: {
+    position: 'relative',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  tabBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 20,
+    margin: 8,
   },
   tabScroll: {
     paddingHorizontal: 16,
@@ -383,9 +447,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 20,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   tabLabel: {
     marginLeft: 6,
@@ -470,49 +541,121 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   featureCard: {
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   featureTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 4,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
   },
   featureSubtitle: {
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+    opacity: 0.8,
   },
   statsContainer: {
     flexDirection: 'row',
-    gap: 16,
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'space-between',
   },
   statCard: {
-    flex: 1,
+    width: '48%',
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 28,
+    fontWeight: '700',
+    marginTop: 12,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
+    fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 20,
+    marginBottom: 12,
+  },
+  statIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statProgress: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  statProgressFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    borderRadius: 3,
+  },
+  futuristicHeader: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  headerGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    opacity: 0.5,
+  },
+  statsWrapper: {
+    marginBottom: 24,
+  },
+  loadingSpinner: {
+    width: 40,
+    height: 40,
+    borderWidth: 4,
+    borderRadius: 20,
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: 'rgba(0,0,0,0.2)',
+    marginBottom: 12,
+  },
+  insightsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  insightsBadge: {
+    padding: 4,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  insightsBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 })
