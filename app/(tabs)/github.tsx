@@ -118,7 +118,7 @@ export default function GitHubScreen() {
       setLoading(true)
 
       // Check if user has GitHub connection
-      const connectionData = await githubService.getConnection()
+      const connectionData = await githubService.getGitHubConnection()
       setConnection(connectionData)
 
       if (!connectionData) {
