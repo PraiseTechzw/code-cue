@@ -216,6 +216,8 @@ export default function ProjectsScreen() {
           { opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }
         ]}
       >
+        <View style={[styles.projectCardContainer, { backgroundColor: theme.cardBackground }]}>
+          <ProjectCard project={item} cardBackground={theme.cardBackground} />
         <View style={styles.projectCardContainer}>
           <ProjectCard project={item} />
           {/* Progress Bar */}
