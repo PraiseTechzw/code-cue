@@ -27,7 +27,7 @@ const CACHE_KEYS = {
 }
 
 // Check if device is online
-const isOnline = async (): Promise<boolean> => {
+export const isOnline = async (): Promise<boolean> => {
   const netInfo = await NetInfo.fetch()
   return netInfo.isConnected === true
 }

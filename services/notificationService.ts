@@ -51,11 +51,10 @@ function safePriority(priority: string): Notification['priority'] {
 // Configure notifications
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
     shouldShowBanner: true,
     shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
   }),
 })
 
@@ -200,21 +199,39 @@ export const createNotification = async (
   }
 ): Promise<Notification | null> => {
   try {
-    const user = await account.get()
+    const user = await account.get();
+    // Prevent duplicate notifications for the same task/type if unread
+    if (notification.related_id && notification.related_type && notification.type) {
+      const { documents: existing } = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_IDS.NOTIFICATIONS,
+        [
+          Query.equal('user_id', user.$id),
+          Query.equal('related_id', notification.related_id),
+          Query.equal('related_type', notification.related_type),
+          Query.equal('type', notification.type),
+          Query.equal('read', false)
+        ]
+      );
+      if (existing.length > 0) {
+        // Already exists, do not create duplicate
+        return existing[0] as unknown as Notification;
+      }
+    }
     const newNotification = {
       ...notification,
       user_id: user.$id,
-    }
+    };
     const createdNotification = await databases.createDocument(
       DATABASE_ID,
       COLLECTION_IDS.NOTIFICATIONS,
       ID.unique(),
       newNotification
-    ) as unknown as Notification
-    return createdNotification
+    ) as unknown as Notification;
+    return createdNotification;
   } catch (error) {
-    console.error("Error creating notification:", error)
-    return null
+    console.error("Error creating notification:", error);
+    return null;
   }
 }
 
@@ -732,7 +749,7 @@ export const notificationService = {
           body,
           data: data || {},
         },
-        trigger: { seconds: Math.max(1, Math.floor((scheduledFor.getTime() - Date.now()) / 1000)), repeats: false },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: Math.max(1, Math.floor((scheduledFor.getTime() - Date.now()) / 1000)), repeats: false },
       })
 
       return identifier

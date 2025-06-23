@@ -54,6 +54,8 @@ const HEADER_MAX_HEIGHT = 120;
 const HEADER_MIN_HEIGHT = 60;
 const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
 
+const notifiedTaskIds = new Set<string>();
+
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
@@ -308,6 +310,13 @@ export default function HomeScreen() {
               new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
         );
 
+        // Remove duplicate tasks for banner and notification
+        const uniqueOverdueTasks = Array.from(new Map(overdueTasks.map(t => [t.$id, t])).values());
+        const uniqueUpcomingTasks = Array.from(new Map(upcomingTasks.map(t => [t.$id, t])).values());
+        setOverdueTasks(uniqueOverdueTasks);
+        setNearDueTasks(uniqueUpcomingTasks);
+
+        // Calculate stats
         setStats({
           completed: doneTasks.length,
           total: projectTasks.length,
@@ -328,9 +337,11 @@ export default function HomeScreen() {
           setProgressLoading(false)
         }
 
-        // Send push/in-app notifications for overdue/near-due tasks
-        if (overdueTasks.length > 0) {
-          overdueTasks.forEach(task => {
+        // Send push/in-app notifications for overdue/near-due tasks, but only if not already notified
+        for (const task of uniqueOverdueTasks) {
+          const notifyKey = `overdue-${task.$id}`;
+          if (!notifiedTaskIds.has(notifyKey)) {
+            notifiedTaskIds.add(notifyKey);
             notificationService.createNotification({
               title: `Task overdue: ${task.title}`,
               description: `The task "${task.title}" is overdue!`,
@@ -341,10 +352,12 @@ export default function HomeScreen() {
               related_type: 'task',
             });
             notificationService.sendLocalNotification('Task Overdue', `The task "${task.title}" is overdue!`);
-          });
+          }
         }
-        if (upcomingTasks.length > 0) {
-          upcomingTasks.forEach(task => {
+        for (const task of uniqueUpcomingTasks) {
+          const notifyKey = `due-soon-${task.$id}`;
+          if (!notifiedTaskIds.has(notifyKey)) {
+            notifiedTaskIds.add(notifyKey);
             notificationService.createNotification({
               title: `Task due soon: ${task.title}`,
               description: `The task "${task.title}" is due soon!`,
@@ -355,7 +368,7 @@ export default function HomeScreen() {
               related_type: 'task',
             });
             notificationService.sendLocalNotification('Task Due Soon', `The task "${task.title}" is due soon!`);
-          });
+          }
         }
       }
     } catch (error) {
@@ -497,6 +510,13 @@ export default function HomeScreen() {
             new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
       );
 
+      // Remove duplicate tasks for banner and notification
+      const uniqueOverdueTasks = Array.from(new Map(overdueTasks.map(t => [t.$id, t])).values());
+      const uniqueUpcomingTasks = Array.from(new Map(upcomingTasks.map(t => [t.$id, t])).values());
+      setOverdueTasks(uniqueOverdueTasks);
+      setNearDueTasks(uniqueUpcomingTasks);
+
+      // Calculate stats
       setStats({
         completed: doneTasks.length,
         total: projectTasks.length,
@@ -506,9 +526,11 @@ export default function HomeScreen() {
         thisWeek: 0,
       });
 
-      // Send push/in-app notifications for overdue/near-due tasks
-      if (overdueTasks.length > 0) {
-        overdueTasks.forEach(task => {
+      // Send push/in-app notifications for overdue/near-due tasks, but only if not already notified
+      for (const task of uniqueOverdueTasks) {
+        const notifyKey = `overdue-${task.$id}`;
+        if (!notifiedTaskIds.has(notifyKey)) {
+          notifiedTaskIds.add(notifyKey);
           notificationService.createNotification({
             title: `Task overdue: ${task.title}`,
             description: `The task "${task.title}" is overdue!`,
@@ -519,10 +541,12 @@ export default function HomeScreen() {
             related_type: 'task',
           });
           notificationService.sendLocalNotification('Task Overdue', `The task "${task.title}" is overdue!`);
-        });
+        }
       }
-      if (upcomingTasks.length > 0) {
-        upcomingTasks.forEach(task => {
+      for (const task of uniqueUpcomingTasks) {
+        const notifyKey = `due-soon-${task.$id}`;
+        if (!notifiedTaskIds.has(notifyKey)) {
+          notifiedTaskIds.add(notifyKey);
           notificationService.createNotification({
             title: `Task due soon: ${task.title}`,
             description: `The task "${task.title}" is due soon!`,
@@ -533,7 +557,7 @@ export default function HomeScreen() {
             related_type: 'task',
           });
           notificationService.sendLocalNotification('Task Due Soon', `The task "${task.title}" is due soon!`);
-        });
+        }
       }
     } catch (error) {
       console.error("Error loading project tasks:", error);
@@ -1677,26 +1701,65 @@ export default function HomeScreen() {
               left: 0,
               right: 0,
               zIndex: 2000,
-              backgroundColor: overdueTasks.length > 0 ? theme.error : theme.warning,
-              padding: 16,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              borderBottomLeftRadius: 16,
+              borderBottomRightRadius: 16,
+              overflow: 'hidden',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.15,
+              shadowRadius: 8,
+              elevation: 6,
             }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
-                  {overdueTasks.length > 0
-                    ? `Overdue: ${overdueTasks.length} task${overdueTasks.length > 1 ? 's' : ''}`
-                    : `Due Soon: ${nearDueTasks.length} task${nearDueTasks.length > 1 ? 's' : ''}`}
-                </Text>
-                <Text style={{ color: 'white', fontSize: 13, marginTop: 2 }}>
-                  {(overdueTasks.length > 0 ? overdueTasks : nearDueTasks).slice(0, 2).map(t => t.title).join(', ')}
-                  {(overdueTasks.length + nearDueTasks.length) > 2 ? '...' : ''}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowDueBanner(false)} style={{ marginLeft: 16 }}>
-                <Ionicons name="close" size={22} color="white" />
-              </TouchableOpacity>
+              <LinearGradient
+                colors={overdueTasks.length > 0 ? ['#D7263D', '#F46036'] : ['#FFB200', '#FFD700']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <Ionicons
+                    name={overdueTasks.length > 0 ? 'alert-circle' : 'time-outline'}
+                    size={28}
+                    color={'white'}
+                    style={{ marginRight: 12 }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                      {overdueTasks.length > 0
+                        ? `Overdue: ${overdueTasks.length} task${overdueTasks.length > 1 ? 's' : ''}`
+                        : `Due Soon: ${nearDueTasks.length} task${nearDueTasks.length > 1 ? 's' : ''}`}
+                    </Text>
+                    {/* Task preview */}
+                    {((overdueTasks.length > 0 ? overdueTasks : nearDueTasks).length > 0) && (
+                      <View style={{ marginTop: 4 }}>
+                        {(overdueTasks.length > 0 ? overdueTasks : nearDueTasks).slice(0, 2).map((t, idx) => (
+                          <View key={t.$id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                            <Ionicons name="document-text-outline" size={16} color="white" style={{ marginRight: 4 }} />
+                            <Text style={{ color: 'white', fontSize: 13, flex: 1 }} numberOfLines={1}>{t.title}</Text>
+                            <TouchableOpacity
+                              onPress={() => router.push(`/task/${t.$id}`)}
+                              style={{ marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' }}
+                            >
+                              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>View Task</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                        {(overdueTasks.length + nearDueTasks.length) > 2 && (
+                          <TouchableOpacity
+                            onPress={() => router.push('/notifications')}
+                            style={{ marginTop: 4, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.18)' }}
+                          >
+                            <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>View All</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setShowDueBanner(false)} style={{ marginLeft: 16 }}>
+                  <Ionicons name="close" size={22} color="white" />
+                </TouchableOpacity>
+              </LinearGradient>
             </Animated.View>
           )}
         </View>

@@ -14,18 +14,25 @@ import {
   ActivityIndicator,
   Alert,
   Switch,
+  Image,
 } from "react-native"
 import  Ionicons  from "@expo/vector-icons/Ionicons"
 import { router, useLocalSearchParams } from "expo-router"
 import { useColorScheme } from "react-native"
 import * as Haptics from "expo-haptics"
 import DateTimePicker from "@react-native-community/datetimepicker"
+import { databases, DATABASE_ID, COLLECTION_IDS } from '@/lib/appwrite'
+import { Query } from 'appwrite'
+import React from "react"
 
 import { taskService } from "@/services/taskService"
 import { projectService } from "@/services/projectService"
 import { useToast } from "@/contexts/ToastContext"
 import Colors from "@/constants/Colors"
 import { ConnectionStatus } from "@/components/ConnectionStatus"
+import { phaseService } from '@/services/phaseService';
+import { teamService } from '@/services/teamService';
+import { profileService } from '@/services/profileService';
 
 export default function AddTaskScreen() {
   const { projectId } = useLocalSearchParams()
@@ -48,6 +55,10 @@ export default function AddTaskScreen() {
   const [newSubtask, setNewSubtask] = useState("")
   const [allTasks, setAllTasks] = useState<any[]>([])
   const [selectedDependencies, setSelectedDependencies] = useState<string[]>([])
+  const [phases, setPhases] = useState<any[]>([])
+  const [teamMembers, setTeamMembers] = useState<any[]>([])
+  const [profiles, setProfiles] = useState<any>({})
+  const [dependencySearch, setDependencySearch] = useState('')
 
   // Animation for the add button
   const buttonOpacity = useRef(new Animated.Value(0.5)).current
@@ -168,14 +179,14 @@ export default function AddTaskScreen() {
             if (subtaskTitle.trim()) {
               await taskService.createSubtask({
                 title: subtaskTitle,
-                task_id: newTask.$id || newTask.id,
+                task_id: newTask.$id,
                 completed: false,
               })
             }
           }
         }
 
-        showToast("Task created successfully", "success")
+        showToast("Task created successfully", { type: "success" })
 
         // Navigate back to project details
         router.push(`/project/${projectId}`)
@@ -183,10 +194,10 @@ export default function AddTaskScreen() {
         console.error("Error creating task:", error)
 
         if (isOffline) {
-          showToast("Task saved offline. Will sync when online.", "info")
+          showToast("Task saved offline. Will sync when online.", { type: "info" })
           router.push(`/project/${projectId}`)
         } else {
-          showToast("Failed to create task", "error")
+          showToast("Failed to create task", { type: "error" })
         }
       } finally {
         setLoading(false)
@@ -235,20 +246,42 @@ export default function AddTaskScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   }
 
-  // Fetch all tasks for dependency suggestions
+  // Fetch all tasks, phases, team members, and profiles for dependency suggestions
   useEffect(() => {
-    const fetchTasks = async () => {
+    const fetchAll = async () => {
       if (projectId) {
         try {
-          const tasks = await taskService.getTasksByProject(projectId as string)
-          setAllTasks(tasks)
+          const [tasks, phaseList, members] = await Promise.all([
+            taskService.getTasksByProject(projectId as string),
+            phaseService.getPhasesByProject(projectId as string),
+            teamService.getTeamMembers(projectId as string),
+          ]);
+          setAllTasks(tasks);
+          setPhases(phaseList);
+          setTeamMembers(members);
+          // Fetch all profiles for team members
+          const profileMap: any = {};
+          for (const member of members) {
+            const { documents } = await databases.listDocuments(
+              DATABASE_ID,
+              COLLECTION_IDS.PROFILES,
+              [Query.equal('user_id', member.user_id)]
+            );
+            if (documents.length > 0) {
+              profileMap[member.user_id] = documents[0];
+            }
+          }
+          setProfiles(profileMap);
         } catch (e) {
-          setAllTasks([])
+          setAllTasks([]);
+          setPhases([]);
+          setTeamMembers([]);
+          setProfiles({});
         }
       }
-    }
-    fetchTasks()
-  }, [projectId])
+    };
+    fetchAll();
+  }, [projectId]);
 
   return (
     <KeyboardAvoidingView
@@ -413,36 +446,79 @@ export default function AddTaskScreen() {
 
           <View style={styles.formGroup}>
             <Text style={[styles.label, { color: theme.text }]}>Dependencies</Text>
-            {allTasks.length === 0 ? (
-              <Text style={{ color: theme.textDim }}>No other tasks to depend on.</Text>
+            <TextInput
+              style={[
+                styles.input,
+                { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border, marginBottom: 8 },
+              ]}
+              placeholder="Search tasks..."
+              placeholderTextColor={theme.textDim}
+              value={dependencySearch}
+              onChangeText={setDependencySearch}
+              accessibilityLabel="Search dependencies"
+            />
+            {phases.length === 0 ? (
+              <Text style={{ color: theme.textDim }}>No phases found.</Text>
             ) : (
-              allTasks.filter(t => t.$id !== undefined && t.title && t.$id !== undefined && t.title !== taskTitle).map(task => (
-                <TouchableOpacity
-                  key={task.$id}
-                  style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}
-                  onPress={() => {
-                    if (selectedDependencies.includes(task.$id)) {
-                      setSelectedDependencies(selectedDependencies.filter(id => id !== task.$id))
-                    } else {
-                      setSelectedDependencies([...selectedDependencies, task.$id])
-                    }
-                  }}
-                >
-                  <Ionicons
-                    name={selectedDependencies.includes(task.$id) ? 'checkbox' : 'square-outline'}
-                    size={20}
-                    color={selectedDependencies.includes(task.$id) ? theme.tint : theme.textDim}
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={{ color: theme.text }}>{task.title}</Text>
-                </TouchableOpacity>
-              ))
+              <>
+                {phases.map(phase => {
+                  // Filter tasks for this phase
+                  const phaseTasks = allTasks.filter(
+                    t => t.phase_id === phase.$id && t.status !== 'done' && t.$id !== undefined && t.title && t.title !== taskTitle &&
+                      (!dependencySearch || t.title.toLowerCase().includes(dependencySearch.toLowerCase()))
+                  ).sort((a, b) => {
+                    // Sort by due date, then by creation date
+                    const aDue = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+                    const bDue = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+                    if (aDue !== bDue) return aDue - bDue;
+                    return new Date(a.$createdAt).getTime() - new Date(b.$createdAt).getTime();
+                  });
+                  if (phaseTasks.length === 0) return null;
+                  return (
+                    <View key={phase.$id} style={{ marginBottom: 8 }}>
+                      <Text style={{ fontWeight: 'bold', color: theme.tint, marginBottom: 4 }}>{phase.name}</Text>
+                      {phaseTasks.map(task => {
+                        const assigneeProfile = task.assignee_id ? profiles[task.assignee_id] : null;
+                        return (
+                          <TouchableOpacity
+                            key={task.$id}
+                            style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}
+                            onPress={() => {
+                              if (selectedDependencies.includes(task.$id)) {
+                                setSelectedDependencies(selectedDependencies.filter(id => id !== task.$id));
+                              } else {
+                                setSelectedDependencies([...selectedDependencies, task.$id]);
+                              }
+                            }}
+                          >
+                            <Ionicons
+                              name={selectedDependencies.includes(task.$id) ? 'checkbox' : 'square-outline'}
+                              size={20}
+                              color={selectedDependencies.includes(task.$id) ? theme.tint : theme.textDim}
+                              style={{ marginRight: 8 }}
+                            />
+                            {assigneeProfile && assigneeProfile.avatar_url ? (
+                              <Image source={{ uri: assigneeProfile.avatar_url }} style={{ width: 20, height: 20, borderRadius: 10, marginRight: 6 }} />
+                            ) : null}
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: theme.text }}>{task.title}</Text>
+                              <Text style={{ color: theme.textDim, fontSize: 12 }}>
+                                {task.status} {assigneeProfile && assigneeProfile.full_name ? `• ${assigneeProfile.full_name}` : ''}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </>
             )}
             {selectedDependencies.length > 0 && (
               <Text style={{ color: theme.textDim, fontSize: 12, marginTop: 4 }}>
                 Depends on: {selectedDependencies.map(id => {
-                  const t = allTasks.find(t => t.$id === id)
-                  return t ? t.title : id
+                  const t = allTasks.find(t => t.$id === id);
+                  return t ? t.title : id;
                 }).join(', ')}
               </Text>
             )}
