@@ -345,18 +345,40 @@ export const calculateProjectProgress = async (projectId: string): Promise<numbe
   }
 }
 
-// Add this function to recalculate and update phase progress
+// Add a function to recalculate and update project progress after phase progress changes
+export const recalculateProjectProgress = async (projectId: string) => {
+  try {
+    const progress = await calculateProjectProgress(projectId)
+    // Update the project document with the new progress
+    const { projectService } = await import('./projectService')
+    await projectService.updateProject(projectId, { progress })
+    return progress
+  } catch (error) {
+    console.error('Error recalculating project progress:', error)
+    return 0
+  }
+}
+
+// In recalculatePhaseProgress, after updating phase, recalculate project progress
 export const recalculatePhaseProgress = async (phaseId: string) => {
   try {
     // Get all tasks for this phase
     const tasks = await import('./taskService').then(m => m.taskService.getTasks({ phaseId }))
     if (!tasks || tasks.length === 0) {
-      await updatePhase(phaseId, { progress: 0 })
+      const phase = await getPhaseById(phaseId)
+      if (phase) {
+        await updatePhase(phaseId, { progress: 0 })
+        await recalculateProjectProgress(phase.project_id)
+      }
       return 0
     }
     const doneCount = tasks.filter((t: any) => t.status === 'done').length
     const progress = Math.round((doneCount / tasks.length) * 100)
-    await updatePhase(phaseId, { progress })
+    const phase = await getPhaseById(phaseId)
+    if (phase) {
+      await updatePhase(phaseId, { progress })
+      await recalculateProjectProgress(phase.project_id)
+    }
     return progress
   } catch (error) {
     console.error('Error recalculating phase progress:', error)
@@ -374,4 +396,5 @@ export const phaseService = {
   deletePhase,
   calculateProjectProgress,
   recalculatePhaseProgress,
+  recalculateProjectProgress,
 } 
