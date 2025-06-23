@@ -47,6 +47,7 @@ import { taskService } from "@/services/taskService";
 import { useToast } from "@/contexts/ToastContext";
 import Colors from "@/constants/Colors";
 import { phaseService } from "@/services/phaseService";
+import { notificationService } from '@/services/notificationService';
 
 const { width, height } = Dimensions.get("window");
 const HEADER_MAX_HEIGHT = 120;
@@ -91,6 +92,10 @@ export default function HomeScreen() {
   const [showQuickStats, setShowQuickStats] = useState(true);
   const [projectProgress, setProjectProgress] = useState<number | null>(null);
   const [progressLoading, setProgressLoading] = useState(false);
+  const [phaseHierarchy, setPhaseHierarchy] = useState<Array<any>>([]);
+  const [showDueBanner, setShowDueBanner] = useState(true);
+  const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
+  const [nearDueTasks, setNearDueTasks] = useState<any[]>([]);
 
   // Animation values
   const scrollY = useSharedValue(0);
@@ -261,7 +266,19 @@ export default function HomeScreen() {
           return
         }
 
-        // Get tasks for this project
+        // Hierarchical loading
+        const phases = await phaseService.getPhasesByProject(projectId);
+        const phaseData = await Promise.all(phases.map(async (phase) => {
+          const tasks = await taskService.getTasks({ phaseId: phase.$id });
+          const tasksWithSubtasks = await Promise.all(tasks.map(async (task) => {
+            const subtasks = await taskService.getSubtasksByTask(task.$id);
+            return { ...task, subtasks };
+          }));
+          return { ...phase, tasks: tasksWithSubtasks };
+        }));
+        setPhaseHierarchy(phaseData);
+
+        // Get tasks for this project (for stats, quick stats, etc.)
         const projectTasks = await taskService.getTasksByProject(projectId);
 
         // Organize tasks by status
@@ -309,6 +326,36 @@ export default function HomeScreen() {
           setProjectProgress(0)
         } finally {
           setProgressLoading(false)
+        }
+
+        // Send push/in-app notifications for overdue/near-due tasks
+        if (overdueTasks.length > 0) {
+          overdueTasks.forEach(task => {
+            notificationService.createNotification({
+              title: `Task overdue: ${task.title}`,
+              description: `The task "${task.title}" is overdue!`,
+              type: 'warning',
+              priority: 'high',
+              read: false,
+              related_id: task.$id,
+              related_type: 'task',
+            });
+            notificationService.sendLocalNotification('Task Overdue', `The task "${task.title}" is overdue!`);
+          });
+        }
+        if (upcomingTasks.length > 0) {
+          upcomingTasks.forEach(task => {
+            notificationService.createNotification({
+              title: `Task due soon: ${task.title}`,
+              description: `The task "${task.title}" is due soon!`,
+              type: 'reminder',
+              priority: 'medium',
+              read: false,
+              related_id: task.$id,
+              related_type: 'task',
+            });
+            notificationService.sendLocalNotification('Task Due Soon', `The task "${task.title}" is due soon!`);
+          });
         }
       }
     } catch (error) {
@@ -378,22 +425,6 @@ export default function HomeScreen() {
     } else {
       router.push("/new-project");
     }
-  };
-
-  const handleFabPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    fabRotation.value = withSpring(fabRotation.value === 0 ? 1 : 0, {
-      damping: 10,
-    });
-    bottomSheetModalRef.current?.present();
-  };
-
-  const handleFabPressIn = () => {
-    fabScale.value = withSpring(0.9);
-  };
-
-  const handleFabPressOut = () => {
-    fabScale.value = withSpring(1);
   };
 
   const handleSearchPress = () => {
@@ -474,6 +505,36 @@ export default function HomeScreen() {
         today: 0,
         thisWeek: 0,
       });
+
+      // Send push/in-app notifications for overdue/near-due tasks
+      if (overdueTasks.length > 0) {
+        overdueTasks.forEach(task => {
+          notificationService.createNotification({
+            title: `Task overdue: ${task.title}`,
+            description: `The task "${task.title}" is overdue!`,
+            type: 'warning',
+            priority: 'high',
+            read: false,
+            related_id: task.$id,
+            related_type: 'task',
+          });
+          notificationService.sendLocalNotification('Task Overdue', `The task "${task.title}" is overdue!`);
+        });
+      }
+      if (upcomingTasks.length > 0) {
+        upcomingTasks.forEach(task => {
+          notificationService.createNotification({
+            title: `Task due soon: ${task.title}`,
+            description: `The task "${task.title}" is due soon!`,
+            type: 'reminder',
+            priority: 'medium',
+            read: false,
+            related_id: task.$id,
+            related_type: 'task',
+          });
+          notificationService.sendLocalNotification('Task Due Soon', `The task "${task.title}" is due soon!`);
+        });
+      }
     } catch (error) {
       console.error("Error loading project tasks:", error);
       showToast("Failed to load tasks", { type: "error" });
@@ -929,6 +990,14 @@ export default function HomeScreen() {
       </TouchableOpacity>
     </MotiView>
   );
+
+  const handleAddPhase = () => {
+    if (currentProject && currentProject.$id) {
+      router.push({ pathname: '/add-phase', params: { projectId: currentProject.$id } });
+    } else {
+      router.push('/add-phase');
+    }
+  };
 
   if (loading && !refreshing) {
     return (
@@ -1475,290 +1544,50 @@ export default function HomeScreen() {
                       styles.addTaskButton,
                       { backgroundColor: theme.tintLight },
                     ]}
-                    onPress={handleAddTask}
+                    onPress={handleAddPhase}
                   >
                     <Ionicons name="add" size={16} color={theme.tint} />
                     <Text style={[styles.addTaskText, { color: theme.tint }]}>Add Phase</Text>
                   </TouchableOpacity>
                 </View>
-                {/*
-                  TODO: Replace below with hierarchical rendering:
-                  - For each phase:
-                      - Show phase name, progress, etc.
-                      - For each task in phase:
-                          - Show task name, status, etc.
-                          - For each subtask in task:
-                              - Show subtask name, status, etc.
-                  For now, keep the old task sections as a placeholder.
-                */}
-                <MotiView
-                  from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, translateY: 0, scale: 1 }}
-                  transition={{ type: "timing", duration: 500, delay: 600 }}
-                  style={[
-                    styles.taskSection,
-                    { backgroundColor: theme.cardBackground },
-                  ]}
-                >
-                  <Pressable
-                    style={styles.sectionHeader}
-                    onPress={() => toggleSection("todo")}
-                    android_ripple={{ color: theme.ripple }}
-                  >
-                    <View style={styles.sectionHeaderLeft}>
-                      <Ionicons
-                        name="ellipse-outline"
-                        size={20}
-                        color={theme.text}
-                      />
-                      <Text
-                        style={[
-                          styles.sectionHeaderText,
-                          { color: theme.text },
-                        ]}
-                      >
-                        To Do
-                      </Text>
-                      <View
-                        style={[
-                          styles.taskCount,
-                          { backgroundColor: theme.tintLight },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.taskCountText, { color: theme.tint }]}
-                        >
-                          {tasks.todo.length}
-                        </Text>
-                      </View>
-                    </View>
-                    <Animated.View
-                      style={{ transform: [{ rotateZ: todoRotateZ }] }}
-                    >
-                      <Ionicons
-                        name="chevron-down"
-                        size={20}
-                        color={theme.text}
-                      />
-                    </Animated.View>
-                  </Pressable>
-
-                  <AnimatePresence>
-                    {expandedSections.todo && (
-                      <MotiView
-                        from={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ type: "timing", duration: 300 }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        {refreshing ? (
-                          renderSkeleton()
-                        ) : tasks.todo.length > 0 ? (
-                          tasks.todo.map((task: any, index: number) => 
-                            renderEnhancedTaskItem(task, 'todo', index)
-                          )
-                        ) : (
-                          <View style={styles.emptyTasksContainer}>
-                            <Text
-                              style={[
-                                styles.emptyTasksText,
-                                { color: theme.textDim },
-                              ]}
-                            >
-                              No tasks to do
-                            </Text>
+                {/* Hierarchical Phases > Tasks > Subtasks */}
+                {phaseHierarchy.length === 0 ? (
+                  <Text style={{ color: theme.textDim, textAlign: 'center', marginVertical: 16 }}>No phases found for this project.</Text>
+                ) : (
+                  phaseHierarchy.map((phase: any, phaseIdx: number) => (
+                    <Pressable key={phase.$id} onPress={() => router.push(`/phase/${phase.$id}`)} style={{ marginBottom: 24, backgroundColor: theme.cardBackground, borderRadius: 12, padding: 12 }}>
+                      <Text style={{ fontWeight: 'bold', fontSize: 18, color: theme.text }}>{phase.name}</Text>
+                      <Text style={{ color: theme.textDim, marginBottom: 8 }}>{phase.description}</Text>
+                      <Text style={{ color: theme.textDim, fontSize: 12, marginBottom: 4 }}>Status: {phase.status}</Text>
+                      <ProgressBar progress={phase.progress || 0} />
+                      {phase.tasks.length === 0 ? (
+                        <Text style={{ color: theme.textDim, marginTop: 8 }}>No tasks in this phase.</Text>
+                      ) : (
+                        phase.tasks.map((task: any, taskIdx: number) => (
+                          <Pressable key={task.$id} onPress={() => router.push(`/task/${task.$id}`)} style={{ marginTop: 12, marginLeft: 8, padding: 8, borderLeftWidth: 2, borderColor: theme.tintLight, backgroundColor: theme.background, borderRadius: 8 }}>
+                            <Text style={{ fontWeight: '600', color: theme.text }}>{task.title}</Text>
+                            <Text style={{ color: theme.textDim, fontSize: 12 }}>Status: {task.status}</Text>
+                            <Text style={{ color: theme.textDim, fontSize: 12 }}>Priority: {task.priority}</Text>
+                            {task.subtasks && task.subtasks.length > 0 && (
+                              <View style={{ marginTop: 6, marginLeft: 8 }}>
+                                <Text style={{ fontWeight: '500', color: theme.text, fontSize: 13 }}>Subtasks:</Text>
+                                {task.subtasks.map((subtask: any, subIdx: number) => (
+                                  <View key={subtask.$id} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                    <Ionicons name={subtask.completed ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={subtask.completed ? theme.success : theme.textDim} style={{ marginRight: 4 }} />
+                                    <Text style={{ color: theme.text }}>{subtask.title}</Text>
                           </View>
+                                ))}
+                      </View>
+                            )}
+                  </Pressable>
+                        ))
+                      )}
+                  </Pressable>
+                  ))
                         )}
                       </MotiView>
-                    )}
-                  </AnimatePresence>
-                </MotiView>
-
-                {/* In Progress Section */}
-                <MotiView
-                  from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, translateY: 0, scale: 1 }}
-                  transition={{ type: "timing", duration: 500, delay: 700 }}
-                  style={[
-                    styles.taskSection,
-                    { backgroundColor: theme.cardBackground },
-                  ]}
-                >
-                  <Pressable
-                    style={styles.sectionHeader}
-                    onPress={() => toggleSection("inProgress")}
-                    android_ripple={{ color: theme.ripple }}
-                  >
-                    <View style={styles.sectionHeaderLeft}>
-                      <Ionicons name="time-outline" size={20} color="#FF9800" />
-                      <Text
-                        style={[
-                          styles.sectionHeaderText,
-                          { color: theme.text },
-                        ]}
-                      >
-                        In Progress
-                      </Text>
-                      <View
-                        style={[
-                          styles.taskCount,
-                          { backgroundColor: theme.tintLight },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.taskCountText, { color: theme.tint }]}
-                        >
-                          {tasks.inProgress.length}
-                        </Text>
-                      </View>
-                    </View>
-                    <Animated.View
-                      style={{ transform: [{ rotateZ: inProgressRotateZ }] }}
-                    >
-                      <Ionicons
-                        name="chevron-down"
-                        size={20}
-                        color={theme.text}
-                      />
-                    </Animated.View>
-                  </Pressable>
-
-                  <AnimatePresence>
-                    {expandedSections.inProgress && (
-                      <MotiView
-                        from={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ type: "timing", duration: 300 }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        {refreshing ? (
-                          renderSkeleton()
-                        ) : tasks.inProgress.length > 0 ? (
-                          tasks.inProgress.map((task: any, index: number) => 
-                            renderEnhancedTaskItem(task, 'inProgress', index)
-                          )
-                        ) : (
-                          <View style={styles.emptyTasksContainer}>
-                            <Text
-                              style={[
-                                styles.emptyTasksText,
-                                { color: theme.textDim },
-                              ]}
-                            >
-                              No tasks in progress
-                            </Text>
-                          </View>
-                        )}
-                      </MotiView>
-                    )}
-                  </AnimatePresence>
-                </MotiView>
-
-                {/* Done Section */}
-                <MotiView
-                  from={{ opacity: 0, translateY: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, translateY: 0, scale: 1 }}
-                  transition={{ type: "timing", duration: 500, delay: 800 }}
-                  style={[
-                    styles.taskSection,
-                    { backgroundColor: theme.cardBackground },
-                  ]}
-                >
-                  <Pressable
-                    style={styles.sectionHeader}
-                    onPress={() => toggleSection("done")}
-                    android_ripple={{ color: theme.ripple }}
-                  >
-                    <View style={styles.sectionHeaderLeft}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#4CAF50"
-                      />
-                      <Text
-                        style={[
-                          styles.sectionHeaderText,
-                          { color: theme.text },
-                        ]}
-                      >
-                        Done
-                      </Text>
-                      <View
-                        style={[
-                          styles.taskCount,
-                          { backgroundColor: theme.tintLight },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.taskCountText, { color: theme.tint }]}
-                        >
-                          {tasks.done.length}
-                        </Text>
-                      </View>
-                    </View>
-                    <Animated.View
-                      style={{ transform: [{ rotateZ: doneRotateZ }] }}
-                    >
-                      <Ionicons
-                        name="chevron-down"
-                        size={20}
-                        color={theme.text}
-                      />
-                    </Animated.View>
-                  </Pressable>
-
-                  <AnimatePresence>
-                    {expandedSections.done && (
-                      <MotiView
-                        from={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ type: "timing", duration: 300 }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        {refreshing ? (
-                          renderSkeleton()
-                        ) : tasks.done.length > 0 ? (
-                          tasks.done.map((task: any, index: number) => 
-                            renderEnhancedTaskItem(task, 'done', index)
-                          )
-                        ) : (
-                          <View style={styles.emptyTasksContainer}>
-                            <Text
-                              style={[
-                                styles.emptyTasksText,
-                                { color: theme.textDim },
-                              ]}
-                            >
-                              No completed tasks
-                            </Text>
-                          </View>
-                        )}
-                      </MotiView>
-                    )}
-                  </AnimatePresence>
-                </MotiView>
-              </MotiView>
-
-              {/* Add some space at the bottom for the FAB */}
-              <View style={{ height: 80 }} />
             </Animated.ScrollView>
           )}
-
-          {/* Floating Action Button */}
-          <Animated.View style={[styles.fabContainer, fabAnimatedStyle]}>
-            <TouchableOpacity
-              style={[styles.fab, { backgroundColor: theme.tint }]}
-              onPress={handleFabPress}
-              onPressIn={handleFabPressIn}
-              onPressOut={handleFabPressOut}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="add" size={24} color="#fff" />
-            </TouchableOpacity>
-          </Animated.View>
 
           {/* Bottom Sheet Modal */}
           <BottomSheetModal
@@ -1840,6 +1669,36 @@ export default function HomeScreen() {
               />
             </View>
           </BottomSheetModal>
+
+          {(showDueBanner && (overdueTasks.length > 0 || nearDueTasks.length > 0)) && (
+            <Animated.View style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 2000,
+              backgroundColor: overdueTasks.length > 0 ? theme.error : theme.warning,
+              padding: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                  {overdueTasks.length > 0
+                    ? `Overdue: ${overdueTasks.length} task${overdueTasks.length > 1 ? 's' : ''}`
+                    : `Due Soon: ${nearDueTasks.length} task${nearDueTasks.length > 1 ? 's' : ''}`}
+                </Text>
+                <Text style={{ color: 'white', fontSize: 13, marginTop: 2 }}>
+                  {(overdueTasks.length > 0 ? overdueTasks : nearDueTasks).slice(0, 2).map(t => t.title).join(', ')}
+                  {(overdueTasks.length + nearDueTasks.length) > 2 ? '...' : ''}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDueBanner(false)} style={{ marginLeft: 16 }}>
+                <Ionicons name="close" size={22} color="white" />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
         </View>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
@@ -2165,24 +2024,6 @@ const styles = StyleSheet.create({
   emptyTasksText: {
     fontSize: 14,
     fontStyle: "italic",
-  },
-  fabContainer: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    zIndex: 1000,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   bottomSheetContent: {
     flex: 1,
