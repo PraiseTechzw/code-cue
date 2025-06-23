@@ -601,6 +601,22 @@ const removeTaskFromCache = async (taskId: string) => {
   }
 }
 
+// Get all subtasks for a task
+export const getSubtasksByTask = async (taskId: string): Promise<Subtask[]> => {
+  try {
+    if (!taskId || taskId.trim() === '') return [];
+    const { documents } = await databases.listDocuments(
+      DATABASE_ID,
+      COLLECTION_IDS.SUBTASKS,
+      [Query.equal('task_id', taskId)]
+    );
+    return documents as unknown as Subtask[];
+  } catch (error) {
+    console.error('Error fetching subtasks for task:', error);
+    return [];
+  }
+}
+
 // Export the taskService object
 export const taskService = {
   isOnline,
@@ -614,4 +630,5 @@ export const taskService = {
   updateSubtask,
   getSubtaskById,
   createComment,
+  getSubtasksByTask,
 }
