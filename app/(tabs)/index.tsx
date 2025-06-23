@@ -38,6 +38,7 @@ import {
   BottomSheetModalProvider,
 } from "@gorhom/bottom-sheet";
 import { format, isToday, isTomorrow, isYesterday, addDays } from "date-fns";
+import Svg, { Path, Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 import { ProgressBar } from "@/components/ProgressBar";
 import { TaskItem } from "@/components/TaskItem";
@@ -1111,6 +1112,24 @@ export default function HomeScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.headerGradient}
                   >
+                    {/* Decorative SVG Art */}
+                    <Svg
+                      height="100%"
+                      width="100%"
+                      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                      pointerEvents="none"
+                    >
+                      <Defs>
+                        <SvgLinearGradient id="artGradient" x1="0" y1="0" x2="1" y2="1">
+                          <Stop offset="0%" stopColor="#fff" stopOpacity="0.08" />
+                          <Stop offset="100%" stopColor="#fff" stopOpacity="0.02" />
+                        </SvgLinearGradient>
+                      </Defs>
+                      <Circle cx="80" cy="40" r="60" fill="url(#artGradient)" />
+                      <Path d="M220,20 Q260,80 320,40 T420,80" stroke="#fff" strokeWidth="4" opacity="0.07" fill="none" />
+                      <Path d="M60,120 Q120,180 200,140 T340,180" stroke="#fff" strokeWidth="3" opacity="0.05" fill="none" />
+                    </Svg>
+                    {/* End Decorative SVG Art */}
                     <MotiView
                       from={{ opacity: 0, translateY: 10 }}
                       animate={{ opacity: 1, translateY: 0 }}
@@ -1450,9 +1469,7 @@ export default function HomeScreen() {
                 style={styles.milestones}
               >
                 <View style={styles.sectionTitleContainer}>
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Tasks
-                  </Text>
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Phases</Text>
                   <TouchableOpacity
                     style={[
                       styles.addTaskButton,
@@ -1461,13 +1478,19 @@ export default function HomeScreen() {
                     onPress={handleAddTask}
                   >
                     <Ionicons name="add" size={16} color={theme.tint} />
-                    <Text style={[styles.addTaskText, { color: theme.tint }]}>
-                      Add Task
-                    </Text>
+                    <Text style={[styles.addTaskText, { color: theme.tint }]}>Add Phase</Text>
                   </TouchableOpacity>
                 </View>
-
-                {/* To Do Section */}
+                {/*
+                  TODO: Replace below with hierarchical rendering:
+                  - For each phase:
+                      - Show phase name, progress, etc.
+                      - For each task in phase:
+                          - Show task name, status, etc.
+                          - For each subtask in task:
+                              - Show subtask name, status, etc.
+                  For now, keep the old task sections as a placeholder.
+                */}
                 <MotiView
                   from={{ opacity: 0, translateY: 20, scale: 0.95 }}
                   animate={{ opacity: 1, translateY: 0, scale: 1 }}
