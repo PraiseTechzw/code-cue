@@ -46,6 +46,8 @@ export default function AddTaskScreen() {
   const [hasSubtasks, setHasSubtasks] = useState(false)
   const [subtasks, setSubtasks] = useState<string[]>([])
   const [newSubtask, setNewSubtask] = useState("")
+  const [allTasks, setAllTasks] = useState<any[]>([])
+  const [selectedDependencies, setSelectedDependencies] = useState<string[]>([])
 
   // Animation for the add button
   const buttonOpacity = useRef(new Animated.Value(0.5)).current
@@ -157,6 +159,7 @@ export default function AddTaskScreen() {
           priority,
           project_id: projectId as string,
           status: "todo",
+          dependencies: selectedDependencies,
         })
 
         // Add subtasks if any
@@ -231,6 +234,21 @@ export default function AddTaskScreen() {
     setSubtasks(newSubtasks)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   }
+
+  // Fetch all tasks for dependency suggestions
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (projectId) {
+        try {
+          const tasks = await taskService.getTasksByProject(projectId as string)
+          setAllTasks(tasks)
+        } catch (e) {
+          setAllTasks([])
+        }
+      }
+    }
+    fetchTasks()
+  }, [projectId])
 
   return (
     <KeyboardAvoidingView
@@ -391,6 +409,43 @@ export default function AddTaskScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={[styles.label, { color: theme.text }]}>Dependencies</Text>
+            {allTasks.length === 0 ? (
+              <Text style={{ color: theme.textDim }}>No other tasks to depend on.</Text>
+            ) : (
+              allTasks.filter(t => t.$id !== undefined && t.title && t.$id !== undefined && t.title !== taskTitle).map(task => (
+                <TouchableOpacity
+                  key={task.$id}
+                  style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 2 }}
+                  onPress={() => {
+                    if (selectedDependencies.includes(task.$id)) {
+                      setSelectedDependencies(selectedDependencies.filter(id => id !== task.$id))
+                    } else {
+                      setSelectedDependencies([...selectedDependencies, task.$id])
+                    }
+                  }}
+                >
+                  <Ionicons
+                    name={selectedDependencies.includes(task.$id) ? 'checkbox' : 'square-outline'}
+                    size={20}
+                    color={selectedDependencies.includes(task.$id) ? theme.tint : theme.textDim}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={{ color: theme.text }}>{task.title}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+            {selectedDependencies.length > 0 && (
+              <Text style={{ color: theme.textDim, fontSize: 12, marginTop: 4 }}>
+                Depends on: {selectedDependencies.map(id => {
+                  const t = allTasks.find(t => t.$id === id)
+                  return t ? t.title : id
+                }).join(', ')}
+              </Text>
+            )}
           </View>
 
           <View style={styles.formGroup}>
