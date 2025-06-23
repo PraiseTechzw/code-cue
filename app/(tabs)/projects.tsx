@@ -309,6 +309,33 @@ export default function ProjectsScreen() {
             <Text style={styles.phaseTaskText}>{phases.length} phases</Text>
             <Text style={styles.phaseTaskText}>{tasks.length} tasks</Text>
           </View>
+          {/* Phases and Tasks */}
+          <View style={{ marginTop: 8 }}>
+            {phases.length === 0 ? (
+              <Text style={{ color: theme.textDim, fontSize: 12 }}>No phases found for this project.</Text>
+            ) : (
+              phases.map((phase: any) => (
+                <View key={phase.$id} style={{ marginBottom: 12, backgroundColor: theme.cardBackground, borderRadius: 10, padding: 8 }}>
+                  <Text style={{ fontWeight: 'bold', color: theme.text }}>{phase.name}</Text>
+                  <Text style={{ color: theme.textDim, fontSize: 12 }}>{phase.description}</Text>
+                  <Text style={{ color: theme.textDim, fontSize: 12, marginBottom: 2 }}>Status: {phase.status}</Text>
+                  <View style={{ height: 6, backgroundColor: '#eee', borderRadius: 3, marginBottom: 4 }}>
+                    <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.tint, width: `${phase.progress || 0}%` }} />
+                  </View>
+                  {tasks.filter((task: any) => task.phase_id === phase.$id).length === 0 ? (
+                    <Text style={{ color: theme.textDim, fontSize: 12, marginLeft: 8 }}>No tasks in this phase.</Text>
+                  ) : (
+                    tasks.filter((task: any) => task.phase_id === phase.$id).map((task: any) => (
+                      <View key={task.$id} style={{ marginLeft: 8, marginBottom: 4, backgroundColor: theme.background, borderRadius: 6, padding: 6 }}>
+                        <Text style={{ color: theme.text, fontWeight: '600' }}>{task.title}</Text>
+                        <Text style={{ color: theme.textDim, fontSize: 12 }}>{task.status}</Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              ))
+            )}
+          </View>
           {/* Quick Actions Bar */}
           <View style={styles.quickActionsRow}>
             <TouchableOpacity style={styles.quickActionBtn} onPress={() => router.push(`/analytics-dashboard?projectId=${projectId}`)}>

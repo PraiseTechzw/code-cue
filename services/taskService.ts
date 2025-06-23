@@ -211,16 +211,20 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
       taskId
     ) as unknown as Task
 
+    // Fetch subtasks for this task
+    const subtasks = await getSubtasksByTask(taskId)
+    const taskWithSubtasks = { ...task, subtasks }
+
     // Cache the result
     await AsyncStorage.setItem(
       cacheKey,
       JSON.stringify({
-        data: task,
+        data: taskWithSubtasks,
         timestamp: Date.now(),
       }),
     )
 
-    return task
+    return taskWithSubtasks
   } catch (error) {
     console.error("Error getting task by ID:", error)
 
@@ -349,6 +353,16 @@ export const updateTask = async (taskId: string, updates: UpdateTask): Promise<T
 
     // Update cache
     await updateTaskCache(taskId, updatedTask)
+
+    // Recalculate phase progress if phase_id exists
+    if (updatedTask.phase_id) {
+      try {
+        const { phaseService } = await import('./phaseService')
+        await phaseService.recalculatePhaseProgress(updatedTask.phase_id)
+      } catch (e) {
+        console.error('Error updating phase progress after task update:', e)
+      }
+    }
 
     return updatedTask
   } catch (error) {

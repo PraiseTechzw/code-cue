@@ -69,6 +69,8 @@ export const teamService = {
    */
   async getTeamMembers(projectId: string): Promise<TeamMember[]> {
     try {
+      // Debug: log collection ID
+      console.log('[teamService] Using TEAM_MEMBERS collection ID:', COLLECTIONS.TEAM_MEMBERS)
       const online = isOnline()
       
       if (!online) {
@@ -81,11 +83,13 @@ export const teamService = {
         COLLECTIONS.TEAM_MEMBERS,
         [Query.equal('project_id', projectId)]
       )
+      // Debug: log query result
+      console.log('[teamService] getTeamMembers result:', documents)
 
       const members = documents as unknown as TeamMember[]
       
       // Cache the results
-      await offlineStore.setData(CACHE_KEYS.TEAM_MEMBERS, members)
+      await offlineStore.getData(CACHE_KEYS.TEAM_MEMBERS, async () => members)
       
       return members
     } catch (error) {
@@ -162,9 +166,10 @@ export const teamService = {
         title: 'Team Invitation',
         description: `You have been added to a project as ${role}`,
         type: 'info',
-        user_id: userId,
         related_id: projectId,
-        related_type: 'project'
+        related_type: 'project',
+        priority: 'medium',
+        read: false
       })
 
       return createdMember
@@ -404,7 +409,7 @@ export const teamService = {
       const activities = documents as unknown as ProjectActivity[]
       
       // Cache the results
-      await offlineStore.setData(CACHE_KEYS.PROJECT_ACTIVITIES, activities)
+      await offlineStore.getData(CACHE_KEYS.PROJECT_ACTIVITIES, async () => activities)
       
       return activities
     } catch (error) {

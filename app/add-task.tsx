@@ -59,6 +59,7 @@ export default function AddTaskScreen() {
   const [teamMembers, setTeamMembers] = useState<any[]>([])
   const [profiles, setProfiles] = useState<any>({})
   const [dependencySearch, setDependencySearch] = useState('')
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null)
 
   // Animation for the add button
   const buttonOpacity = useRef(new Animated.Value(0.5)).current
@@ -162,6 +163,12 @@ export default function AddTaskScreen() {
         // Format date for storage
         const formattedDueDate = dueDate ? dueDate.toISOString() : null
 
+        if (!selectedPhaseId) {
+          showToast("Please select a phase for this task", { type: "error" })
+          setLoading(false)
+          return
+        }
+
         // Create the task
         const newTask = await taskService.createTask({
           title: taskTitle,
@@ -171,6 +178,7 @@ export default function AddTaskScreen() {
           project_id: projectId as string,
           status: "todo",
           dependencies: selectedDependencies,
+          phase_id: selectedPhaseId,
         })
 
         // Add subtasks if any
@@ -282,6 +290,15 @@ export default function AddTaskScreen() {
     };
     fetchAll();
   }, [projectId]);
+
+  // When phases are loaded, auto-select if only one phase
+  useEffect(() => {
+    if (phases.length === 1) {
+      setSelectedPhaseId(phases[0].$id);
+    } else if (phases.length === 0) {
+      setSelectedPhaseId(null);
+    }
+  }, [phases]);
 
   return (
     <KeyboardAvoidingView
@@ -521,6 +538,27 @@ export default function AddTaskScreen() {
                   return t ? t.title : id;
                 }).join(', ')}
               </Text>
+            )}
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={[styles.label, { color: theme.text }]}>Phase</Text>
+            {phases.length === 0 ? (
+              <Text style={{ color: theme.error }}>No phases available. Please create a phase first.</Text>
+            ) : phases.length === 1 ? (
+              <Text style={{ color: theme.text }}>{phases[0].name}</Text>
+            ) : (
+              <View style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 8, backgroundColor: theme.cardBackground }}>
+                {phases.map((phase: any) => (
+                  <TouchableOpacity
+                    key={phase.$id}
+                    style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: theme.border }}
+                    onPress={() => setSelectedPhaseId(phase.$id)}
+                  >
+                    <Text style={{ color: selectedPhaseId === phase.$id ? theme.tint : theme.text }}>{phase.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </View>
 

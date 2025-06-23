@@ -29,14 +29,14 @@ export const COLLECTIONS = {
   GITHUB_COMMITS: "github_commits",
   GITHUB_CONNECTIONS: "github_connections",
   // New collections for advanced features
-  TEAM_MEMBERS: "team_members",
+  TEAM_MEMBERS: "6856a20f000adc963119",
   PROJECT_ACTIVITIES: "project_activities",
   WORKFLOW_AUTOMATIONS: "workflow_automations",
   PROJECT_TEMPLATES: "project_templates",
   TIME_ENTRIES: "time_entries",
   PROJECT_REPORTS: "project_reports",
   PROJECT_BUDGETS: "project_budgets",
-  PROJECT_SETTINGS: "project_settings",
+  PROJECT_SETTINGS: "6856a692003cbc14314e",
 } as const
 
 // Collection ID mapping for easy reference

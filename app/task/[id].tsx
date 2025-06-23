@@ -50,22 +50,19 @@ export default function TaskDetailScreen() {
     try {
       setLoading(true)
 
-      // Get task details including subtasks and comments
+      // Get task details
       const taskData = await taskService.getTaskById(id as string)
+      setTask(taskData)
+      setEditedTitle(taskData.title)
+      setEditedDescription(taskData.description || "")
 
-      if (taskData) {
-        setTask(taskData)
-        setEditedTitle(taskData.title)
-        setEditedDescription(taskData.description || "")
+      // Always fetch subtasks directly
+      const fetchedSubtasks = await taskService.getSubtasksByTask(id as string)
+      setSubtasks(fetchedSubtasks)
 
-        // Extract subtasks and comments
-        if (taskData.subtasks) {
-          setSubtasks(taskData.subtasks)
-        }
-
-        if (taskData.comments) {
-          setComments(taskData.comments)
-        }
+      // Extract comments if available
+      if (taskData.comments) {
+        setComments(taskData.comments)
       }
     } catch (error) {
       console.error("Error loading task data:", error)
@@ -129,14 +126,15 @@ export default function TaskDetailScreen() {
     if (newSubtask.trim() === "") return
 
     try {
-      const newSubtaskData = await taskService.createSubtask({
+      await taskService.createSubtask({
         title: newSubtask,
         task_id: task.$id,
         completed: false,
       })
 
-      // Add the new subtask to the list
-      setSubtasks([...subtasks, newSubtaskData])
+      // Reload subtasks from DB
+      const fetchedSubtasks = await taskService.getSubtasksByTask(task.$id)
+      setSubtasks(fetchedSubtasks)
       setNewSubtask("")
       showToast("Subtask added", {type: "success"})
     } catch (error) {

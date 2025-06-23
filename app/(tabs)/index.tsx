@@ -98,6 +98,7 @@ export default function HomeScreen() {
   const [showDueBanner, setShowDueBanner] = useState(true);
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [nearDueTasks, setNearDueTasks] = useState<any[]>([]);
+  const [unassignedTasks, setUnassignedTasks] = useState<any[]>([]);
 
   // Animation values
   const scrollY = useSharedValue(0);
@@ -370,6 +371,12 @@ export default function HomeScreen() {
             notificationService.sendLocalNotification('Task Due Soon', `The task "${task.title}" is due soon!`);
           }
         }
+
+        // In the loadData function, after building phaseHierarchy, set unassignedTasks
+        const hierarchy = phaseData;
+        const unassigned = projectTasks.filter(task => !task.phase_id);
+        setPhaseHierarchy(hierarchy);
+        setUnassignedTasks(unassigned);
       }
     } catch (error) {
       console.error("Error loading home data:", error);
@@ -1582,34 +1589,55 @@ export default function HomeScreen() {
                     <Pressable key={phase.$id} onPress={() => router.push(`/phase/${phase.$id}`)} style={{ marginBottom: 24, backgroundColor: theme.cardBackground, borderRadius: 12, padding: 12 }}>
                       <Text style={{ fontWeight: 'bold', fontSize: 18, color: theme.text }}>{phase.name}</Text>
                       <Text style={{ color: theme.textDim, marginBottom: 8 }}>{phase.description}</Text>
+                      {/* Phase progress and status */}
                       <Text style={{ color: theme.textDim, fontSize: 12, marginBottom: 4 }}>Status: {phase.status}</Text>
                       <ProgressBar progress={phase.progress || 0} />
-                      {phase.tasks.length === 0 ? (
-                        <Text style={{ color: theme.textDim, marginTop: 8 }}>No tasks in this phase.</Text>
-                      ) : (
+                      {phase.tasks && phase.tasks.length > 0 ? (
                         phase.tasks.map((task: any, taskIdx: number) => (
-                          <Pressable key={task.$id} onPress={() => router.push(`/task/${task.$id}`)} style={{ marginTop: 12, marginLeft: 8, padding: 8, borderLeftWidth: 2, borderColor: theme.tintLight, backgroundColor: theme.background, borderRadius: 8 }}>
+                          <Pressable key={task.$id} onPress={() => router.push(`/task/${task.$id}`)} style={{ marginBottom: 8, backgroundColor: theme.cardBackground, borderRadius: 8, padding: 8, marginLeft: 8 }}>
                             <Text style={{ fontWeight: '600', color: theme.text }}>{task.title}</Text>
-                            <Text style={{ color: theme.textDim, fontSize: 12 }}>Status: {task.status}</Text>
-                            <Text style={{ color: theme.textDim, fontSize: 12 }}>Priority: {task.priority}</Text>
+                            <Text style={{ color: theme.textDim, fontSize: 12 }}>{task.status}</Text>
+                            {/* Subtasks */}
                             {task.subtasks && task.subtasks.length > 0 && (
-                              <View style={{ marginTop: 6, marginLeft: 8 }}>
-                                <Text style={{ fontWeight: '500', color: theme.text, fontSize: 13 }}>Subtasks:</Text>
-                                {task.subtasks.map((subtask: any, subIdx: number) => (
-                                  <View key={subtask.$id} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                                    <Ionicons name={subtask.completed ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={subtask.completed ? theme.success : theme.textDim} style={{ marginRight: 4 }} />
-                                    <Text style={{ color: theme.text }}>{subtask.title}</Text>
-                          </View>
+                              <View style={{ marginTop: 4, marginLeft: 8 }}>
+                                {task.subtasks.map((subtask: any) => (
+                                  <Text key={subtask.$id} style={{ color: theme.textDim, fontSize: 12 }}>
+                                    - {subtask.title} {subtask.completed ? '(Done)' : ''}
+                                  </Text>
                                 ))}
-                      </View>
+                              </View>
                             )}
-                  </Pressable>
+                          </Pressable>
                         ))
+                      ) : (
+                        <Text style={{ color: theme.textDim, fontSize: 12, marginLeft: 8 }}>No tasks in this phase.</Text>
                       )}
-                  </Pressable>
+                    </Pressable>
                   ))
+                )}
+                {/* Unassigned tasks (tasks with no phase) */}
+                {unassignedTasks && unassignedTasks.length > 0 && (
+                  <View style={{ marginBottom: 24, backgroundColor: theme.cardBackground, borderRadius: 12, padding: 12 }}>
+                    <Text style={{ fontWeight: 'bold', fontSize: 18, color: theme.text }}>Unassigned</Text>
+                    {unassignedTasks.map((task: any) => (
+                      <Pressable key={task.$id} onPress={() => router.push(`/task/${task.$id}`)} style={{ marginBottom: 8, backgroundColor: theme.cardBackground, borderRadius: 8, padding: 8, marginLeft: 8 }}>
+                        <Text style={{ fontWeight: '600', color: theme.text }}>{task.title}</Text>
+                        <Text style={{ color: theme.textDim, fontSize: 12 }}>{task.status}</Text>
+                        {/* Subtasks */}
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <View style={{ marginTop: 4, marginLeft: 8 }}>
+                            {task.subtasks.map((subtask: any) => (
+                              <Text key={subtask.$id} style={{ color: theme.textDim, fontSize: 12 }}>
+                                - {subtask.title} {subtask.completed ? '(Done)' : ''}
+                              </Text>
+                            ))}
+                          </View>
                         )}
-                      </MotiView>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </MotiView>
             </Animated.ScrollView>
           )}
 
