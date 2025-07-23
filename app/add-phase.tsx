@@ -164,8 +164,6 @@ export default function AddPhaseScreen() {
         // Navigate back to project details
         router.push(`/project/${projectId}`)
       } catch (error) {
-        console.error("Error creating phase:", error)
-
         if (isOffline) {
           showToast("Phase saved offline. Will sync when online.", { type: "info" })
           router.push(`/project/${projectId}`)

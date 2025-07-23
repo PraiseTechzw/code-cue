@@ -106,12 +106,9 @@ export default function ProjectDetailScreen() {
     }
     
     if (!projectId || typeof projectId !== 'string' || projectId.trim() === '') {
-      console.error('Invalid project ID:', id)
       showToast("Invalid project ID", { type: "error" })
       return
     }
-
-    console.log('Loading project data for ID:', projectId)
 
     try {
       setLoading(true)
@@ -152,7 +149,6 @@ export default function ProjectDetailScreen() {
       // Load advanced project settings
       await loadProjectSettings(projectId)
     } catch (error) {
-      console.error("Error loading project data:", error)
       showToast("Failed to load project data",  { type: "error" })
     } finally {
       setLoading(false)
@@ -217,7 +213,6 @@ export default function ProjectDetailScreen() {
       showToast("Project deleted successfully",{type: 'success'})
       router.replace("/projects")
     } catch (error) {
-      console.error("Error deleting project:", error)
       showToast("Failed to delete project",  { type: "error" })
     }
   }

@@ -78,7 +78,6 @@ export default function InsightsScreen() {
         productivityScore
       })
     } catch (error) {
-      console.error('Error loading insights:', error)
       showToast('Failed to load insights', { type: 'error' })
       // Load fallback insights
       setInsights(aiService.getFallbackInsights())

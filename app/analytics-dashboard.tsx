@@ -75,7 +75,6 @@ export default function AnalyticsDashboardScreen({ projectId }: AnalyticsDashboa
         setProjects(projectsData)
       }
     } catch (error) {
-      console.error('Error loading analytics data:', error)
       showToast('Failed to load analytics data', { type: 'error' })
     } finally {
       setLoading(false)

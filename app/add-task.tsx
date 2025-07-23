@@ -78,7 +78,7 @@ export default function AddTaskScreen() {
           setProjectName(project.name)
         }
       } catch (error) {
-        console.error("Error loading project:", error)
+        // console.error("Error loading project:", error)
       } finally {
         setProjectLoading(false)
       }
@@ -199,7 +199,7 @@ export default function AddTaskScreen() {
         // Navigate back to project details
         router.push(`/project/${projectId}`)
       } catch (error) {
-        console.error("Error creating task:", error)
+        // console.error("Error creating task:", error)
 
         if (isOffline) {
           showToast("Task saved offline. Will sync when online.", { type: "info" })

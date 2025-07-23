@@ -39,7 +39,7 @@ export const addOfflineChange = async (change: OfflineChange): Promise<void> => 
     changes.push(change)
     await AsyncStorage.setItem(CACHE_KEYS.OFFLINE_CHANGES, JSON.stringify(changes))
   } catch (error) {
-    console.error("Error adding offline change:", error)
+    // console.error("Error adding offline change:", error)
   }
 }
 
@@ -49,7 +49,7 @@ export const getOfflineChanges = async (): Promise<OfflineChange[]> => {
     const changesJson = await AsyncStorage.getItem(CACHE_KEYS.OFFLINE_CHANGES)
     return changesJson ? JSON.parse(changesJson) : []
   } catch (error) {
-    console.error("Error getting offline changes:", error)
+    // console.error("Error getting offline changes:", error)
     return []
   }
 }
@@ -105,7 +105,7 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
         
         completed++
       } catch (error) {
-        console.error(`Error syncing change ${change.id}:`, error)
+        // console.error(`Error syncing change ${change.id}:`, error)
         failed++
         
         // Increment retry count
@@ -144,7 +144,7 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
       })
     }
   } catch (error) {
-    console.error("Error syncing offline changes:", error)
+    // console.error("Error syncing offline changes:", error)
     if (progressCallback) {
       progressCallback({
         total: 0,
@@ -222,7 +222,7 @@ const updateOfflineChange = async (updatedChange: OfflineChange): Promise<void> 
       await AsyncStorage.setItem(CACHE_KEYS.OFFLINE_CHANGES, JSON.stringify(changes))
     }
   } catch (error) {
-    console.error("Error updating offline change:", error)
+    // console.error("Error updating offline change:", error)
   }
 }
 
@@ -233,7 +233,7 @@ const removeOfflineChange = async (changeId: string): Promise<void> => {
     const filteredChanges = changes.filter(change => change.id !== changeId)
     await AsyncStorage.setItem(CACHE_KEYS.OFFLINE_CHANGES, JSON.stringify(filteredChanges))
   } catch (error) {
-    console.error("Error removing offline change:", error)
+    // console.error("Error removing offline change:", error)
   }
 }
 
@@ -242,7 +242,7 @@ export const setItem = async (key: string, value: any): Promise<void> => {
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value))
   } catch (error) {
-    console.error(`Error setting item ${key}:`, error)
+    // console.error(`Error setting item ${key}:`, error)
   }
 }
 
@@ -251,7 +251,7 @@ export const getItem = async (key: string): Promise<any> => {
     const value = await AsyncStorage.getItem(key)
     return value ? JSON.parse(value) : null
   } catch (error) {
-    console.error(`Error getting item ${key}:`, error)
+    // console.error(`Error getting item ${key}:`, error)
     return null
   }
 }
@@ -260,7 +260,7 @@ export const removeItem = async (key: string): Promise<void> => {
   try {
     await AsyncStorage.removeItem(key)
   } catch (error) {
-    console.error(`Error removing item ${key}:`, error)
+    // console.error(`Error removing item ${key}:`, error)
   }
 }
 
@@ -281,7 +281,7 @@ export const initializeOfflineStore = async (): Promise<void> => {
     // Note: We don't return the unsubscribe function here since this is a one-time initialization
     // The listener will be cleaned up when the app is closed
   } catch (error) {
-    console.error("Error initializing offline store:", error)
+    // console.error("Error initializing offline store:", error)
   }
 }
 
@@ -326,7 +326,7 @@ export const cacheUserData = async (): Promise<void> => {
     }
 
   } catch (error) {
-    console.error("Error caching user data:", error)
+    // console.error("Error caching user data:", error)
   }
 }
 
@@ -341,7 +341,7 @@ export const clearCache = async (): Promise<void> => {
       CACHE_KEYS.PROFILES
     ])
   } catch (error) {
-    console.error("Error clearing cache:", error)
+    // console.error("Error clearing cache:", error)
   }
 }
 
@@ -358,7 +358,7 @@ export const offlineStore = {
       
       return cachedData
     } catch (error) {
-      console.error("Error loading cached data:", error)
+      // console.error("Error loading cached data:", error)
       return {
         projects: [],
         tasks: [],
@@ -375,7 +375,7 @@ export const offlineStore = {
       if (data.notifications) await setItem(CACHE_KEYS.NOTIFICATIONS, data.notifications)
       if (data.profiles) await setItem(CACHE_KEYS.PROFILES, data.profiles)
     } catch (error) {
-      console.error("Error persisting cached data:", error)
+      // console.error("Error persisting cached data:", error)
     }
   },
 
@@ -383,7 +383,7 @@ export const offlineStore = {
     try {
       await AsyncStorage.setItem('offline_mode', 'true')
     } catch (error) {
-      console.error("Error enabling offline mode:", error)
+      // console.error("Error enabling offline mode:", error)
     }
   },
 
@@ -391,7 +391,7 @@ export const offlineStore = {
     try {
       await AsyncStorage.setItem('offline_mode', 'false')
     } catch (error) {
-      console.error("Error disabling offline mode:", error)
+      // console.error("Error disabling offline mode:", error)
     }
   },
 
@@ -406,7 +406,7 @@ export const offlineStore = {
       if (data) await setItem(key, data)
       return data
     } catch (error) {
-      console.error(`Error getting data for key ${key}:`, error)
+      // console.error(`Error getting data for key ${key}:`, error)
       return null
     }
   },
@@ -416,7 +416,7 @@ export const offlineStore = {
       const changes = await getOfflineChanges()
       return changes.filter(change => !change.synced).length
     } catch (error) {
-      console.error("Error getting pending changes count:", error)
+      // console.error("Error getting pending changes count:", error)
       return 0
     }
   },

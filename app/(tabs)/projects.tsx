@@ -128,7 +128,6 @@ export default function ProjectsScreen() {
       const validProjects = data.filter(project => {
         const projectId = project.$id
         if (!projectId || projectId.trim() === '') {
-          console.warn('Invalid project found:', project)
           return false
         }
         return true
@@ -136,7 +135,6 @@ export default function ProjectsScreen() {
       
       setProjects(validProjects)
     } catch (error) {
-      console.error("Error loading projects:", error)
       setError("Failed to load projects. Please try again.")
       showToast("Failed to load projects", { type: "error" })
     } finally {
@@ -154,7 +152,6 @@ export default function ProjectsScreen() {
     // Validate project ID before navigation
     const projectId = project.$id
     if (!projectId || projectId.trim() === '') {
-      console.error('Invalid project ID:', projectId)
       showToast("Invalid project ID", { type: "error" })
       return
     }

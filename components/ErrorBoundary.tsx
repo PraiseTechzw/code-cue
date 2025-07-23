@@ -73,7 +73,6 @@ class ErrorBoundary extends Component<Props, State> {
     })
 
     // Log error to an error reporting service
-    console.error("Error caught by ErrorBoundary:", error, errorInfo)
   }
 
   resetError = (): void => {

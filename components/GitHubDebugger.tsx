@@ -17,7 +17,6 @@ export const GitHubDebugger: React.FC = () => {
 
   const testCollection = async (collectionName: string): Promise<DebugResult> => {
     try {
-      console.log(`[DEBUG] Testing collection: ${collectionName}`)
       
       // Test basic access
       const result = await databases.listDocuments(
@@ -25,11 +24,6 @@ export const GitHubDebugger: React.FC = () => {
         collectionName,
         [Query.limit(1)]
       )
-      
-      console.log(`[DEBUG] ✅ Successfully accessed collection: ${collectionName}`, {
-        total: result.total,
-        documents: result.documents.length
-      })
       
       return {
         collection: collectionName,
@@ -40,11 +34,6 @@ export const GitHubDebugger: React.FC = () => {
         }
       }
     } catch (error) {
-      console.log(`[DEBUG] ❌ Failed to access collection: ${collectionName}`, {
-        error: error instanceof Error ? error.message : String(error),
-        collectionName,
-        databaseId: DATABASE_ID
-      })
       
       return {
         collection: collectionName,
@@ -63,16 +52,12 @@ export const GitHubDebugger: React.FC = () => {
     setResults([])
     
     try {
-      console.log('[DEBUG] Starting comprehensive GitHub debugging...')
       
       const collections = [
         COLLECTION_IDS.GITHUB_CONNECTIONS,
         COLLECTION_IDS.GITHUB_REPOSITORIES,
         COLLECTION_IDS.GITHUB_COMMITS
       ]
-      
-      console.log('[DEBUG] Collections to test:', collections)
-      console.log('[DEBUG] Database ID:', DATABASE_ID)
       
       const testResults: DebugResult[] = []
       
@@ -84,11 +69,9 @@ export const GitHubDebugger: React.FC = () => {
       }
       
       // Test GitHub service methods
-      console.log('[DEBUG] Testing GitHub service methods...')
       
       try {
         const serviceTestResult = await githubService.testAllCollections()
-        console.log('[DEBUG] Service test results:', serviceTestResult)
         
         testResults.push({
           collection: 'GitHub Service Test',
@@ -96,7 +79,7 @@ export const GitHubDebugger: React.FC = () => {
           details: serviceTestResult
         })
       } catch (serviceError) {
-        console.log('[DEBUG] Service test failed:', serviceError)
+        
         testResults.push({
           collection: 'GitHub Service Test',
           success: false,
@@ -117,7 +100,6 @@ export const GitHubDebugger: React.FC = () => {
       )
       
     } catch (error) {
-      console.log('[DEBUG] Error during debugging:', error)
       Alert.alert('Debug Error', error instanceof Error ? error.message : String(error))
     } finally {
       setIsLoading(false)

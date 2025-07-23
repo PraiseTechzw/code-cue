@@ -92,12 +92,9 @@ export default function PhaseDetailScreen() {
     }
     
     if (!phaseId || typeof phaseId !== 'string' || phaseId.trim() === '') {
-      console.error('Invalid phase ID:', id)
       showToast("Invalid phase ID", { type: "error" })
       return
     }
-
-    console.log('Loading phase data for ID:', phaseId)
 
     try {
       setLoading(true)
@@ -122,7 +119,6 @@ export default function PhaseDetailScreen() {
         total: tasksData.length,
       })
     } catch (error) {
-      console.error("Error loading phase data:", error)
       showToast("Failed to load phase data",  { type: "error" })
     } finally {
       setLoading(false)
@@ -181,7 +177,6 @@ export default function PhaseDetailScreen() {
       showToast("Phase deleted successfully",{type: 'success'})
       router.replace(`/project/${phase?.project_id}`)
     } catch (error) {
-      console.error("Error deleting phase:", error)
       showToast("Failed to delete phase",  { type: "error" })
     }
   }

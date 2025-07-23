@@ -265,7 +265,6 @@ export default function HomeScreen() {
         // Validate project ID before getting tasks
         const projectId = project.$id
         if (!projectId || projectId.trim() === '') {
-          console.warn('loadData: project has no valid ID:', project)
           return
         }
 
@@ -379,7 +378,6 @@ export default function HomeScreen() {
         setUnassignedTasks(unassigned);
       }
     } catch (error) {
-      console.error("Error loading home data:", error);
       showToast("Failed to load data", { type: "error" });
     } finally {
       setLoading(false);
@@ -434,7 +432,6 @@ export default function HomeScreen() {
     if (currentProject) {
       const projectId = currentProject.$id
       if (!projectId) {
-        console.error('Current project has no valid ID:', currentProject)
         showToast("Invalid project ID", { type: "error" })
         return
       }
@@ -466,7 +463,6 @@ export default function HomeScreen() {
     bottomSheetModalRef.current?.dismiss();
     const projectId = project.$id
     if (!projectId) {
-      console.error('Invalid project ID:', project)
       showToast("Invalid project ID", { type: "error" })
       return
     }
@@ -483,7 +479,6 @@ export default function HomeScreen() {
     try {
       // Validate projectId
       if (!projectId || projectId.trim() === '') {
-        console.warn('loadProjectTasks: projectId is empty or invalid')
         return
       }
       
@@ -567,7 +562,6 @@ export default function HomeScreen() {
         }
       }
     } catch (error) {
-      console.error("Error loading project tasks:", error);
       showToast("Failed to load tasks", { type: "error" });
     } finally {
       setLoading(false);
