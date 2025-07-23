@@ -27,7 +27,6 @@ export function useSettingsEffects() {
         }
         StatusBar.setBarStyle(settings.theme === "dark" ? "light-content" : "dark-content")
       } catch (error) {
-        console.error("Error applying theme:", error)
         showToast("Failed to apply theme changes")
       }
     }
@@ -45,7 +44,6 @@ export function useSettingsEffects() {
           await AsyncStorage.removeItem("pushToken")
         }
       } catch (error) {
-        console.error("Error updating push notifications:", error)
         showToast("Failed to update push notifications")
       }
     }
@@ -64,7 +62,6 @@ export function useSettingsEffects() {
           await offlineStore.persistCachedData(cachedData)
         }
       } catch (error) {
-        console.error("Error updating offline mode:", error)
         showToast("Failed to update offline mode")
       }
     }
@@ -82,7 +79,6 @@ export function useSettingsEffects() {
           await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
         }
       } catch (error) {
-        console.error("Error updating auto-sync:", error)
         showToast("Failed to update auto-sync")
       }
     }
@@ -103,7 +99,6 @@ export function useSettingsEffects() {
       try {
         await AsyncStorage.setItem("fontSize", settings.fontSize)
       } catch (error) {
-        console.error("Error updating font size:", error)
         showToast("Failed to update font size")
       }
     }
@@ -117,7 +112,6 @@ export function useSettingsEffects() {
         await AsyncStorage.setItem("language", settings.language)
         // Here you would typically trigger a language change in your i18n system
       } catch (error) {
-        console.error("Error updating language:", error)
         showToast("Failed to update language")
       }
     }

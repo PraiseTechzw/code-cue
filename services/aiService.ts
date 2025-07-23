@@ -69,7 +69,6 @@ async function generateAIInsights(projects: any[], tasks: any[]): Promise<Insigh
       timestamp: new Date().toISOString()
     }))
   } catch (error) {
-    console.error("Error generating AI insights:", error)
     return []
   }
 }
@@ -114,7 +113,6 @@ async function generateProductivityTips(userActivity: any): Promise<Productivity
       timestamp: new Date().toISOString()
     }))
   } catch (error) {
-    console.error("Error generating productivity tips:", error)
     return getFallbackTips()
   }
 }
@@ -282,7 +280,6 @@ export const aiService = {
 
       return insights
     } catch (error) {
-      console.error("Error generating insights:", error)
       return this.getFallbackInsights()
     }
   },
@@ -306,7 +303,6 @@ export const aiService = {
       
       return tips
     } catch (error) {
-      console.error("Error getting productivity tips:", error)
       return getFallbackTips()
     }
   },

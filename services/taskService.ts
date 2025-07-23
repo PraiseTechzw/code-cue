@@ -89,8 +89,6 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
 
     return tasks || []
   } catch (error) {
-    console.error("Error getting tasks:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = TASKS_CACHE_KEY + (filters ? JSON.stringify(filters) : "")
@@ -101,7 +99,7 @@ export const getTasks = async (filters?: { status?: string[]; projectId?: string
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached tasks:", cacheError)
+      // console.error("Error getting cached tasks:", cacheError)
     }
 
     return []
@@ -113,7 +111,6 @@ export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
   try {
     // Validate projectId
     if (!projectId || projectId.trim() === '') {
-      console.warn('getTasksByProject: projectId is empty or invalid')
       return []
     }
 
@@ -161,8 +158,6 @@ export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
 
     return tasks || []
   } catch (error) {
-    console.error("Error getting tasks by project:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = PROJECT_TASKS_CACHE_KEY + projectId
@@ -173,7 +168,7 @@ export const getTasksByProject = async (projectId: string): Promise<Task[]> => {
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached tasks by project:", cacheError)
+      // console.error("Error getting cached tasks by project:", cacheError)
     }
 
     return []
@@ -226,8 +221,6 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
 
     return taskWithSubtasks
   } catch (error) {
-    console.error("Error getting task by ID:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = TASK_DETAILS_CACHE_KEY + taskId
@@ -238,7 +231,7 @@ export const getTaskById = async (taskId: string): Promise<Task | null> => {
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached task details:", cacheError)
+      // console.error("Error getting cached task details:", cacheError)
     }
 
     return null
@@ -314,7 +307,6 @@ export const createTask = async (taskData: {
 
     return createdTask
   } catch (error) {
-    console.error("Error creating task:", error)
     throw error
   }
 }
@@ -360,13 +352,12 @@ export const updateTask = async (taskId: string, updates: UpdateTask): Promise<T
         const { phaseService } = await import('./phaseService')
         await phaseService.recalculatePhaseProgress(updatedTask.phase_id)
       } catch (e) {
-        console.error('Error updating phase progress after task update:', e)
+        // console.error('Error updating phase progress after task update:', e)
       }
     }
 
     return updatedTask
   } catch (error) {
-    console.error("Error updating task:", error)
     throw error
   }
 }
@@ -407,7 +398,6 @@ export const deleteTask = async (taskId: string): Promise<boolean> => {
 
     return true
   } catch (error) {
-    console.error("Error deleting task:", error)
     throw error
   }
 }
@@ -448,7 +438,6 @@ export const createSubtask = async (subtaskData: NewSubtask): Promise<Subtask> =
 
     return createdSubtask
   } catch (error) {
-    console.error("Error creating subtask:", error)
     throw error
   }
 }
@@ -486,7 +475,6 @@ export const updateSubtask = async (subtaskId: string, completed: boolean): Prom
 
     return updatedSubtask
   } catch (error) {
-    console.error("Error updating subtask:", error)
     throw error
   }
 }
@@ -502,7 +490,6 @@ export const getSubtaskById = async (subtaskId: string): Promise<Subtask | null>
 
     return subtask
   } catch (error) {
-    console.error("Error getting subtask by ID:", error)
     return null
   }
 }
@@ -546,7 +533,6 @@ export const createComment = async (commentData: NewComment): Promise<Comment> =
 
     return createdComment
   } catch (error) {
-    console.error("Error creating comment:", error)
     throw error
   }
 }
@@ -567,7 +553,7 @@ const updateTasksCache = async (newTask: Task) => {
       )
     }
   } catch (error) {
-    console.error("Error updating tasks cache:", error)
+    // console.error("Error updating tasks cache:", error)
   }
 }
 
@@ -587,7 +573,7 @@ const updateTaskCache = async (taskId: string, updates: any) => {
       )
     }
   } catch (error) {
-    console.error("Error updating task cache:", error)
+    // console.error("Error updating task cache:", error)
   }
 }
 
@@ -611,7 +597,7 @@ const removeTaskFromCache = async (taskId: string) => {
     const cacheKey = TASK_DETAILS_CACHE_KEY + taskId
     await AsyncStorage.removeItem(cacheKey)
   } catch (error) {
-    console.error("Error removing task from cache:", error)
+    // console.error("Error removing task from cache:", error)
   }
 }
 
@@ -626,7 +612,6 @@ export const getSubtasksByTask = async (taskId: string): Promise<Subtask[]> => {
     );
     return documents as unknown as Subtask[];
   } catch (error) {
-    console.error('Error fetching subtasks for task:', error);
     return [];
   }
 }

@@ -40,7 +40,6 @@ export const getProjectSettings = async (projectId: string): Promise<ProjectSett
     }
     return null
   } catch (e) {
-    console.error('Error fetching project settings:', e)
     return null
   }
 }
@@ -60,7 +59,6 @@ export const updateProjectSettings = async (settingsId: string, updates: Partial
     }
     return updated
   } catch (e) {
-    console.error('Error updating project settings:', e)
     return null
   }
 }
@@ -84,7 +82,6 @@ export const createProjectSettings = async (projectId: string, defaults: Partial
     await AsyncStorage.setItem(cacheKey, JSON.stringify({ data: doc, timestamp: Date.now() }))
     return doc
   } catch (e) {
-    console.error('Error creating project settings:', e)
     return null
   }
 }

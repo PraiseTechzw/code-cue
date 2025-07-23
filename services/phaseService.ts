@@ -20,7 +20,6 @@ export const getPhasesByProject = async (projectId: string): Promise<Phase[]> =>
   try {
     // Validate projectId
     if (!projectId || projectId.trim() === '') {
-      console.warn('getPhasesByProject: projectId is empty or invalid')
       return []
     }
 
@@ -68,8 +67,6 @@ export const getPhasesByProject = async (projectId: string): Promise<Phase[]> =>
 
     return phases || []
   } catch (error) {
-    console.error("Error getting phases by project:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = PROJECT_PHASES_CACHE_KEY + projectId
@@ -80,7 +77,7 @@ export const getPhasesByProject = async (projectId: string): Promise<Phase[]> =>
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached phases by project:", cacheError)
+      // console.error("Error getting cached phases by project:", cacheError)
     }
 
     return []
@@ -92,7 +89,6 @@ export const getPhaseById = async (phaseId: string): Promise<Phase | null> => {
   try {
     // Validate phaseId
     if (!phaseId || phaseId.trim() === '') {
-      console.warn('getPhaseById: phaseId is empty or invalid')
       return null
     }
 
@@ -135,8 +131,6 @@ export const getPhaseById = async (phaseId: string): Promise<Phase | null> => {
 
     return phase
   } catch (error) {
-    console.error("Error getting phase by ID:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = PHASE_DETAILS_CACHE_KEY + phaseId
@@ -147,7 +141,7 @@ export const getPhaseById = async (phaseId: string): Promise<Phase | null> => {
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached phase details:", cacheError)
+      // console.error("Error getting cached phase details:", cacheError)
     }
 
     return null
@@ -205,7 +199,6 @@ export const createPhase = async (phaseData: Omit<Phase, '$id' | '$createdAt' | 
 
     return createdPhase
   } catch (error) {
-    console.error("Error creating phase:", error)
     throw error
   }
 }
@@ -250,7 +243,6 @@ export const updatePhase = async (phaseId: string, updates: Partial<Phase>): Pro
 
     return updatedPhase
   } catch (error) {
-    console.error("Error updating phase:", error)
     throw error
   }
 }
@@ -286,7 +278,6 @@ export const deletePhase = async (phaseId: string): Promise<void> => {
     // Remove from cache
     await AsyncStorage.removeItem(PHASE_DETAILS_CACHE_KEY + phaseId)
   } catch (error) {
-    console.error("Error deleting phase:", error)
     throw error
   }
 }
@@ -322,7 +313,7 @@ const updatePhasesCache = async (phase: Phase) => {
       }),
     )
   } catch (error) {
-    console.error("Error updating phases cache:", error)
+    // console.error("Error updating phases cache:", error)
   }
 }
 
@@ -340,7 +331,6 @@ export const calculateProjectProgress = async (projectId: string): Promise<numbe
 
     return totalWeight > 0 ? Math.round(weightedProgress / totalWeight * 100) : 0
   } catch (error) {
-    console.error("Error calculating project progress:", error)
     return 0
   }
 }
@@ -354,7 +344,6 @@ export const recalculateProjectProgress = async (projectId: string) => {
     await projectService.updateProject(projectId, { progress })
     return progress
   } catch (error) {
-    console.error('Error recalculating project progress:', error)
     return 0
   }
 }
@@ -381,7 +370,6 @@ export const recalculatePhaseProgress = async (phaseId: string) => {
     }
     return progress
   } catch (error) {
-    console.error('Error recalculating phase progress:', error)
     return 0
   }
 }

@@ -42,7 +42,6 @@ class UserService {
 
       return publicUrl
     } catch (error) {
-      console.error("Error uploading profile image:", error)
       return null
     }
   }
@@ -62,7 +61,6 @@ class UserService {
 
       return null
     } catch (error) {
-      console.error("Error picking image:", error)
       return null
     }
   }
@@ -81,7 +79,6 @@ class UserService {
 
       return null
     } catch (error) {
-      console.error("Error taking photo:", error)
       return null
     }
   }
@@ -103,7 +100,6 @@ class UserService {
 
       return null
     } catch (error) {
-      console.error("Error getting profile:", error)
       return null
     }
   }

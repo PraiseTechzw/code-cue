@@ -28,7 +28,6 @@ export const getProfile = async (): Promise<Profile | null> => {
 
     return null
     } catch (error) {
-    console.error("Error getting profile:", error)
         return null
       }
     }
@@ -80,7 +79,6 @@ export const upsertProfile = async (profileData: Partial<Profile>): Promise<Prof
     await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile))
     return profile
     } catch (error) {
-    console.error("Error upserting profile:", error)
     return null
   }
 }
@@ -111,7 +109,6 @@ export const updateProfile = async (updates: Partial<Profile>): Promise<Profile 
     await AsyncStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(updatedProfile))
           return updatedProfile
   } catch (error) {
-    console.error("Error updating profile:", error)
     return null
   }
 }

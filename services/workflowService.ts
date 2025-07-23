@@ -56,7 +56,6 @@ export const workflowService = {
       
       return automations
     } catch (error) {
-      console.error('Error getting workflow automations:', error)
       return []
     }
   },
@@ -104,7 +103,6 @@ export const workflowService = {
 
       return createdAutomation
     } catch (error) {
-      console.error('Error creating workflow automation:', error)
       throw error
     }
   },
@@ -140,7 +138,6 @@ export const workflowService = {
 
       return updatedAutomation
     } catch (error) {
-      console.error('Error updating workflow automation:', error)
       throw error
     }
   },
@@ -175,7 +172,6 @@ export const workflowService = {
 
       return true
     } catch (error) {
-      console.error('Error deleting workflow automation:', error)
       throw error
     }
   },
@@ -198,7 +194,6 @@ export const workflowService = {
         }
       }
     } catch (error) {
-      console.error('Error executing automation:', error)
     }
   },
 
@@ -217,7 +212,6 @@ export const workflowService = {
       }
       return true
     } catch (error) {
-      console.error('Error evaluating conditions:', error)
       return false
     }
   },
@@ -255,7 +249,6 @@ export const workflowService = {
         await this.executeAction(action, context)
       }
     } catch (error) {
-      console.error('Error executing actions:', error)
     }
   },
 
@@ -287,10 +280,8 @@ export const workflowService = {
           await this.sendWebhookFromAction(action.parameters, context)
           break
         default:
-          console.warn('Unknown action type:', action.type)
-      }
+        }
     } catch (error) {
-      console.error('Error executing action:', error)
     }
   },
 
@@ -312,7 +303,6 @@ export const workflowService = {
 
       await taskService.createTask(taskData)
     } catch (error) {
-      console.error('Error creating task from action:', error)
     }
   },
 
@@ -333,7 +323,6 @@ export const workflowService = {
 
       await taskService.updateTask(taskId, updates)
     } catch (error) {
-      console.error('Error updating task from action:', error)
     }
   },
 
@@ -354,7 +343,6 @@ export const workflowService = {
 
       await notificationService.createNotification(notificationData)
     } catch (error) {
-      console.error('Error sending notification from action:', error)
     }
   },
 
@@ -370,7 +358,6 @@ export const workflowService = {
 
       await taskService.updateTask(taskId, { assignee_id: userId })
     } catch (error) {
-      console.error('Error assigning user from action:', error)
     }
   },
 
@@ -390,7 +377,6 @@ export const workflowService = {
         await phaseService.updatePhase(entityId, { status: newStatus })
       }
     } catch (error) {
-      console.error('Error updating status from action:', error)
     }
   },
 
@@ -401,7 +387,6 @@ export const workflowService = {
     try {
       // This would integrate with an email service
     } catch (error) {
-      console.error('Error sending email from action:', error)
     }
   },
 
@@ -417,7 +402,6 @@ export const workflowService = {
 
       // This would make an HTTP request to the webhook URL
     } catch (error) {
-      console.error('Error sending webhook from action:', error)
     }
   },
 
@@ -469,7 +453,6 @@ export const workflowService = {
       
       return templates
     } catch (error) {
-      console.error('Error getting project templates:', error)
       return []
     }
   },
@@ -534,7 +517,6 @@ export const workflowService = {
 
       return project.$id
     } catch (error) {
-      console.error('Error creating project from template:', error)
       throw error
     }
   }

@@ -77,8 +77,6 @@ export const getProjects = async (): Promise<Project[]> => {
 
     return projects || []
   } catch (error) {
-    console.error("Error getting projects:", error)
-
     // Try to get from cache as fallback
     try {
       const cachedData = await AsyncStorage.getItem(PROJECTS_CACHE_KEY)
@@ -88,7 +86,7 @@ export const getProjects = async (): Promise<Project[]> => {
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached projects:", cacheError)
+      // console.error("Error getting cached projects:", cacheError)
     }
 
     return []
@@ -100,7 +98,6 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
   try {
     // Validate projectId
     if (!projectId || projectId.trim() === '') {
-      console.warn('getProjectById: projectId is empty or invalid')
       return null
     }
 
@@ -143,8 +140,6 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
 
     return project
   } catch (error) {
-    console.error("Error getting project by ID:", error)
-
     // Try to get from cache as fallback
     try {
       const cacheKey = PROJECT_DETAILS_CACHE_KEY + projectId
@@ -155,7 +150,7 @@ export const getProjectById = async (projectId: string): Promise<Project | null>
         return data
       }
     } catch (cacheError) {
-      console.error("Error getting cached project details:", cacheError)
+      // console.error("Error getting cached project details:", cacheError)
     }
 
     return null
@@ -235,7 +230,6 @@ export const createProject = async (projectData: NewProject): Promise<Project> =
 
     return createdProject
   } catch (error) {
-    console.error("Error creating project:", error)
     throw error
   }
 }
@@ -277,7 +271,6 @@ export const updateProject = async (projectId: string, updates: UpdateProject): 
 
     return updatedProject
   } catch (error) {
-    console.error("Error updating project:", error)
     throw error
   }
 }
@@ -318,7 +311,6 @@ export const deleteProject = async (projectId: string): Promise<boolean> => {
 
     return true
   } catch (error) {
-    console.error("Error deleting project:", error)
     throw error
   }
 }
@@ -339,7 +331,7 @@ const updateProjectsCache = async (newProject: Project) => {
     )
     }
   } catch (error) {
-    console.error("Error updating projects cache:", error)
+    // console.error("Error updating projects cache:", error)
   }
 }
 
@@ -359,7 +351,7 @@ const updateProjectCache = async (projectId: string, updates: any) => {
       )
     }
   } catch (error) {
-    console.error("Error updating project cache:", error)
+    // console.error("Error updating project cache:", error)
   }
 }
 
@@ -383,7 +375,7 @@ const removeProjectFromCache = async (projectId: string) => {
     const cacheKey = PROJECT_DETAILS_CACHE_KEY + projectId
     await AsyncStorage.removeItem(cacheKey)
   } catch (error) {
-    console.error("Error removing project from cache:", error)
+    // console.error("Error removing project from cache:", error)
   }
 }
 

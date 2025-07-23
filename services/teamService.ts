@@ -89,7 +89,6 @@ export const teamService = {
       
       return members
     } catch (error) {
-      console.error('Error getting team members:', error)
       return []
     }
   },
@@ -170,7 +169,6 @@ export const teamService = {
 
       return createdMember
     } catch (error) {
-      console.error('Error adding team member:', error)
       throw error
     }
   },
@@ -228,7 +226,6 @@ export const teamService = {
 
       return updatedMember
     } catch (error) {
-      console.error('Error updating team member role:', error)
       throw error
     }
   },
@@ -289,7 +286,6 @@ export const teamService = {
 
       return true
     } catch (error) {
-      console.error('Error removing team member:', error)
       throw error
     }
   },
@@ -308,7 +304,6 @@ export const teamService = {
 
       return userMember.permissions.includes(permission)
     } catch (error) {
-      console.error('Error checking permission:', error)
       return false
     }
   },
@@ -323,7 +318,6 @@ export const teamService = {
       
       return userMember?.role || null
     } catch (error) {
-      console.error('Error getting user role:', error)
       return null
     }
   },
@@ -374,7 +368,7 @@ export const teamService = {
         activity
       )
     } catch (error) {
-      console.error('Error logging activity:', error)
+      // console.error('Error logging activity:', error)
     }
   },
 
@@ -409,7 +403,6 @@ export const teamService = {
       
       return activities
     } catch (error) {
-      console.error('Error getting project activities:', error)
       return []
     }
   },
@@ -446,7 +439,6 @@ export const teamService = {
         recentActivity
       }
     } catch (error) {
-      console.error('Error getting team stats:', error)
       return {
         totalMembers: 0,
         activeMembers: 0,
