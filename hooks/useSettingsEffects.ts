@@ -78,7 +78,6 @@ export function useSettingsEffects() {
         if (settings.autoSync) {
           await offlineStore.syncOfflineChanges((progress) => {
             // Handle progress updates if needed
-            console.log("Sync progress:", progress)
           })
           await AsyncStorage.setItem("lastSyncedTime", Date.now().toString())
         }

@@ -59,15 +59,13 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
   try {
     const online = await isOnline()
     if (!online) {
-      console.log("Device is offline, skipping sync")
-    return
-  }
+      return
+    }
 
     const changes = await getOfflineChanges()
     const unsyncedChanges = changes.filter(change => !change.synced)
 
     if (unsyncedChanges.length === 0) {
-      console.log("No unsynced changes to process")
       if (progressCallback) {
         progressCallback({
           total: 0,
@@ -80,8 +78,6 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
       }
       return
     }
-
-    console.log(`Syncing ${unsyncedChanges.length} offline changes`)
 
     // Initialize progress
     let completed = 0
@@ -108,7 +104,6 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
         await updateOfflineChange(change)
         
         completed++
-        console.log(`Successfully synced change: ${change.operation} on ${change.table_name}`)
       } catch (error) {
         console.error(`Error syncing change ${change.id}:`, error)
         failed++
@@ -119,7 +114,6 @@ export const syncOfflineChanges = async (progressCallback?: (progress: any) => v
         // Remove if too many retries
         if (change.retry_count >= 3) {
           await removeOfflineChange(change.id)
-          console.log(`Removed change ${change.id} after ${change.retry_count} failed attempts`)
         } else {
           await updateOfflineChange(change)
         }
@@ -331,7 +325,6 @@ export const cacheUserData = async (): Promise<void> => {
       await setItem(CACHE_KEYS.PROFILES, profiles[0])
     }
 
-    console.log("User data cached successfully")
   } catch (error) {
     console.error("Error caching user data:", error)
   }
@@ -347,7 +340,6 @@ export const clearCache = async (): Promise<void> => {
       CACHE_KEYS.NOTIFICATIONS,
       CACHE_KEYS.PROFILES
     ])
-    console.log("Cache cleared successfully")
   } catch (error) {
     console.error("Error clearing cache:", error)
   }
@@ -390,7 +382,6 @@ export const offlineStore = {
   async enableOfflineMode() {
     try {
       await AsyncStorage.setItem('offline_mode', 'true')
-      console.log("Offline mode enabled")
     } catch (error) {
       console.error("Error enabling offline mode:", error)
     }
@@ -399,7 +390,6 @@ export const offlineStore = {
   async disableOfflineMode() {
     try {
       await AsyncStorage.setItem('offline_mode', 'false')
-      console.log("Offline mode disabled")
     } catch (error) {
       console.error("Error disabling offline mode:", error)
     }

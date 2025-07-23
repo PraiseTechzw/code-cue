@@ -69,8 +69,6 @@ export const teamService = {
    */
   async getTeamMembers(projectId: string): Promise<TeamMember[]> {
     try {
-      // Debug: log collection ID
-      console.log('[teamService] Using TEAM_MEMBERS collection ID:', COLLECTIONS.TEAM_MEMBERS)
       const online = isOnline()
       
       if (!online) {
@@ -83,8 +81,6 @@ export const teamService = {
         COLLECTIONS.TEAM_MEMBERS,
         [Query.equal('project_id', projectId)]
       )
-      // Debug: log query result
-      console.log('[teamService] getTeamMembers result:', documents)
 
       const members = documents as unknown as TeamMember[]
       

@@ -518,13 +518,11 @@ export const notificationService = {
   setupNotificationListeners(): void {
     // Handle notification received while app is running
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification)
       this.handleNotificationReceived(notification)
     })
 
     // Handle notification response (user tapped notification)
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response)
       this.handleNotificationResponse(response)
     })
 
@@ -555,20 +553,17 @@ export const notificationService = {
     // This would typically update a global state or context
     // For now, we'll just log it
     this.getUnreadCount().then(count => {
-      console.log('Unread notifications:', count)
     })
   },
 
   showInAppNotification(notification: Notifications.Notification): void {
     // This would typically show a toast or in-app notification
     // For now, we'll just log it
-    console.log('In-app notification:', notification.request.content.title)
   },
 
   navigateToNotificationTarget(data: any): void {
     // This would typically use navigation to go to the target screen
     // For now, we'll just log it
-    console.log('Navigate to:', data.actionUrl)
   },
 
   async updatePushToken(token: string): Promise<void> {

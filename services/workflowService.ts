@@ -400,11 +400,6 @@ export const workflowService = {
   async sendEmailFromAction(parameters: Record<string, any>, context: Record<string, any>): Promise<void> {
     try {
       // This would integrate with an email service
-      console.log('Email action would be sent:', {
-        to: parameters.to,
-        subject: this.interpolateTemplate(parameters.subject, context),
-        body: this.interpolateTemplate(parameters.body, context)
-      })
     } catch (error) {
       console.error('Error sending email from action:', error)
     }
@@ -421,7 +416,6 @@ export const workflowService = {
       if (!url) return
 
       // This would make an HTTP request to the webhook URL
-      console.log('Webhook would be sent to:', url, payload)
     } catch (error) {
       console.error('Error sending webhook from action:', error)
     }

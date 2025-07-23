@@ -3,7 +3,11 @@ import { notificationService } from "./notificationService"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.EXPO_PUBLIC_GEMINI_API_KEY || "AIzaSyC1Kpx_5w6XBMNw8LNL5uIhdce0_Bf-g9w")
+const geminiApiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY
+if (!geminiApiKey) {
+  throw new Error('EXPO_PUBLIC_GEMINI_API_KEY environment variable is required for Gemini AI.')
+}
+const genAI = new GoogleGenerativeAI(geminiApiKey)
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" })
 
 // Types for insights
