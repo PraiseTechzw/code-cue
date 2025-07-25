@@ -26,10 +26,9 @@ export default function InsightsScreen() {
     overdueTasks: 0,
     productivityScore: 0
   })
-  const [productivityTips, setProductivityTips] = useState<any[]>([])
-  const [drawerVisible, setDrawerVisible] = useState(false)
   const { showToast } = useToast()
   const [isOffline, setIsOffline] = useState(false)
+  const [drawerVisible, setDrawerVisible] = useState(false)
 
   useEffect(() => {
     loadInsights()
@@ -55,9 +54,6 @@ export default function InsightsScreen() {
       const projects = await projectService.getProjects()
       const tasks = await taskService.getTasks()
       const aiInsights = await aiService.generateInsights(projects, tasks)
-      const tips = await aiService.getProductivityTips()
-      setInsights(aiInsights)
-      setProductivityTips(tips)
       
       // Calculate stats
       const now = new Date()
@@ -77,6 +73,7 @@ export default function InsightsScreen() {
         overdueTasks,
         productivityScore
       })
+      setInsights(aiInsights)
     } catch (error) {
       showToast('Failed to load insights', { type: 'error' })
       // Load fallback insights

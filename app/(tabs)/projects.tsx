@@ -39,7 +39,6 @@ export default function ProjectsScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [projectDetails, setProjectDetails] = useState<any>({})
   const [projectSettings, setProjectSettings] = useState<any>({})
 
@@ -121,7 +120,6 @@ export default function ProjectsScreen() {
   const loadProjects = async () => {
     try {
       setLoading(true)
-      setError(null)
       const data = await projectService.getProjects()
       
       // Ensure all projects have valid IDs
@@ -135,7 +133,6 @@ export default function ProjectsScreen() {
       
       setProjects(validProjects)
     } catch (error) {
-      setError("Failed to load projects. Please try again.")
       showToast("Failed to load projects", { type: "error" })
     } finally {
       setLoading(false)
@@ -367,21 +364,6 @@ export default function ProjectsScreen() {
   const renderEmptyState = () => {
     if (loading) return null
     
-    if (error) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={80} color={theme.error} />
-          <Text style={[styles.emptyText, { color: theme.text }]}>{error}</Text>
-          <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: theme.tint }]}
-            onPress={loadProjects}
-          >
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      )
-    }
-
     if (searchQuery && filteredProjects.length === 0) {
       return (
         <View style={styles.emptyContainer}>

@@ -617,31 +617,6 @@ export default function HomeScreen() {
     setFilteredTasks(filteredTasks);
   };
 
-  const renderSkeleton = () => (
-    <View style={{ padding: 16 }}>
-      <Skeleton
-        colorMode={colorScheme === "dark" ? "dark" : "light"}
-        width={150}
-        height={20}
-        radius={4}
-      />
-      <View style={{ height: 12 }} />
-      <Skeleton
-        colorMode={colorScheme === "dark" ? "dark" : "light"}
-        width="100%"
-        height={40}
-        radius={4}
-      />
-      <View style={{ height: 12 }} />
-      <Skeleton
-        colorMode={colorScheme === "dark" ? "dark" : "light"}
-        width="100%"
-        height={40}
-        radius={4}
-      />
-    </View>
-  );
-
   const renderProjectItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={[

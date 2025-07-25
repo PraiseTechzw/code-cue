@@ -44,7 +44,6 @@ export default function AddTaskScreen() {
   const [description, setDescription] = useState("")
   const [dueDate, setDueDate] = useState<Date | null>(null)
   const [priority, setPriority] = useState("Medium")
-  const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(false)
   const [projectLoading, setProjectLoading] = useState(true)
   const [projectName, setProjectName] = useState("")
@@ -150,7 +149,6 @@ export default function AddTaskScreen() {
       newErrors.taskTitle = "Task title must be less than 100 characters"
     }
 
-    setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
@@ -340,7 +338,6 @@ export default function AddTaskScreen() {
               style={[
                 styles.input,
                 { backgroundColor: theme.cardBackground, color: theme.text, borderColor: theme.border },
-                errors.taskTitle && styles.inputError,
               ]}
               placeholder="Enter task title"
               placeholderTextColor={theme.textDim}
@@ -350,11 +347,6 @@ export default function AddTaskScreen() {
               accessibilityLabel="Task title input"
               accessibilityHint="Enter the title of your task"
             />
-            {errors.taskTitle ? (
-              <Text style={styles.errorText}>{errors.taskTitle}</Text>
-            ) : (
-              <Text style={[styles.charCount, { color: theme.textDim }]}>{taskTitle.length}/100</Text>
-            )}
           </View>
 
           <View style={styles.formGroup}>
